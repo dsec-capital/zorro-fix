@@ -1,0 +1,2 @@
+#define ZORROFIXPLUGIN_API __declspec(dllexport)
+#define ZORROFIXPLUGIN_API __declspec(dllimport)
