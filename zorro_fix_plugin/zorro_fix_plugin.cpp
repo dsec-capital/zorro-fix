@@ -5,13 +5,27 @@
 
 #define _CRT_SECURE_NO_DEPRECATE
 
+#include "quickfix/config.h"
+
+#include "quickfix/FileStore.h"
+#include "quickfix/SocketInitiator.h"
+#ifdef HAVE_SSL
+#include "quickfix/ThreadedSSLSocketInitiator.h"
+#include "quickfix/SSLSocketInitiator.h"
+#endif
+#include "quickfix/SessionSettings.h"
+#include "quickfix/Log.h"
+#include "application.h"
+
 #include <time.h>
 #include <string>
 #include <string>
-#include <sstream>
 #include <vector>
 #include <memory>
 #include <fstream>
+#include <sstream>
+#include <thread>
+#include <iostream>
 #include <type_traits>
 #include <unordered_map>
 
@@ -22,12 +36,71 @@
 #define INITIAL_PRICE	1.0
 #define INITIAL_ID		1000
 
+namespace zfix {
+
+	class FixThread {
+		std::thread thread;
+		FIX::Initiator* initiator;
+		zfix::Application* application;
+
+		void run() {
+			initiator->start();
+			application->run();
+		}
+
+	public:
+		FixThread(
+			FIX::Initiator* initiator,
+			zfix::Application* application
+		) :
+			initiator(initiator),
+			application(application)
+		{}
+
+		void start() {
+			thread = std::thread(&FixThread::run, this);
+		}
+
+		void cancel() {
+			initiator->stop();
+			if (thread.joinable())
+				thread.join();
+		}
+	};
+}
+
 namespace {
-
-
+	std::unique_ptr<FIX::Initiator> fix_initiator;
+	std::unique_ptr<zfix::Application> fix_application;
+	std::unique_ptr<zfix::FixThread> fix_thread;
+	std::string settings_cfg_file = "";
 }
 
 namespace zfix {
+
+	std::unique_ptr<FIX::Initiator> create_initator(zfix::Application& application, const std::string& settings_cfg_file, const std::string& isSSL)
+	{
+		FIX::SessionSettings settings(settings_cfg_file);
+		FIX::FileStoreFactory storeFactory(settings);
+		FIX::ScreenLogFactory logFactory(settings);
+
+#ifdef HAVE_SSL
+		if (isSSL.compare("SSL") == 0)
+			initiator = std::unique_ptr<FIX::Initiator>(
+				new FIX::ThreadedSSLSocketInitiator(application, storeFactory, settings, logFactory));
+		else if (isSSL.compare("SSL-ST") == 0)
+			initiator = std::unique_ptr<FIX::Initiator>(
+				new FIX::SSLSocketInitiator(application, storeFactory, settings, logFactory));
+		else
+#endif
+		return std::unique_ptr<FIX::Initiator>(
+			new FIX::SocketInitiator(application, storeFactory, settings, logFactory)
+		);
+	}
+
+	std::unique_ptr<zfix::Application> create_application() {
+		return std::unique_ptr<zfix::Application>(new Application());
+	}
 
 	DATE convertTime(__time32_t t32)
 	{
@@ -52,6 +125,17 @@ namespace zfix {
 		(FARPROC&)BrokerError = fpError;
 		(FARPROC&)BrokerProgress = fpProgress;
 		showMsg("BrokerOpen: Zorro-Fix-Bridge plugin opened");
+
+		// initialize
+		try {
+			fix_application = create_application();
+			fix_initiator = create_initator(*fix_application, settings_cfg_file, "");
+			fix_thread = std::unique_ptr<FixThread>(new FixThread(fix_initiator.get(), fix_application.get()));
+		} catch (std::exception& e)
+		{
+			showMsg(e.what());
+			return 0; // TODO check return value
+		}
 		return PLUGIN_VERSION;
 	}
 
@@ -64,8 +148,9 @@ namespace zfix {
 
 	DLLFUNC int BrokerLogin(char* User, char* Pwd, char* Type, char* Account) {
 		if (User) {
-			showMsg("BrokerLogin: Zorro-Fix-Bridge connected");
-
+			showMsg("BrokerLogin: Zorro-Fix-Bridge connected - starting fix service");
+			fix_thread->start();
+			showMsg("BrokerLogin: Zorro-Fix-Bridge connected - fix service running");
 			return 1;
 		}
 		else {

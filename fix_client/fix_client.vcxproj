@@ -90,6 +90,9 @@
       <AdditionalLibraryDirectories>$(SolutionDir)third-parties\quickfix\$(LibrariesArchitecture)-$(Configuration)\lib</AdditionalLibraryDirectories>
       <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);quickfixd.lib;ws2_32.lib</AdditionalDependencies>
     </Link>
+    <PostBuildEvent>
+      <Command>copy /y "$(ProjectDir)\fix_client.cfg" "$(SolutionDir)$(Configuration)"</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
