@@ -3,9 +3,9 @@
 #pragma warning(disable : 4996 4244 4312)
 
 #include "quickfix/config.h"
-
 #include "quickfix/FileStore.h"
 #include "quickfix/SocketInitiator.h"
+#include "quickfix/Values.h"
 #ifdef HAVE_SSL
 #include "quickfix/ThreadedSSLSocketInitiator.h"
 #include "quickfix/SSLSocketInitiator.h"
@@ -29,6 +29,7 @@
 
 #include "logger.h"
 #include "zorro_fix_plugin.h"
+#include "broker_commands.h"
 
 #define PLUGIN_VERSION	2
 #define INITIAL_PRICE	1.0
@@ -38,12 +39,12 @@ namespace zfix {
 
 	class FixThread {
 		bool started;
-		std::string settings_cfg_file;
+		std::string settingsCfgFile;
 		FIX::SessionSettings settings;
 		FIX::FileStoreFactory storeFactory;
 		FIX::ScreenLogFactory logFactory;
 		std::unique_ptr<FIX::Initiator> initiator;
-		std::unique_ptr <zfix::Application> application;
+		std::unique_ptr<zfix::Application> application;
 		std::thread thread;
 
 		void run() {
@@ -53,11 +54,11 @@ namespace zfix {
 
 	public:
 		FixThread(
-			const std::string& settings_cfg_file, const std::string& isSSL
+			const std::string& settingsCfgFile, const std::string& isSSL
 		) :
 			started(false),
-			settings_cfg_file(settings_cfg_file),
-			settings(settings_cfg_file),
+			settingsCfgFile(settingsCfgFile),
+			settings(settingsCfgFile),
 			storeFactory(settings),
 			logFactory(settings)
 		{
@@ -88,18 +89,25 @@ namespace zfix {
 			started = false;
 			application->stop();
 			initiator->stop(true);
-			LOG_INFO("FixThread: FIX initiator and application stopped - going to join")
+			LOG_INFO("FixThread: FIX initiator and application stopped - going to join\n")
 			if (thread.joinable())
 				thread.join();
-			LOG_INFO("FixThread: FIX initiator stopped - joined")
+			LOG_INFO("FixThread: FIX initiator stopped - joined\n")
+		}
+
+		const zfix::Application& fixApp() {
+			return *application;
 		}
 	};
 }
 
 namespace {
-	std::string settings_cfg_file = "Plugin/zorro_fix_client.cfg";
+	std::string settingsCfgFile = "Plugin/zorro_fix_client.cfg";
 
-	std::unique_ptr<zfix::FixThread> fix_thread = nullptr;
+	std::unique_ptr<zfix::FixThread> fixThread = nullptr;
+
+	int s_internalOrderId = 1000;
+	FIX::TimeInForce s_timeInForce = FIX::TimeInForce_GOOD_TILL_CANCEL;
 }
 
 namespace zfix {
@@ -131,31 +139,31 @@ namespace zfix {
 
 	DLLFUNC int BrokerLogin(char* User, char* Pwd, char* Type, char* Account) {
 		if (User) {
-			if (fix_thread != nullptr) {
+			if (fixThread != nullptr) {
 				showMsg("BrokerLogin: Zorro-Fix-Bridge - stopping fix service on repeated login...");
-				fix_thread->cancel();
+				fixThread->cancel();
 				showMsg("BrokerLogin: Zorro-Fix-Bridge - fix service stopped on repeated login");
-				fix_thread = nullptr;
+				fixThread = nullptr;
 			}
 			showMsg("BrokerLogin: Zorro-Fix-Bridge - starting fix service...");
 			try {
-				fix_thread = std::unique_ptr<FixThread>(new FixThread(settings_cfg_file, ""));
+				fixThread = std::unique_ptr<FixThread>(new FixThread(settingsCfgFile, ""));
 			}
 			catch (std::exception& e) {
-				fix_thread = nullptr;
+				fixThread = nullptr;
 				showMsg(e.what());
 				return 0;  
 			}
-			fix_thread->start();
+			fixThread->start();
 			showMsg("BrokerLogin: Zorro-Fix-Bridge - fix service running");
 			return 1; // logged in status
 		}
 		else {
-			if (fix_thread != nullptr) {
+			if (fixThread != nullptr) {
 				showMsg("BrokerLogin: Zorro-Fix-Bridge - stopping fix service...");
-				fix_thread->cancel();
+				fixThread->cancel();
 				showMsg("BrokerLogin: Zorro-Fix-Bridge - fix service stopped");
-				fix_thread = nullptr;
+				fixThread = nullptr;
 			}	
 			return 0; // logged out status
 		}
@@ -218,22 +226,28 @@ namespace zfix {
 	{
 		auto start = std::time(nullptr);
 
-		double qty = std::abs(nAmount);
-		if (dLimit) {
-			// limit
-		}
-		else {
-			dLimit = NAN;
+		FIX::OrdType ordType;
+		if (dLimit && !dStopDist)
+			ordType = FIX::OrdType_LIMIT;
+		else if (dLimit && dStopDist)
+			ordType = FIX::OrdType_STOP_LIMIT;
+		else if (!dLimit && dStopDist)
+			ordType = FIX::OrdType_STOP;
+		else
+			ordType = FIX::OrdType_MARKET;
 
-		}
+		auto symbol = FIX::Symbol(Asset);
+		auto clOrdId = FIX::ClOrdID(std::to_string(s_internalOrderId));
+		auto side = nAmount > 0 ? FIX::Side(FIX::Side_BUY) : FIX::Side(FIX::Side_SELL);
+		auto qty = FIX::OrderQty(std::abs(nAmount));
+		auto limitPrice = FIX::Price(dLimit);
+		auto stopPrice = FIX::StopPx(dStopDist);
 
-		if (dStopDist) {
+		auto msg = fixThread->fixApp().newOrderSingle(
+			symbol, clOrdId, side, ordType, s_timeInForce, qty, limitPrice, stopPrice
+		);
 
-		}
-
-		LOG_DEBUG("BrokerBuy2 %s orderText=%s nAmount=%d qty=%f dStopDist=%f limit=%f\n", Asset, "text", nAmount, qty, dStopDist, dLimit);
-
-		auto internalOrdId = 0;
+		LOG_DEBUG("BrokerBuy2 msg=%s\n", msg.toString().c_str());
 
 		bool fill = true;
 
@@ -246,11 +260,9 @@ namespace zfix {
 			}
 
 			// reset s_amount, next asset might have lotAmount = 1, in that case SET_AMOUNT will not be called in advance
-
-			return internalOrdId;
 		}
 
-		return internalOrdId;
+		return s_internalOrderId++;
 	}
 
 	DLLFUNC int BrokerTrade(int nTradeID, double* pOpen, double* pClose, double* pCost, double* pProfit) {
@@ -266,6 +278,7 @@ namespace zfix {
 		return 0;
 	}
 
+	// https://zorro-project.com/manual/en/brokercommand.htm
 	DLLFUNC double BrokerCommand(int command, DWORD dwParameter) {
 		switch (command)
 		{
@@ -304,20 +317,34 @@ namespace zfix {
 			return 1;
 		}
 
+		// return 0 for not supported							
 		case SET_ORDERTYPE: {
 			switch ((int)dwParameter) {
 			case 0:
-				return 0;
-			default:
+				return 0; 
+			case ORDERTYPE_IOC:
+				s_timeInForce = FIX::TimeInForce_IMMEDIATE_OR_CANCEL;
 				break;
+			case ORDERTYPE_GTC:
+				s_timeInForce = FIX::TimeInForce_GOOD_TILL_CANCEL;
+				break;
+			case ORDERTYPE_FOK:
+				s_timeInForce = FIX::TimeInForce_FILL_OR_KILL;
+				break;
+			case ORDERTYPE_DAY:
+				s_timeInForce = FIX::TimeInForce_DAY;
+				break;
+			default:
+				return 0;
 			}
 
+			// additional stop order 
 			if ((int)dwParameter >= 8) {
-				return (int)dwParameter;
+				return 0; 
 			}
 
-			LOG_DEBUG("SET_ORDERTYPE: %d s_tif=%s\n", (int)dwParameter, "tif");
-			return 0; // tifToZorroOrderType(s_tif);
+			LOG_DEBUG("SET_ORDERTYPE: %d\n", (int)dwParameter);
+			return (int)dwParameter;
 		}
 
 		case GET_PRICETYPE:

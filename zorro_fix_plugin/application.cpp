@@ -13,6 +13,7 @@
 
 namespace zfix
 {
+	void Application::onCreate(const FIX::SessionID&) {}
 
 	void Application::onLogon(const FIX::SessionID& sessionID)
 	{
@@ -26,6 +27,14 @@ namespace zfix
 	{
 		LOG_INFO("Application::onLogout %s\n", sessionID.toString().c_str());
 	}
+
+	void Application::fromAdmin(
+		const FIX::Message&, const FIX::SessionID&
+	) EXCEPT(FIX::FieldNotFound, FIX::IncorrectDataFormat, FIX::IncorrectTagValue, FIX::RejectLogon)
+	{}
+
+	void Application::toAdmin(FIX::Message&, const FIX::SessionID&) 
+	{}
 
 	void Application::fromApp(const FIX::Message& message, const FIX::SessionID& sessionID)
 		EXCEPT(FIX::FieldNotFound, FIX::IncorrectDataFormat, FIX::IncorrectTagValue, FIX::UnsupportedMessageType)
@@ -45,38 +54,44 @@ namespace zfix
 		}
 		catch (FIX::FieldNotFound&) {}
 
-		std::cout << std::endl
-			<< "OUT: " << message << std::endl;
+		std::cout << std::endl << "OUT: " << message << std::endl;
 	}
 
-	void Application::onMessage
-	(const FIX40::ExecutionReport&, const FIX::SessionID&) {}
-	void Application::onMessage
-	(const FIX40::OrderCancelReject&, const FIX::SessionID&) {}
-	void Application::onMessage
-	(const FIX41::ExecutionReport&, const FIX::SessionID&) {}
-	void Application::onMessage
-	(const FIX41::OrderCancelReject&, const FIX::SessionID&) {}
-	void Application::onMessage
-	(const FIX42::ExecutionReport&, const FIX::SessionID&) {}
-	void Application::onMessage
-	(const FIX42::OrderCancelReject&, const FIX::SessionID&) {}
-	void Application::onMessage
-	(const FIX43::ExecutionReport&, const FIX::SessionID&) {}
-	void Application::onMessage
-	(const FIX43::OrderCancelReject&, const FIX::SessionID&) {}
-	void Application::onMessage
-	(const FIX44::ExecutionReport&, const FIX::SessionID&) {}
-	void Application::onMessage
-	(const FIX44::OrderCancelReject&, const FIX::SessionID&) {}
-	void Application::onMessage
-	(const FIX50::ExecutionReport&, const FIX::SessionID&) {}
-	void Application::onMessage
-	(const FIX50::OrderCancelReject&, const FIX::SessionID&) {}
+	void Application::onMessage(const FIX40::ExecutionReport&, const FIX::SessionID&) 
+	{}
+	
+	void Application::onMessage(const FIX40::OrderCancelReject&, const FIX::SessionID&) 
+	{}
+	
+	void Application::onMessage(const FIX41::ExecutionReport&, const FIX::SessionID&) 
+	{}
+	
+	void Application::onMessage(const FIX41::OrderCancelReject&, const FIX::SessionID&) 
+	{}
 
-	void Application::stop() {
-		done = true;
-	}
+	void Application::onMessage(const FIX42::ExecutionReport&, const FIX::SessionID&) 
+	{}
+	
+	void Application::onMessage(const FIX42::OrderCancelReject&, const FIX::SessionID&) 
+	{}
+	
+	void Application::onMessage(const FIX43::ExecutionReport&, const FIX::SessionID&) 
+	{}
+	
+	void Application::onMessage(const FIX43::OrderCancelReject&, const FIX::SessionID&) 
+	{}
+	
+	void Application::onMessage(const FIX44::ExecutionReport&, const FIX::SessionID&) 
+	{}
+	
+	void Application::onMessage(const FIX44::OrderCancelReject&, const FIX::SessionID&) 
+	{}
+	
+	void Application::onMessage(const FIX50::ExecutionReport&, const FIX::SessionID&) 
+	{}
+	
+	void Application::onMessage(const FIX50::OrderCancelReject&, const FIX::SessionID&) 
+	{}
 
 	void Application::run()
 	{
@@ -102,6 +117,41 @@ namespace zfix
 				std::cout << "Message Not Sent: " << e.what();
 			}
 		}
+	}
+
+	void Application::stop() {
+		done = true;
+	}
+
+	FIX::Message Application::newOrderSingle(
+		const FIX::Symbol& symbol, const FIX::ClOrdID& clOrdId, const FIX::Side& side, 
+		const FIX::OrdType& ordType, const FIX::TimeInForce& tif,
+		const FIX::OrderQty& quantity, const FIX::Price& price, const FIX::StopPx& stopPrice
+	) const {
+		FIX44::NewOrderSingle order(
+			clOrdId,
+			side,
+			FIX::TransactTime(),
+			ordType);
+
+		order.set(FIX::HandlInst('1'));
+		order.set(symbol);
+		order.set(quantity);
+		order.set(tif);
+
+		if (ordType == FIX::OrdType_LIMIT || ordType == FIX::OrdType_STOP_LIMIT)
+			order.set(price);
+
+		if (ordType == FIX::OrdType_STOP || ordType == FIX::OrdType_STOP_LIMIT)
+			order.set(stopPrice);
+
+		auto& header = order.getHeader();
+		header.setField(FIX::SenderCompID(senderCompID));
+		header.setField(FIX::TargetCompID(targetCompID));
+
+		FIX::Session::sendToTarget(order);
+
+		return order;
 	}
 
 	void Application::queryEnterOrder()
@@ -306,25 +356,7 @@ namespace zfix
 		return newOrderSingle;
 	}
 
-	void Application::newOrder(FIX::ClOrdID clOrdId, FIX::Side side, FIX::OrdType ordType, 
-		double price, double stopPrice) {
-		FIX44::NewOrderSingle newOrderSingle(
-			clOrdId, 
-			side,
-			FIX::TransactTime(), 
-			ordType);
 
-		if (ordType == FIX::OrdType_LIMIT || ordType == FIX::OrdType_STOP_LIMIT)
-			newOrderSingle.set(FIX::Price(price));
-
-		if (ordType == FIX::OrdType_STOP || ordType == FIX::OrdType_STOP_LIMIT)
-			newOrderSingle.set(FIX::StopPx(stopPrice));
-
-		auto& header = newOrderSingle.getHeader();
-		header.setField(querySenderCompID());
-		header.setField(queryTargetCompID());
-
-	}
 
 	FIX44::NewOrderSingle Application::queryNewOrderSingle44()
 	{

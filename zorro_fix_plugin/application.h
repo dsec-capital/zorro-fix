@@ -65,22 +65,37 @@ namespace zfix
 
 		void stop();
 
+		FIX::Message newOrderSingle(
+			const FIX::Symbol& symbol, const FIX::ClOrdID& clOrdId, const FIX::Side& side,
+			const FIX::OrdType& ordType, const FIX::TimeInForce& tif,
+			const FIX::OrderQty& quantity, const FIX::Price& price, const FIX::StopPx& stopPrice
+		) const;
+
 	private:
 		FIX::SessionSettings sessionSettings;
 		std::string senderCompID;
 		std::string targetCompID;
 		std::atomic<bool> done;
 
-		void onCreate(const FIX::SessionID&) {}
+		void onCreate(const FIX::SessionID&);
+
 		void onLogon(const FIX::SessionID& sessionID);
+
 		void onLogout(const FIX::SessionID& sessionID);
-		void toAdmin(FIX::Message&, const FIX::SessionID&) {}
-		void toApp(FIX::Message&, const FIX::SessionID&)
-			EXCEPT(FIX::DoNotSend);
-		void fromAdmin(const FIX::Message&, const FIX::SessionID&)
-			EXCEPT(FIX::FieldNotFound, FIX::IncorrectDataFormat, FIX::IncorrectTagValue, FIX::RejectLogon) {}
-		void fromApp(const FIX::Message& message, const FIX::SessionID& sessionID)
-			EXCEPT(FIX::FieldNotFound, FIX::IncorrectDataFormat, FIX::IncorrectTagValue, FIX::UnsupportedMessageType);
+
+		void toAdmin(FIX::Message&, const FIX::SessionID&);
+		
+		void toApp(
+			FIX::Message&, const FIX::SessionID&
+		) EXCEPT(FIX::DoNotSend);
+		
+		void fromAdmin(
+			const FIX::Message&, const FIX::SessionID&
+		) EXCEPT(FIX::FieldNotFound, FIX::IncorrectDataFormat, FIX::IncorrectTagValue, FIX::RejectLogon);
+		
+		void fromApp(
+			const FIX::Message& message, const FIX::SessionID& sessionID
+		) EXCEPT(FIX::FieldNotFound, FIX::IncorrectDataFormat, FIX::IncorrectTagValue, FIX::UnsupportedMessageType);
 
 		void onMessage(const FIX40::ExecutionReport&, const FIX::SessionID&);
 		void onMessage(const FIX40::OrderCancelReject&, const FIX::SessionID&);
@@ -94,11 +109,6 @@ namespace zfix
 		void onMessage(const FIX44::OrderCancelReject&, const FIX::SessionID&);
 		void onMessage(const FIX50::ExecutionReport&, const FIX::SessionID&);
 		void onMessage(const FIX50::OrderCancelReject&, const FIX::SessionID&);
-
-		void newOrder(
-			FIX::ClOrdID clOrdId, FIX::Side side, FIX::OrdType ordType,
-			double price, double stopPrice
-		);
 
 		void queryEnterOrder();
 		void queryCancelOrder();
@@ -145,7 +155,6 @@ namespace zfix
 		FIX::StopPx queryStopPx();
 		FIX::TimeInForce queryTimeInForce();
 	};
-
 }
 
 #endif
