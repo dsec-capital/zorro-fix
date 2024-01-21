@@ -5,9 +5,10 @@
 #endif
 
 #include "quickfix/config.h"
-
-#include "application.h"
 #include "quickfix/Session.h"
+
+#include "logger.h"
+#include "application.h"
 #include <iostream>
 
 namespace zfix
@@ -15,12 +16,15 @@ namespace zfix
 
 	void Application::onLogon(const FIX::SessionID& sessionID)
 	{
-		std::cout << std::endl << "Logon - " << sessionID << std::endl;
+		LOG_INFO("Application::onLogon %s\n", sessionID.toString().c_str());
+		senderCompID = sessionSettings.get(sessionID).getString("SenderCompID");
+		targetCompID = sessionSettings.get(sessionID).getString("TargetCompID");
+		LOG_INFO("senderCompID=%s, targetCompID=%s\n", senderCompID.c_str(), targetCompID.c_str());
 	}
 
 	void Application::onLogout(const FIX::SessionID& sessionID)
 	{
-		std::cout << std::endl << "Logout - " << sessionID << std::endl;
+		LOG_INFO("Application::onLogout %s\n", sessionID.toString());
 	}
 
 	void Application::fromApp(const FIX::Message& message, const FIX::SessionID& sessionID)
@@ -296,6 +300,26 @@ namespace zfix
 
 		queryHeader(newOrderSingle.getHeader());
 		return newOrderSingle;
+	}
+
+	void Application::newOrder(FIX::ClOrdID clOrdId, FIX::Side side, FIX::OrdType ordType, 
+		double price, double stopPrice) {
+		FIX44::NewOrderSingle newOrderSingle(
+			clOrdId, 
+			side,
+			FIX::TransactTime(), 
+			ordType);
+
+		if (ordType == FIX::OrdType_LIMIT || ordType == FIX::OrdType_STOP_LIMIT)
+			newOrderSingle.set(FIX::Price(price));
+
+		if (ordType == FIX::OrdType_STOP || ordType == FIX::OrdType_STOP_LIMIT)
+			newOrderSingle.set(FIX::StopPx(stopPrice));
+
+		auto& header = newOrderSingle.getHeader();
+		header.setField(querySenderCompID());
+		header.setField(queryTargetCompID());
+
 	}
 
 	FIX44::NewOrderSingle Application::queryNewOrderSingle44()

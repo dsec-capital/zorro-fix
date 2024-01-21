@@ -1,9 +1,6 @@
 #include "pch.h"
-#include "framework.h"
 
 #pragma warning(disable : 4996 4244 4312)
-
-#define _CRT_SECURE_NO_DEPRECATE
 
 #include "quickfix/config.h"
 
@@ -27,10 +24,11 @@
 #include <thread>
 #include <iostream>
 #include <type_traits>
+#include <filesystem>
 #include <unordered_map>
 
-#include "zorro_fix_plugin.h"
 #include "logger.h"
+#include "zorro_fix_plugin.h"
 
 #define PLUGIN_VERSION	2
 #define INITIAL_PRICE	1.0
@@ -40,8 +38,12 @@ namespace zfix {
 
 	class FixThread {
 		std::thread thread;
-		FIX::Initiator* initiator;
-		zfix::Application* application;
+		std::string settings_cfg_file;
+		FIX::SessionSettings settings;
+		FIX::FileStoreFactory storeFactory;
+		FIX::ScreenLogFactory logFactory;
+		std::unique_ptr<FIX::Initiator> initiator;
+		std::unique_ptr <zfix::Application> application;
 
 		void run() {
 			initiator->start();
@@ -50,12 +52,28 @@ namespace zfix {
 
 	public:
 		FixThread(
-			FIX::Initiator* initiator,
-			zfix::Application* application
+			const std::string& settings_cfg_file, const std::string& isSSL
 		) :
-			initiator(initiator),
-			application(application)
-		{}
+			settings_cfg_file(settings_cfg_file),
+			settings(settings_cfg_file),
+			storeFactory(settings),
+			logFactory(settings)
+		{
+			application = std::unique_ptr<zfix::Application>(new Application(settings));
+
+#ifdef HAVE_SSL
+			if (isSSL.compare("SSL") == 0)
+				initiator = std::unique_ptr<FIX::Initiator>(
+					new FIX::ThreadedSSLSocketInitiator(application, storeFactory, settings, logFactory));
+			else if (isSSL.compare("SSL-ST") == 0)
+				initiator = std::unique_ptr<FIX::Initiator>(
+					new FIX::SSLSocketInitiator(application, storeFactory, settings, logFactory));
+			else
+#endif
+				initiator = std::unique_ptr<FIX::Initiator>(
+					new FIX::SocketInitiator(*application, storeFactory, settings, logFactory)
+				);
+		}
 
 		void start() {
 			thread = std::thread(&FixThread::run, this);
@@ -70,37 +88,12 @@ namespace zfix {
 }
 
 namespace {
-	std::unique_ptr<FIX::Initiator> fix_initiator;
-	std::unique_ptr<zfix::Application> fix_application;
+	std::string settings_cfg_file = "Plugin/zorro_fix_client.cfg";
+
 	std::unique_ptr<zfix::FixThread> fix_thread;
-	std::string settings_cfg_file = "";
 }
 
 namespace zfix {
-
-	std::unique_ptr<FIX::Initiator> create_initator(zfix::Application& application, const std::string& settings_cfg_file, const std::string& isSSL)
-	{
-		FIX::SessionSettings settings(settings_cfg_file);
-		FIX::FileStoreFactory storeFactory(settings);
-		FIX::ScreenLogFactory logFactory(settings);
-
-#ifdef HAVE_SSL
-		if (isSSL.compare("SSL") == 0)
-			initiator = std::unique_ptr<FIX::Initiator>(
-				new FIX::ThreadedSSLSocketInitiator(application, storeFactory, settings, logFactory));
-		else if (isSSL.compare("SSL-ST") == 0)
-			initiator = std::unique_ptr<FIX::Initiator>(
-				new FIX::SSLSocketInitiator(application, storeFactory, settings, logFactory));
-		else
-#endif
-		return std::unique_ptr<FIX::Initiator>(
-			new FIX::SocketInitiator(application, storeFactory, settings, logFactory)
-		);
-	}
-
-	std::unique_ptr<zfix::Application> create_application() {
-		return std::unique_ptr<zfix::Application>(new Application());
-	}
 
 	DATE convertTime(__time32_t t32)
 	{
@@ -121,18 +114,20 @@ namespace zfix {
 	}
 
 	DLLFUNC int BrokerOpen(char* Name, FARPROC fpError, FARPROC fpProgress) {
-		if (Name) strcpy_s(Name, 32, "Zorro-Fix-Bridge");
+		if (Name) strcpy_s(Name, 32, "AAFixPlugin");
 		(FARPROC&)BrokerError = fpError;
 		(FARPROC&)BrokerProgress = fpProgress;
-		showMsg("BrokerOpen: Zorro-Fix-Bridge plugin opened");
 
-		// initialize
-		try {
-			fix_application = create_application();
-			fix_initiator = create_initator(*fix_application, settings_cfg_file, "");
-			fix_thread = std::unique_ptr<FixThread>(new FixThread(fix_initiator.get(), fix_application.get()));
-		} catch (std::exception& e)
-		{
+		std::string cwd = std::filesystem::current_path().string();
+		showMsg(("BrokerOpen: Zorro-Fix-Bridge plugin opened in <" + cwd + ">").c_str()); 
+
+		Logger::instance().init("zorro-fix-bridge");
+		Logger::instance().setLevel(LogLevel::L_DEBUG);
+		LOG_INFO("Logging started\n");
+
+		try { 
+			fix_thread = std::unique_ptr<FixThread>(new FixThread(settings_cfg_file, ""));
+		} catch (std::exception& e) {
 			showMsg(e.what());
 			return 0; // TODO check return value
 		}
@@ -178,19 +173,19 @@ namespace zfix {
 		double* pVolume, double* pPip, double* pPipCost, double* pMinAmount,
 		double* pMarginCost, double* pRollLong, double* pRollShort) {
 
-		if (pPrice) *pPrice = 0;
-		if (pSpread) *pSpread = 0;
+		if (pPrice) *pPrice = 100;
+		if (pSpread) *pSpread = 0.0005;
 		return 1;
 	}
 
 	DLLFUNC int BrokerHistory2(char* Asset, DATE tStart, DATE tEnd, int nTickMinutes, int nTicks, T6* ticks)
 	{
 		for (int i = 0; i < nTicks; i++) {
-			ticks->fOpen = 0;
-			ticks->fClose = 0;
-			ticks->fHigh = 0;
-			ticks->fLow = 0;
-			ticks->time = 0;
+			ticks->fOpen = 100;
+			ticks->fClose = 100;
+			ticks->fHigh = 100;
+			ticks->fLow = 100;
+			ticks->time = tEnd - i * nTickMinutes / 1440.0;
 			ticks++;
 		}
 		return nTicks;

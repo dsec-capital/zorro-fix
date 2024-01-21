@@ -50,14 +50,22 @@
 namespace zfix
 {
 
-	class Application :
-		public FIX::Application,
-		public FIX::MessageCracker
+	class Application: public FIX::Application, public FIX::MessageCracker
 	{
 	public:
+		Application(
+			const FIX::SessionSettings & sessionSettings
+		): 
+			sessionSettings(sessionSettings) 
+		{}
+
 		void run();
 
 	private:
+		FIX::SessionSettings sessionSettings;
+		std::string senderCompID;
+		std::string targetCompID;
+
 		void onCreate(const FIX::SessionID&) {}
 		void onLogon(const FIX::SessionID& sessionID);
 		void onLogout(const FIX::SessionID& sessionID);
@@ -81,6 +89,11 @@ namespace zfix
 		void onMessage(const FIX44::OrderCancelReject&, const FIX::SessionID&);
 		void onMessage(const FIX50::ExecutionReport&, const FIX::SessionID&);
 		void onMessage(const FIX50::OrderCancelReject&, const FIX::SessionID&);
+
+		void newOrder(
+			FIX::ClOrdID clOrdId, FIX::Side side, FIX::OrdType ordType,
+			double price, double stopPrice
+		);
 
 		void queryEnterOrder();
 		void queryCancelOrder();
