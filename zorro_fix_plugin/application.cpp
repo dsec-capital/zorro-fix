@@ -24,7 +24,7 @@ namespace zfix
 
 	void Application::onLogout(const FIX::SessionID& sessionID)
 	{
-		LOG_INFO("Application::onLogout %s\n", sessionID.toString());
+		LOG_INFO("Application::onLogout %s\n", sessionID.toString().c_str());
 	}
 
 	void Application::fromApp(const FIX::Message& message, const FIX::SessionID& sessionID)
@@ -74,9 +74,13 @@ namespace zfix
 	void Application::onMessage
 	(const FIX50::OrderCancelReject&, const FIX::SessionID&) {}
 
+	void Application::stop() {
+		done = true;
+	}
+
 	void Application::run()
 	{
-		while (true)
+		while (!done)
 		{
 			try
 			{

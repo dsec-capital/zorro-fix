@@ -37,13 +37,14 @@
 namespace zfix {
 
 	class FixThread {
-		std::thread thread;
+		bool started;
 		std::string settings_cfg_file;
 		FIX::SessionSettings settings;
 		FIX::FileStoreFactory storeFactory;
 		FIX::ScreenLogFactory logFactory;
 		std::unique_ptr<FIX::Initiator> initiator;
 		std::unique_ptr <zfix::Application> application;
+		std::thread thread;
 
 		void run() {
 			initiator->start();
@@ -54,6 +55,7 @@ namespace zfix {
 		FixThread(
 			const std::string& settings_cfg_file, const std::string& isSSL
 		) :
+			started(false),
 			settings_cfg_file(settings_cfg_file),
 			settings(settings_cfg_file),
 			storeFactory(settings),
@@ -76,13 +78,20 @@ namespace zfix {
 		}
 
 		void start() {
+			started = true;
 			thread = std::thread(&FixThread::run, this);
 		}
 
 		void cancel() {
-			initiator->stop();
+			if (!started)
+				return;
+			started = false;
+			application->stop();
+			initiator->stop(true);
+			LOG_INFO("FixThread: FIX initiator and application stopped - going to join")
 			if (thread.joinable())
 				thread.join();
+			LOG_INFO("FixThread: FIX initiator stopped - joined")
 		}
 	};
 }
@@ -90,7 +99,7 @@ namespace zfix {
 namespace {
 	std::string settings_cfg_file = "Plugin/zorro_fix_client.cfg";
 
-	std::unique_ptr<zfix::FixThread> fix_thread;
+	std::unique_ptr<zfix::FixThread> fix_thread = nullptr;
 }
 
 namespace zfix {
@@ -113,6 +122,45 @@ namespace zfix {
 		BrokerError(msg);
 	}
 
+	DLLFUNC_C void BrokerHTTP(FARPROC fpSend, FARPROC fpStatus, FARPROC fpResult, FARPROC fpFree) {
+		(FARPROC&)http_send = fpSend;
+		(FARPROC&)http_status = fpStatus;
+		(FARPROC&)http_result = fpResult;
+		(FARPROC&)http_free = fpFree;
+	}
+
+	DLLFUNC int BrokerLogin(char* User, char* Pwd, char* Type, char* Account) {
+		if (User) {
+			if (fix_thread != nullptr) {
+				showMsg("BrokerLogin: Zorro-Fix-Bridge - stopping fix service on repeated login...");
+				fix_thread->cancel();
+				showMsg("BrokerLogin: Zorro-Fix-Bridge - fix service stopped on repeated login");
+				fix_thread = nullptr;
+			}
+			showMsg("BrokerLogin: Zorro-Fix-Bridge - starting fix service...");
+			try {
+				fix_thread = std::unique_ptr<FixThread>(new FixThread(settings_cfg_file, ""));
+			}
+			catch (std::exception& e) {
+				fix_thread = nullptr;
+				showMsg(e.what());
+				return 0;  
+			}
+			fix_thread->start();
+			showMsg("BrokerLogin: Zorro-Fix-Bridge - fix service running");
+			return 1; // logged in status
+		}
+		else {
+			if (fix_thread != nullptr) {
+				showMsg("BrokerLogin: Zorro-Fix-Bridge - stopping fix service...");
+				fix_thread->cancel();
+				showMsg("BrokerLogin: Zorro-Fix-Bridge - fix service stopped");
+				fix_thread = nullptr;
+			}	
+			return 0; // logged out status
+		}
+	}
+
 	DLLFUNC int BrokerOpen(char* Name, FARPROC fpError, FARPROC fpProgress) {
 		if (Name) strcpy_s(Name, 32, "AAFixPlugin");
 		(FARPROC&)BrokerError = fpError;
@@ -125,33 +173,7 @@ namespace zfix {
 		Logger::instance().setLevel(LogLevel::L_DEBUG);
 		LOG_INFO("Logging started\n");
 
-		try { 
-			fix_thread = std::unique_ptr<FixThread>(new FixThread(settings_cfg_file, ""));
-		} catch (std::exception& e) {
-			showMsg(e.what());
-			return 0; // TODO check return value
-		}
 		return PLUGIN_VERSION;
-	}
-
-	DLLFUNC_C void BrokerHTTP(FARPROC fpSend, FARPROC fpStatus, FARPROC fpResult, FARPROC fpFree) {
-		(FARPROC&)http_send = fpSend;
-		(FARPROC&)http_status = fpStatus;
-		(FARPROC&)http_result = fpResult;
-		(FARPROC&)http_free = fpFree;
-	}
-
-	DLLFUNC int BrokerLogin(char* User, char* Pwd, char* Type, char* Account) {
-		if (User) {
-			showMsg("BrokerLogin: Zorro-Fix-Bridge connected - starting fix service");
-			fix_thread->start();
-			showMsg("BrokerLogin: Zorro-Fix-Bridge connected - fix service running");
-			return 1;
-		}
-		else {
-			showMsg("BrokerLogin: no user");
-		}
-		return 0;
 	}
 
 	DLLFUNC int BrokerTime(DATE* pTimeGMT) {

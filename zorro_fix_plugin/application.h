@@ -45,6 +45,7 @@
 #include "quickfix/fix50/OrderCancelReplaceRequest.h"
 #include "quickfix/fix50/MarketDataRequest.h"
 
+#include <atomic>
 #include <queue>
 
 namespace zfix
@@ -56,15 +57,19 @@ namespace zfix
 		Application(
 			const FIX::SessionSettings & sessionSettings
 		): 
-			sessionSettings(sessionSettings) 
+			sessionSettings(sessionSettings),
+			done(false)
 		{}
 
 		void run();
+
+		void stop();
 
 	private:
 		FIX::SessionSettings sessionSettings;
 		std::string senderCompID;
 		std::string targetCompID;
+		std::atomic<bool> done;
 
 		void onCreate(const FIX::SessionID&) {}
 		void onLogon(const FIX::SessionID& sessionID);
