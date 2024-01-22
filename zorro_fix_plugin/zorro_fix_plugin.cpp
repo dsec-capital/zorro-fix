@@ -30,6 +30,7 @@
 #include "logger.h"
 #include "zorro_fix_plugin.h"
 #include "broker_commands.h"
+#include "blocking_queue.h"
 
 #define PLUGIN_VERSION	2
 #define INITIAL_PRICE	1.0
