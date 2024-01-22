@@ -126,12 +126,6 @@ public:
 
     ~BlockingTimeoutBoundedQueue() = default;
 
-    std::size_t size()
-    {
-        std::lock_guard<std::mutex> lock(mutex);
-        return queue.size();
-    }
-
     bool push(const T& item, const std::chrono::milliseconds& timeout)
     {
         std::unique_lock<std::mutex> ul(mutex);
