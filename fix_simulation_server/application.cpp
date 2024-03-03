@@ -64,9 +64,7 @@ void Application::onMessage(const FIX44::NewOrderSingle& message, const FIX::Ses
 	try
 	{
 		if (timeInForce == FIX::TimeInForce_GOOD_TILL_CANCEL || timeInForce == FIX::TimeInForce_DAY) {
-			Order order(clOrdID, symbol, senderCompID, targetCompID,
-				convert(side), convert(ordType),
-				price, (long)orderQty);
+			Order order(clOrdID, symbol, senderCompID, targetCompID, convert(side), convert(ordType), price, (long)orderQty);
 
 			processOrder(order);
 		}
@@ -214,7 +212,7 @@ void Application::processOrder(const Order& order)
 	{
 		acceptOrder(order);
 
-		std::queue < Order > orders;
+		std::queue<Order> orders;
 		m_orderMatcher.match(order.getSymbol(), orders);
 
 		while (orders.size())

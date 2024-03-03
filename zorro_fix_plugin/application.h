@@ -48,6 +48,8 @@
 #include <atomic>
 #include <queue>
 
+#include "id_generator.h"
+
 namespace zfix
 {
 
@@ -55,27 +57,42 @@ namespace zfix
 	{
 	public:
 		Application(
-			const FIX::SessionSettings & sessionSettings
+			const FIX::SessionSettings & sessionSettings,
+			std::function<void(const char*)> brokerError
 		): 
 			sessionSettings(sessionSettings),
+			brokerError(brokerError),
 			done(false)
-		{}
+		{
+			brokerError("FIX application created");
+		}
 
-		void run();
-
-		void stop();
+		FIX::Message marketDataRequest(
+			const FIX::Symbol& symbol,
+			const FIX::MarketDepth& markeDepth,
+			const FIX::SubscriptionRequestType& subscriptionRequestType
+		);
 
 		FIX::Message newOrderSingle(
-			const FIX::Symbol& symbol, const FIX::ClOrdID& clOrdId, const FIX::Side& side,
-			const FIX::OrdType& ordType, const FIX::TimeInForce& tif,
-			const FIX::OrderQty& quantity, const FIX::Price& price, const FIX::StopPx& stopPrice
+			const FIX::Symbol& symbol, 
+			const FIX::ClOrdID& clOrdId, 
+			const FIX::Side& side,
+			const FIX::OrdType& ordType, 
+			const FIX::TimeInForce& tif,
+			const FIX::OrderQty& quantity, 
+			const FIX::Price& price, 
+			const FIX::StopPx& stopPrice
 		) const;
 
 	private:
 		FIX::SessionSettings sessionSettings;
+		std::function<void(const char*)> brokerError;
 		std::string senderCompID;
 		std::string targetCompID;
 		std::atomic<bool> done;
+		IDGenerator m_generator;
+
+		void showMsg(const std::string& msg) const;
 
 		void onCreate(const FIX::SessionID&);
 

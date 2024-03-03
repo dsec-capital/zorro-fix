@@ -172,6 +172,7 @@ robocopy "$(SolutionDir)spec" "%ZorroInstallDir%\Plugin\spec"  /MIR</Command>
     <ClInclude Include="application.h" />
     <ClInclude Include="broker_commands.h" />
     <ClInclude Include="framework.h" />
+    <ClInclude Include="id_generator.h" />
     <ClInclude Include="logger.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="blocking_queue.h" />

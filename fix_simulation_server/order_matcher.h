@@ -7,7 +7,7 @@
 
 class OrderMatcher
 {
-	typedef std::map < std::string, Market > Markets;
+	typedef std::map<std::string, Market> Markets;
 
 public:
 
@@ -33,14 +33,14 @@ public:
 		return i->second.find(side, id);
 	}
 
-	bool match(std::string symbol, std::queue < Order >& orders)
+	bool match(std::string symbol, std::queue<Order>& orders)
 	{
 		Markets::iterator i = m_markets.find(symbol);
 		if (i == m_markets.end()) return false;
 		return i->second.match(orders);
 	}
 
-	bool match(std::queue < Order >& orders)
+	bool match(std::queue<Order>& orders)
 	{
 		Markets::iterator i;
 		for (i = m_markets.begin(); i != m_markets.end(); ++i)

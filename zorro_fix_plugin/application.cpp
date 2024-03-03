@@ -13,6 +13,10 @@
 
 namespace zfix
 {
+	void Application::showMsg(const std::string& msg) const {
+		brokerError(msg.c_str());
+	}
+
 	void Application::onCreate(const FIX::SessionID&) {}
 
 	void Application::onLogon(const FIX::SessionID& sessionID)
@@ -39,8 +43,9 @@ namespace zfix
 	void Application::fromApp(const FIX::Message& message, const FIX::SessionID& sessionID)
 		EXCEPT(FIX::FieldNotFound, FIX::IncorrectDataFormat, FIX::IncorrectTagValue, FIX::UnsupportedMessageType)
 	{
+		showMsg(message.toString());
+		LOG_INFO("IN: %s\n", message.toString().c_str());
 		crack(message, sessionID);
-		std::cout << std::endl << "IN: " << message << std::endl;
 	}
 
 	void Application::toApp(FIX::Message& message, const FIX::SessionID& sessionID)
@@ -54,7 +59,8 @@ namespace zfix
 		}
 		catch (FIX::FieldNotFound&) {}
 
-		std::cout << std::endl << "OUT: " << message << std::endl;
+		showMsg(message.toString());
+		LOG_INFO("OUT: %s\n", message.toString().c_str());
 	}
 
 	void Application::onMessage(const FIX40::ExecutionReport&, const FIX::SessionID&) 
@@ -81,8 +87,33 @@ namespace zfix
 	void Application::onMessage(const FIX43::OrderCancelReject&, const FIX::SessionID&) 
 	{}
 	
-	void Application::onMessage(const FIX44::ExecutionReport&, const FIX::SessionID&) 
-	{}
+	void Application::onMessage(const FIX44::ExecutionReport& report, const FIX::SessionID&) 
+	{
+		FIX::ExecType exec_type;
+		FIX::OrderID order_id;
+		FIX::ClOrdID cl_ord_id;
+		FIX::OrdStatus ord_status;
+		FIX::Side side;
+		FIX::LeavesQty leaves_qty;
+		FIX::CumQty cum_qty;
+		FIX::AvgPx avg_px;
+		FIX::Text text;
+
+		report.get(exec_type);
+		report.get(order_id);
+		report.get(cl_ord_id);
+		report.get(ord_status);
+		report.get(side);
+		report.get(leaves_qty);
+		report.get(cum_qty);
+		report.get(avg_px);
+		report.get(text);
+
+		if (exec_type == FIX::ExecType_PENDING_NEW) {
+
+		}
+	
+	}
 	
 	void Application::onMessage(const FIX44::OrderCancelReject&, const FIX::SessionID&) 
 	{}
@@ -93,40 +124,39 @@ namespace zfix
 	void Application::onMessage(const FIX50::OrderCancelReject&, const FIX::SessionID&) 
 	{}
 
-	void Application::run()
-	{
-		while (!done)
-		{
-			try
-			{
-				char action = queryAction();
+	FIX::Message Application::marketDataRequest(
+		const FIX::Symbol& symbol, 
+		const FIX::MarketDepth& markeDepth,
+		const FIX::SubscriptionRequestType& subscriptionRequestType
+	) {
+		FIX::MDReqID mdReqID(m_generator.genID());
+		FIX44::MarketDataRequest request(mdReqID, subscriptionRequestType, markeDepth);
+		FIX44::MarketDataRequest::NoRelatedSym noRelatedSymGroup;
+		noRelatedSymGroup.set(symbol);
+		request.addGroup(noRelatedSymGroup);
+		FIX44::MarketDataRequest::NoMDEntryTypes noMDEntryTypesGroup;
+		noMDEntryTypesGroup.set(FIX::MDEntryType_BID);
+		noMDEntryTypesGroup.set(FIX::MDEntryType_OFFER);
+		noMDEntryTypesGroup.set(FIX::MDEntryType_TRADE);
+		request.addGroup(noMDEntryTypesGroup);
 
-				if (action == '1')
-					queryEnterOrder();
-				else if (action == '2')
-					queryCancelOrder();
-				else if (action == '3')
-					queryReplaceOrder();
-				else if (action == '4')
-					queryMarketDataRequest();
-				else if (action == '5')
-					break;
-			}
-			catch (std::exception& e)
-			{
-				std::cout << "Message Not Sent: " << e.what();
-			}
-		}
-	}
+		showMsg("marketDataRequest: " + request.toString());
+		LOG_INFO("OUT: %s\n", request.toString().c_str());
 
-	void Application::stop() {
-		done = true;
+		FIX::Session::sendToTarget(request);
+
+		return request;
 	}
 
 	FIX::Message Application::newOrderSingle(
-		const FIX::Symbol& symbol, const FIX::ClOrdID& clOrdId, const FIX::Side& side, 
-		const FIX::OrdType& ordType, const FIX::TimeInForce& tif,
-		const FIX::OrderQty& quantity, const FIX::Price& price, const FIX::StopPx& stopPrice
+		const FIX::Symbol& symbol, 
+		const FIX::ClOrdID& clOrdId, 
+		const FIX::Side& side, 
+		const FIX::OrdType& ordType, 
+		const FIX::TimeInForce& tif,
+		const FIX::OrderQty& quantity, 
+		const FIX::Price& price, 
+		const FIX::StopPx& stopPrice
 	) const {
 		FIX44::NewOrderSingle order(
 			clOrdId,
@@ -148,6 +178,9 @@ namespace zfix
 		auto& header = order.getHeader();
 		header.setField(FIX::SenderCompID(senderCompID));
 		header.setField(FIX::TargetCompID(targetCompID));
+
+		showMsg("newOrderSingle: " + order.toString());
+		LOG_INFO("OUT: %s\n", order.toString().c_str());
 
 		FIX::Session::sendToTarget(order);
 

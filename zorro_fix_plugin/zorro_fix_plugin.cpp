@@ -26,6 +26,7 @@
 #include <type_traits>
 #include <filesystem>
 #include <unordered_map>
+#include <chrono>
 
 #include "logger.h"
 #include "zorro_fix_plugin.h"
@@ -35,6 +36,8 @@
 #define PLUGIN_VERSION	2
 #define INITIAL_PRICE	1.0
 #define INITIAL_ID		1000
+
+using namespace std::chrono_literals;
 
 namespace zfix {
 
@@ -47,25 +50,45 @@ namespace zfix {
 		std::unique_ptr<FIX::Initiator> initiator;
 		std::unique_ptr<zfix::Application> application;
 		std::thread thread;
+		std::function<void(const char*)> brokerError;
 
 		void run() {
 			initiator->start();
-			application->run();
 		}
 
 	public:
 		FixThread(
-			const std::string& settingsCfgFile, const std::string& isSSL
+			const std::string& settingsCfgFile,
+		    std::function<void(const char*)> brokerError
 		) :
 			started(false),
 			settingsCfgFile(settingsCfgFile),
 			settings(settingsCfgFile),
 			storeFactory(settings),
-			logFactory(settings)
+			logFactory(settings), 
+			brokerError(brokerError)
+		{
+			application = std::unique_ptr<zfix::Application>(new Application(settings, brokerError));
+			initiator = std::unique_ptr<FIX::Initiator>(
+				new FIX::SocketInitiator(*application, storeFactory, settings, logFactory)
+			);
+		}
+
+#ifdef HAVE_SSL
+		FixThread(
+			const std::string& settingsCfgFile, 
+			std::function<void(const char*)> brokerError,
+			const std::string& isSSL
+		) :
+			started(false),
+			settingsCfgFile(settingsCfgFile),
+			settings(settingsCfgFile),
+			storeFactory(settings),
+			logFactory(settings),
+			brokerError(brokerError)
 		{
 			application = std::unique_ptr<zfix::Application>(new Application(settings));
 
-#ifdef HAVE_SSL
 			if (isSSL.compare("SSL") == 0)
 				initiator = std::unique_ptr<FIX::Initiator>(
 					new FIX::ThreadedSSLSocketInitiator(application, storeFactory, settings, logFactory));
@@ -73,11 +96,11 @@ namespace zfix {
 				initiator = std::unique_ptr<FIX::Initiator>(
 					new FIX::SSLSocketInitiator(application, storeFactory, settings, logFactory));
 			else
-#endif
 				initiator = std::unique_ptr<FIX::Initiator>(
 					new FIX::SocketInitiator(*application, storeFactory, settings, logFactory)
 				);
 		}
+#endif
 
 		void start() {
 			started = true;
@@ -88,7 +111,6 @@ namespace zfix {
 			if (!started)
 				return;
 			started = false;
-			application->stop();
 			initiator->stop(true);
 			LOG_INFO("FixThread: FIX initiator and application stopped - going to join\n")
 			if (thread.joinable())
@@ -96,7 +118,7 @@ namespace zfix {
 			LOG_INFO("FixThread: FIX initiator stopped - joined\n")
 		}
 
-		const zfix::Application& fixApp() {
+		zfix::Application& fixApp() {
 			return *application;
 		}
 	};
@@ -112,6 +134,12 @@ namespace {
 }
 
 namespace zfix {
+
+	enum ExchangeStatus {
+		Unavailable = 0,
+		Closed = 1,
+		Open = 2
+	};
 
 	DATE convertTime(__time32_t t32)
 	{
@@ -147,8 +175,10 @@ namespace zfix {
 				fixThread = nullptr;
 			}
 			showMsg("BrokerLogin: Zorro-Fix-Bridge - starting fix service...");
-			try {
-				fixThread = std::unique_ptr<FixThread>(new FixThread(settingsCfgFile, ""));
+			try { 
+				fixThread = std::unique_ptr<FixThread>(
+					new FixThread(settingsCfgFile, BrokerError)
+				);
 			}
 			catch (std::exception& e) {
 				fixThread = nullptr;
@@ -186,7 +216,15 @@ namespace zfix {
 	}
 
 	DLLFUNC int BrokerTime(DATE* pTimeGMT) {
-		return 2;	// broker is online
+		if (!fixThread) {
+			return ExchangeStatus::Unavailable;
+		}
+
+		const auto currentTime = std::chrono::duration_cast<std::chrono::milliseconds>(
+			std::chrono::system_clock::now().time_since_epoch()
+		).count();
+
+		return ExchangeStatus::Open;
 	}
 
 	DLLFUNC int BrokerAccount(char* Account, double* pdBalance, double* pdTradeVal, double* pdMarginVal) {
@@ -204,8 +242,26 @@ namespace zfix {
 		double* pVolume, double* pPip, double* pPipCost, double* pMinAmount,
 		double* pMarginCost, double* pRollLong, double* pRollShort) {
 
-		if (pPrice) *pPrice = 100;
-		if (pSpread) *pSpread = 0.0005;
+		try {
+			if (pPip != nullptr) {
+
+			}
+			else {
+				if (fixThread != nullptr) {
+					FIX::Symbol symbol(Asset);
+					fixThread->fixApp().marketDataRequest(
+						symbol,
+						FIX::MarketDepth(1),
+						FIX::SubscriptionRequestType_SNAPSHOT
+					);
+				}
+			}
+			if (pPrice) *pPrice = 100;
+			if (pSpread) *pSpread = 0.0005;
+		}
+		catch (...) {
+			showMsg("Excetion in BrokerAsset");
+		}
 		return 1;
 	}
 
@@ -225,6 +281,10 @@ namespace zfix {
 
 	DLLFUNC_C int BrokerBuy2(char* Asset, int nAmount, double dStopDist, double dLimit, double* pPrice, int* pFill)
 	{
+		if (!fixThread) {
+			showMsg("FIX session not created");
+		}
+
 		auto start = std::time(nullptr);
 
 		FIX::OrdType ordType;

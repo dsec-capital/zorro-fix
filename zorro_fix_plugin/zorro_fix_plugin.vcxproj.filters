@@ -40,6 +40,9 @@
     <ClInclude Include="blocking_queue.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="id_generator.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="zorro_fix_plugin.cpp">
