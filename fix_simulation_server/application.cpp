@@ -5,10 +5,14 @@
 #include "quickfix/config.h"
 
 #include "application.h"
+#include "utils.h"
 
 #include "quickfix/Session.h"
 #include "quickfix/fix44/ExecutionReport.h"
-
+#include "quickfix/fix44/BusinessMessageReject.h"
+#include "quickfix/fix44/MarketDataRequestReject.h"
+#include "quickfix/fix44/MarketDataSnapshotFullRefresh.h"
+#include "quickfix/fix44/MarketDataIncrementalRefresh.h"
 
 void Application::onCreate(const FIX::SessionID&)
 {}
@@ -97,26 +101,63 @@ void Application::onMessage(const FIX44::OrderCancelRequest& message, const FIX:
 
 void Application::onMessage(const FIX44::MarketDataRequest& message, const FIX::SessionID&)
 {
+	FIX::SenderCompID senderCompID;
+	FIX::TargetCompID targetCompID;
 	FIX::MDReqID mdReqID;
 	FIX::SubscriptionRequestType subscriptionRequestType;
 	FIX::MarketDepth marketDepth;
 	FIX::NoRelatedSym noRelatedSym;
 	FIX44::MarketDataRequest::NoRelatedSym noRelatedSymGroup;
 
+	message.getHeader().get(senderCompID);
+	message.getHeader().get(targetCompID);
 	message.get(mdReqID);
 	message.get(subscriptionRequestType);
 	
-	if (subscriptionRequestType != FIX::SubscriptionRequestType_SNAPSHOT)
-		throw FIX::IncorrectTagValue(subscriptionRequestType.getTag());
-	
-	message.get(marketDepth);
-	message.get(noRelatedSym);
+	if (subscriptionRequestType == FIX::SubscriptionRequestType_SNAPSHOT) {
+		message.get(marketDepth);
+		message.get(noRelatedSym);
 
-	for (int i = 1; i <= noRelatedSym; ++i)
-	{
-		FIX::Symbol symbol;
-		message.getGroup(i, noRelatedSymGroup);
-		noRelatedSymGroup.get(symbol);
+		for (int i = 1; i <= noRelatedSym; ++i)
+		{
+			FIX::Symbol symbol;
+			message.getGroup(i, noRelatedSymGroup);
+			noRelatedSymGroup.get(symbol);
+
+			FIX44::MarketDataSnapshotFullRefresh data;
+			data.set(symbol);
+			data.set(mdReqID);
+
+			FIX::DateTime now = FIX::DateTime::nowUtc();
+
+			FIX44::MarketDataSnapshotFullRefresh::NoMDEntries group;
+			group.set(FIX::MDEntryType(FIX::MDEntryType_BID));
+			group.set(FIX::MDEntryPx(100));
+			group.set(FIX::MDEntrySize(10));
+			group.set(FIX::MDEntryDate(now));
+			group.set(FIX::MDEntryTime(now));
+			data.addGroup(group);
+
+			group.set(FIX::MDEntryType(FIX::MDEntryType_OFFER));
+			group.set(FIX::MDEntryPx(101));
+			group.set(FIX::MDEntrySize(11));
+			group.set(FIX::MDEntryDate(now));
+			group.set(FIX::MDEntryTime(now));
+			data.addGroup(group);
+
+			// flip to send back
+			auto& header = data.getHeader();
+			header.setField(FIX::SenderCompID(targetCompID));
+			header.setField(FIX::TargetCompID(senderCompID));
+
+			FIX::Session::sendToTarget(data);
+		}
+	}
+		
+
+
+	if (subscriptionRequestType == FIX::SubscriptionRequestType_SNAPSHOT_AND_UPDATES) {
+
 	}
 }
 

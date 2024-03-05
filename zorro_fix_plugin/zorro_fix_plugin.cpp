@@ -29,6 +29,7 @@
 #include <chrono>
 
 #include "logger.h"
+#include "exec_report.h"
 #include "zorro_fix_plugin.h"
 #include "broker_commands.h"
 #include "blocking_queue.h"
@@ -59,6 +60,7 @@ namespace zfix {
 	public:
 		FixThread(
 			const std::string& settingsCfgFile,
+			BlockingTimeoutQueue<ExecReport>& execReportQueue,
 		    std::function<void(const char*)> brokerError
 		) :
 			started(false),
@@ -68,7 +70,9 @@ namespace zfix {
 			logFactory(settings), 
 			brokerError(brokerError)
 		{
-			application = std::unique_ptr<zfix::Application>(new Application(settings, brokerError));
+			application = std::unique_ptr<zfix::Application>(new Application(
+				settings, execReportQueue, brokerError)
+			);
 			initiator = std::unique_ptr<FIX::Initiator>(
 				new FIX::SocketInitiator(*application, storeFactory, settings, logFactory)
 			);
@@ -124,16 +128,17 @@ namespace zfix {
 	};
 }
 
-namespace {
+namespace zfix {
 	std::string settingsCfgFile = "Plugin/zorro_fix_client.cfg";
 
 	std::unique_ptr<zfix::FixThread> fixThread = nullptr;
 
 	int s_internalOrderId = 1000;
-	FIX::TimeInForce s_timeInForce = FIX::TimeInForce_GOOD_TILL_CANCEL;
-}
 
-namespace zfix {
+	FIX::TimeInForce s_timeInForce = FIX::TimeInForce_GOOD_TILL_CANCEL;
+
+	BlockingTimeoutQueue<ExecReport> execReportQueue;
+	std::vector<ExecReport> execReportHistory;
 
 	enum ExchangeStatus {
 		Unavailable = 0,
@@ -177,7 +182,7 @@ namespace zfix {
 			showMsg("BrokerLogin: Zorro-Fix-Bridge - starting fix service...");
 			try { 
 				fixThread = std::unique_ptr<FixThread>(
-					new FixThread(settingsCfgFile, BrokerError)
+					new FixThread(settingsCfgFile, execReportQueue, BrokerError)
 				);
 			}
 			catch (std::exception& e) {
@@ -307,6 +312,9 @@ namespace zfix {
 		auto msg = fixThread->fixApp().newOrderSingle(
 			symbol, clOrdId, side, ordType, s_timeInForce, qty, limitPrice, stopPrice
 		);
+
+		ExecReport report;
+		bool success = execReportQueue.pop(report, std::chrono::milliseconds(10));
 
 		LOG_DEBUG("BrokerBuy2 msg=%s\n", msg.toString().c_str());
 

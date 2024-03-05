@@ -13,11 +13,22 @@ public:
 	enum Side { buy, sell };
 	enum Type { market, limit };
 
-	Order(const std::string& clientId, const std::string& symbol,
-		const std::string& owner, const std::string& target,
-		Side side, Type type, double price, long quantity)
-		: m_clientId(clientId), m_symbol(symbol), m_owner(owner),
-		m_target(target), m_side(side), m_type(type), m_price(price),
+	Order(
+		const std::string& clientId, 
+		const std::string& symbol,
+		const std::string& owner, 
+		const std::string& target,
+		Side side, 
+		Type type, 
+		double price, 
+		long quantity
+	) : m_clientId(clientId), 
+		m_symbol(symbol), 
+		m_owner(owner),
+		m_target(target), 
+		m_side(side), 
+		m_type(type), 
+		m_price(price),
 		m_quantity(quantity)
 	{
 		m_openQuantity = m_quantity;

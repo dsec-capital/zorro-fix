@@ -156,6 +156,7 @@
     <ClInclude Include="market.h" />
     <ClInclude Include="order.h" />
     <ClInclude Include="order_matcher.h" />
+    <ClInclude Include="utils.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="session.cfg" />

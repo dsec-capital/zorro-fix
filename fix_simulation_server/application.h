@@ -40,7 +40,6 @@ class Application: public FIX::Application, public FIX::MessageCracker
 	) EXCEPT(FIX::FieldNotFound, FIX::IncorrectDataFormat, FIX::IncorrectTagValue, FIX::UnsupportedMessageType);
 
 	// MessageCracker overloads
-
 	void onMessage(const FIX44::NewOrderSingle&, const FIX::SessionID&);
 	void onMessage(const FIX44::OrderCancelRequest&, const FIX::SessionID&);
 	void onMessage(const FIX44::MarketDataRequest&, const FIX::SessionID&);

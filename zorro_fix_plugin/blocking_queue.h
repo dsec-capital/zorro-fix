@@ -1,7 +1,7 @@
 #pragma once
 
-#ifndef BLOCKING_CONCURRENTqueueUEUE
-#define BLOCKING_CONCURRENTqueueUEUE
+#ifndef BLOCKING_CONCURRENTQUEUE
+#define BLOCKING_CONCURRENTQUEUE
 
 #include <queue>
 #include <cstddef>
@@ -93,14 +93,15 @@ public:
         pushed_cond.notify_all();
     }
 
-    bool pop(T& item, const std::chrono::milliseconds& timeout)
+    template <class R, class P>
+    bool pop(T& item, const std::chrono::duration<R, P>& timeout)
     {
         std::unique_lock<std::mutex> ul(mutex);
         if (queue.empty()) {
-            if (!pushed_cond.wait_for(ul, timeout, [&queue]() {return !queue.empty();}))
+            if (!pushed_cond.wait_for(ul, timeout, [this]() {return !this->queue.empty();}))
                 return false;
         }
-        item = queue.front();
+        item = std::move(queue.front());
         queue.pop();
         return true;
     }
@@ -126,26 +127,28 @@ public:
 
     ~BlockingTimeoutBoundedQueue() = default;
 
-    bool push(const T& item, const std::chrono::milliseconds& timeout)
+    template <class R, class P>
+    bool push(const T& item, const std::chrono::duration<R, P>& timeout)
     {
         std::unique_lock<std::mutex> ul(mutex);
         if (queue.size() >= max_size) {
-            if (!popped_cond.wait_for(ul, timeout, [&queue, &max_size]() {return queue.size() < max_size;}))
+            if (!popped_cond.wait_for(ul, timeout, [this]() {return this->queue.size() < this->max_size;}))
                 return false;
         }
-        queue.push(item);
+        queue.push(std::move(item));
         pushed_cond.notify_all();
         return true;
     }
 
-    bool pop(T& item, const std::chrono::milliseconds& timeout)
+    template <class R, class P>
+    bool pop(T& item, const std::chrono::duration<R, P>& timeout)
     {
         std::unique_lock<std::mutex> ul(mutex);
         if (queue.empty()) {
-            if (!pushed_cond.wait_for(ul, timeout, [&queue]() {return !queue.empty(); }))
+            if (!pushed_cond.wait_for(ul, timeout, [this]() {return !this->queue.empty(); }))
                 return false;
         }
-        item = queue.front();
+        item = std::move(queue.front());
         queue.pop();
         if (queue.size() >= max_size - 1)
             popped_cond.notify_all();
