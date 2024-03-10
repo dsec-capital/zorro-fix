@@ -173,13 +173,14 @@ namespace zfix {
 		double* pMarginCost, double* pRollLong, double* pRollShort) {
 
 		try {
-			if (fixThread != nullptr) {
-				throw std::runtime_error("BrokerAsset: no FIX session");
+			if (fixThread == nullptr) {
+				throw std::runtime_error("no FIX session");
 			}
 
 			auto& fixApp = fixThread->fixApp();
 
-			if (!pPrice) {  // subscribe
+			// subscribe to Asset market data
+			if (!pPrice) {  
 				FIX::Symbol symbol(Asset);
 				fixApp.marketDataRequest(
 					symbol,
@@ -187,7 +188,7 @@ namespace zfix {
 					FIX::SubscriptionRequestType_SNAPSHOT_AND_UPDATES
 				);
 
-				// we do a busy polling as we do not want to have a blocking timeout queue
+				// we do a busy polling to wait for the market data snapshot arriving
 				int count = 0;
 				auto start = std::chrono::system_clock::now();
 				bool timeout = false;
@@ -196,7 +197,7 @@ namespace zfix {
 					bool success = fixApp.hasBook(symbol);
 					if (success) {
 						show(std::format("BrokerAsset: subscribed to symbol {}", Asset));
-						return 0;
+						return 1;
 					}
 					++count;
 					if (count == maxSnaphsotWaitingIterations) {

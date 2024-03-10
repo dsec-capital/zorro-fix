@@ -5,6 +5,7 @@
 #include "time_utils.h"
 
 #include <cmath>
+#include <format>
 
 using namespace std::literals;
 using namespace std::chrono_literals;
@@ -80,6 +81,8 @@ namespace zfix {
     }
 
     TopOfBook Book::topOfBook(const std::string& symbol) const {
+        if (bids.empty() || asks.empty())
+            throw std::runtime_error(std::format("empty book for symbol {}", symbol));
         return TopOfBook(
             symbol,
             unscale(bids.begin()->first), bids.begin()->second,

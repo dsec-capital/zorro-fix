@@ -40,10 +40,11 @@ int main(int argc, char** argv)
 
         auto market_update_period = 100ms;
         Application application(screenLogger, market_update_period);
-
         FIX::SocketAcceptor acceptor(application, storeFactory, settings, logFactory);
 
         acceptor.start();
+        application.startMarketDataUpdates();
+
         while (true)
         {
             std::string value;
@@ -58,7 +59,10 @@ int main(int argc, char** argv)
 
             std::cout << std::endl;
         }
+
+        application.stopMarketDataUpdates();
         acceptor.stop();
+
         return 0;
     }
     catch (std::exception& e)
