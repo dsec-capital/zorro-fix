@@ -12,6 +12,55 @@
 #include <condition_variable>
 #include <chrono>
 
+#include "logger.h"
+#include "time_utils.h"
+
+
+template <typename T>
+class SpScQueue
+{
+public:
+
+    SpScQueue() = default;
+
+    SpScQueue(const SpScQueue&) = delete;
+
+    SpScQueue& operator=(const SpScQueue&) = delete;
+
+    void push(const T& item)
+    {
+        std::unique_lock<std::mutex> mlock(mutex);
+        queue.push(item);
+    }
+
+    bool pop(T& item)
+    {
+        std::unique_lock<std::mutex> mlock(mutex);
+        if (queue.empty()) {
+            return false;
+        }
+        item = std::move(queue.front());
+        queue.pop();
+        return true;
+    }
+
+    bool pop_until_last(T& item)
+    {
+        std::unique_lock<std::mutex> mlock(mutex);
+        if (queue.empty()) {
+            return false;
+        }
+        item = std::move(queue.back());
+        queue.clear();
+        return true;
+    }
+
+private:
+    std::queue<T> queue;
+    std::mutex mutex;
+};
+
+
 /*
     A blocking queue from 
     
@@ -35,7 +84,7 @@ public:
     void push(const T& item)
     {
         std::unique_lock<std::mutex> mlock(mutex);
-        queue.push(item);
+        queue.push(std::move(item));
         mlock.unlock();
         cond.notify_one();
     }
@@ -43,11 +92,10 @@ public:
     T pop()
     {
         std::unique_lock<std::mutex> mlock(mutex);
-        while (queue.empty())
-        {
+        while (queue.empty()) {
             cond.wait(mlock);
         }
-        auto val = queue.front();
+        auto val = std::move(queue.front());
         queue.pop();
         return val;
     }
@@ -55,11 +103,10 @@ public:
     void pop(T& item)
     {
         std::unique_lock<std::mutex> mlock(mutex);
-        while (queue.empty())
-        {
+        while (queue.empty()) {
             cond.wait(mlock);
         }
-        item = queue.front();
+        item = std::move(queue.front());
         queue.pop();
     }
 
@@ -88,7 +135,9 @@ public:
 
     void push(const T& item)
     {
+        using namespace zfix;
         std::unique_lock<std::mutex> ul(mutex);
+        //LOG_DEBUG("[%s] push %s\n", now_str().c_str(), item.toString().c_str());
         queue.push(item);
         pushed_cond.notify_all();
     }
@@ -96,13 +145,18 @@ public:
     template <class R, class P>
     bool pop(T& item, const std::chrono::duration<R, P>& timeout)
     {
+        using namespace zfix;
         std::unique_lock<std::mutex> ul(mutex);
+        //LOG_DEBUG("[%s] pop waiting ...\n", now_str().c_str());
         if (queue.empty()) {
-            if (!pushed_cond.wait_for(ul, timeout, [this]() {return !this->queue.empty();}))
+            if (!pushed_cond.wait_for(ul, timeout, [this]() {return !this->queue.empty(); })) {
+                //LOG_DEBUG("[%s] **** pop timeout!\n", now_str().c_str());
                 return false;
+            }
         }
         item = std::move(queue.front());
         queue.pop();
+        LOG_DEBUG("[%s] pop success!\n", now_str().c_str());
         return true;
     }
 

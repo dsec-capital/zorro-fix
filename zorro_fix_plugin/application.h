@@ -15,12 +15,17 @@
 #include "quickfix/fix44/MarketDataSnapshotFullRefresh.h"
 #include "quickfix/fix44/MarketDataIncrementalRefresh.h"
 
+#include <mutex>
 #include <atomic>
 #include <queue>
 
 #include "id_generator.h"
-#include "exec_report.h"
 #include "blocking_queue.h"
+#include "exec_report.h"
+#include "market_data.h"
+#include "order_tracker.h"
+#include "book.h"
+
 
 namespace zfix
 {
@@ -30,16 +35,12 @@ namespace zfix
 	public:
 		Application(
 			const FIX::SessionSettings& sessionSettings,
-			BlockingTimeoutQueue<ExecReport>& execReportQueue,
-			std::function<void(const char*)> brokerError
-		): 
-			sessionSettings(sessionSettings),
-			execReportQueue(execReportQueue),
-			brokerError(brokerError),
-			done(false)
-		{
-			brokerError("FIX application created");
-		}
+			BlockingTimeoutQueue<ExecReport>& execReportQueue
+		);
+
+		bool hasBook(const std::string& symbol);
+
+		TopOfBook topOfBook(const std::string& symbol);
 
 		FIX::Message marketDataRequest(
 			const FIX::Symbol& symbol,
@@ -79,13 +80,14 @@ namespace zfix
 	private:
 		FIX::SessionSettings sessionSettings;
 		BlockingTimeoutQueue<ExecReport>& execReportQueue;
-		std::function<void(const char*)> brokerError;
+		std::deque<ExecReport> execReportStorageQueue;
 		std::string senderCompID;
 		std::string targetCompID;
 		std::atomic<bool> done;
-		IDGenerator m_generator;
-
-		void showMsg(const std::string& msg) const;
+		IDGenerator idGenerator;
+		std::unordered_map<std::string, Book> books;
+		OrderTracker orderTracker;
+		std::mutex mutex;
 
 		void onCreate(const FIX::SessionID&);
 

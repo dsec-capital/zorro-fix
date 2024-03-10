@@ -2,20 +2,17 @@
 
 #pragma warning(disable : 4996 4244 4312)
 
-#include "quickfix/config.h"
-#include "quickfix/FileStore.h"
-#include "quickfix/SocketInitiator.h"
-#include "quickfix/Values.h"
-#ifdef HAVE_SSL
-#include "quickfix/ThreadedSSLSocketInitiator.h"
-#include "quickfix/SSLSocketInitiator.h"
-#endif
-#include "quickfix/SessionSettings.h"
-#include "quickfix/Log.h"
 #include "application.h"
+#include "logger.h"
+#include "market_data.h"
+#include "exec_report.h"
+#include "zorro_fix_plugin.h"
+#include "broker_commands.h"
+#include "blocking_queue.h"
+#include "time_utils.h"
+#include "fix_thread.h"
 
 #include <time.h>
-#include <string>
 #include <string>
 #include <vector>
 #include <memory>
@@ -27,12 +24,7 @@
 #include <filesystem>
 #include <unordered_map>
 #include <chrono>
-
-#include "logger.h"
-#include "exec_report.h"
-#include "zorro_fix_plugin.h"
-#include "broker_commands.h"
-#include "blocking_queue.h"
+#include <format>
 
 #define PLUGIN_VERSION	2
 #define INITIAL_PRICE	1.0
@@ -41,94 +33,8 @@
 using namespace std::chrono_literals;
 
 namespace zfix {
-
-	class FixThread {
-		bool started;
-		std::string settingsCfgFile;
-		FIX::SessionSettings settings;
-		FIX::FileStoreFactory storeFactory;
-		FIX::ScreenLogFactory logFactory;
-		std::unique_ptr<FIX::Initiator> initiator;
-		std::unique_ptr<zfix::Application> application;
-		std::thread thread;
-		std::function<void(const char*)> brokerError;
-
-		void run() {
-			initiator->start();
-		}
-
-	public:
-		FixThread(
-			const std::string& settingsCfgFile,
-			BlockingTimeoutQueue<ExecReport>& execReportQueue,
-		    std::function<void(const char*)> brokerError
-		) :
-			started(false),
-			settingsCfgFile(settingsCfgFile),
-			settings(settingsCfgFile),
-			storeFactory(settings),
-			logFactory(settings), 
-			brokerError(brokerError)
-		{
-			application = std::unique_ptr<zfix::Application>(new Application(
-				settings, execReportQueue, brokerError)
-			);
-			initiator = std::unique_ptr<FIX::Initiator>(
-				new FIX::SocketInitiator(*application, storeFactory, settings, logFactory)
-			);
-		}
-
-#ifdef HAVE_SSL
-		FixThread(
-			const std::string& settingsCfgFile, 
-			std::function<void(const char*)> brokerError,
-			const std::string& isSSL
-		) :
-			started(false),
-			settingsCfgFile(settingsCfgFile),
-			settings(settingsCfgFile),
-			storeFactory(settings),
-			logFactory(settings),
-			brokerError(brokerError)
-		{
-			application = std::unique_ptr<zfix::Application>(new Application(settings));
-
-			if (isSSL.compare("SSL") == 0)
-				initiator = std::unique_ptr<FIX::Initiator>(
-					new FIX::ThreadedSSLSocketInitiator(application, storeFactory, settings, logFactory));
-			else if (isSSL.compare("SSL-ST") == 0)
-				initiator = std::unique_ptr<FIX::Initiator>(
-					new FIX::SSLSocketInitiator(application, storeFactory, settings, logFactory));
-			else
-				initiator = std::unique_ptr<FIX::Initiator>(
-					new FIX::SocketInitiator(*application, storeFactory, settings, logFactory)
-				);
-		}
-#endif
-
-		void start() {
-			started = true;
-			thread = std::thread(&FixThread::run, this);
-		}
-
-		void cancel() {
-			if (!started)
-				return;
-			started = false;
-			initiator->stop(true);
-			LOG_INFO("FixThread: FIX initiator and application stopped - going to join\n")
-			if (thread.joinable())
-				thread.join();
-			LOG_INFO("FixThread: FIX initiator stopped - joined\n")
-		}
-
-		zfix::Application& fixApp() {
-			return *application;
-		}
-	};
-}
-
-namespace zfix {
+	int maxSnaphsotWaitingIterations = 100; 
+	std::chrono::milliseconds fixBlockinQueueWaitingTime = 500ms;
 	std::string settingsCfgFile = "Plugin/zorro_fix_client.cfg";
 
 	std::unique_ptr<zfix::FixThread> fixThread = nullptr;
@@ -137,8 +43,7 @@ namespace zfix {
 
 	FIX::TimeInForce s_timeInForce = FIX::TimeInForce_GOOD_TILL_CANCEL;
 
-	BlockingTimeoutQueue<ExecReport> execReportQueue;
-	std::vector<ExecReport> execReportHistory;
+	BlockingTimeoutQueue<ExecReport> s_execReportQueue;
 
 	enum ExchangeStatus {
 		Unavailable = 0,
@@ -156,12 +61,18 @@ namespace zfix {
 		return (__time32_t)((date - 25569.) * 24. * 60. * 60.);
 	}
 
-	void showMsg(const char* text, const char* detail) {
+	template<typename ... Args>
+	inline void showf(const char* format, Args... args) {
 		if (!BrokerError) return;
-		if (!detail) detail = "";
-		static char msg[1024];
-		sprintf_s(msg, "%s %s", text, detail);
+		static char msg[4096];
+		sprintf_s(msg, format, std::forward<Args>(args)...);
 		BrokerError(msg);
+	}
+
+	void show(const std::string& msg) {
+		if (!BrokerError) return;
+		auto tmsg = "[" + now_str() + "] " + msg;
+		BrokerError(tmsg.c_str());
 	}
 
 	DLLFUNC_C void BrokerHTTP(FARPROC fpSend, FARPROC fpStatus, FARPROC fpResult, FARPROC fpFree) {
@@ -174,31 +85,34 @@ namespace zfix {
 	DLLFUNC int BrokerLogin(char* User, char* Pwd, char* Type, char* Account) {
 		if (User) {
 			if (fixThread != nullptr) {
-				showMsg("BrokerLogin: Zorro-Fix-Bridge - stopping fix service on repeated login...");
+				showf("BrokerLogin: Zorro-Fix-Bridge - stopping fix service on repeated login...");
 				fixThread->cancel();
-				showMsg("BrokerLogin: Zorro-Fix-Bridge - fix service stopped on repeated login");
+				showf("BrokerLogin: Zorro-Fix-Bridge - fix service stopped on repeated login");
 				fixThread = nullptr;
 			}
-			showMsg("BrokerLogin: Zorro-Fix-Bridge - starting fix service...");
+			showf("BrokerLogin: Zorro-Fix-Bridge - starting fix service...");
 			try { 
 				fixThread = std::unique_ptr<FixThread>(
-					new FixThread(settingsCfgFile, execReportQueue, BrokerError)
+					new FixThread(
+						settingsCfgFile, 
+						s_execReportQueue
+					)
 				);
 			}
 			catch (std::exception& e) {
 				fixThread = nullptr;
-				showMsg(e.what());
+				showf(e.what());
 				return 0;  
 			}
 			fixThread->start();
-			showMsg("BrokerLogin: Zorro-Fix-Bridge - fix service running");
+			showf("BrokerLogin: Zorro-Fix-Bridge - fix service running");
 			return 1; // logged in status
 		}
 		else {
 			if (fixThread != nullptr) {
-				showMsg("BrokerLogin: Zorro-Fix-Bridge - stopping fix service...");
+				showf("BrokerLogin: Zorro-Fix-Bridge - stopping fix service...");
 				fixThread->cancel();
-				showMsg("BrokerLogin: Zorro-Fix-Bridge - fix service stopped");
+				showf("BrokerLogin: Zorro-Fix-Bridge - fix service stopped");
 				fixThread = nullptr;
 			}	
 			return 0; // logged out status
@@ -211,7 +125,7 @@ namespace zfix {
 		(FARPROC&)BrokerProgress = fpProgress;
 
 		std::string cwd = std::filesystem::current_path().string();
-		showMsg(("BrokerOpen: Zorro-Fix-Bridge plugin opened in <" + cwd + ">").c_str()); 
+		showf("BrokerOpen: Zorro-Fix-Bridge plugin opened in <%s>\n", cwd.c_str()); 
 
 		Logger::instance().init("zorro-fix-bridge");
 		Logger::instance().setLevel(LogLevel::L_DEBUG);
@@ -229,6 +143,7 @@ namespace zfix {
 			std::chrono::system_clock::now().time_since_epoch()
 		).count();
 
+		show("BrokerTime");
 		return ExchangeStatus::Open;
 	}
 
@@ -243,31 +158,72 @@ namespace zfix {
 		return 1;
 	}
 
+	/*
+	 * BrokerAsset
+	 * 
+	 * Returns
+	 *	- 1 when the asset is available and the returned data is valid
+	 *  - 0 otherwise. 
+	 * 
+	 * An asset that returns 0 after subscription will trigger Error 053, and its trading will be disabled.
+	 * 
+	 */
 	DLLFUNC int BrokerAsset(char* Asset, double* pPrice, double* pSpread,
 		double* pVolume, double* pPip, double* pPipCost, double* pMinAmount,
 		double* pMarginCost, double* pRollLong, double* pRollShort) {
 
 		try {
-			if (pPip != nullptr) {
-
+			if (fixThread != nullptr) {
+				throw std::runtime_error("BrokerAsset: no FIX session");
 			}
-			else {
-				if (fixThread != nullptr) {
-					FIX::Symbol symbol(Asset);
-					fixThread->fixApp().marketDataRequest(
-						symbol,
-						FIX::MarketDepth(1),
-						FIX::SubscriptionRequestType_SNAPSHOT
-					);
+
+			auto& fixApp = fixThread->fixApp();
+
+			if (!pPrice) {  // subscribe
+				FIX::Symbol symbol(Asset);
+				fixApp.marketDataRequest(
+					symbol,
+					FIX::MarketDepth(1),
+					FIX::SubscriptionRequestType_SNAPSHOT_AND_UPDATES
+				);
+
+				// we do a busy polling as we do not want to have a blocking timeout queue
+				int count = 0;
+				auto start = std::chrono::system_clock::now();
+				bool timeout = false;
+				bool snapshot = false;
+				while (!snapshot && !timeout) {
+					bool success = fixApp.hasBook(symbol);
+					if (success) {
+						show(std::format("BrokerAsset: subscribed to symbol {}", Asset));
+						return 0;
+					}
+					++count;
+					if (count == maxSnaphsotWaitingIterations) {
+						auto now = std::chrono::system_clock::now();
+						auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count();
+						throw std::runtime_error(std::format("failed to get snapshot in {}ms", ms));
+					}
+					else {
+						std::this_thread::sleep_for(10ms);
+					}
 				}
 			}
-			if (pPrice) *pPrice = 100;
-			if (pSpread) *pSpread = 0.0005;
+			else {
+				TopOfBook top = fixApp.topOfBook(Asset);
+				if (pPrice) *pPrice = top.mid();
+				if (pSpread) *pSpread = top.spread();
+				return 1;
+			}
+		}
+		catch (const std::runtime_error& e) {
+			show(std::format("BrokerAsset: Excetion {}", e.what()));
+			return 0;
 		}
 		catch (...) {
-			showMsg("Excetion in BrokerAsset");
+			show("BrokerAsset: undetermned excetion");
+			return 0;
 		}
-		return 1;
 	}
 
 	DLLFUNC int BrokerHistory2(char* Asset, DATE tStart, DATE tEnd, int nTickMinutes, int nTicks, T6* ticks)
@@ -283,11 +239,21 @@ namespace zfix {
 		return nTicks;
 	}
 
-
+	/*
+	* BrokerBuy2
+	* 
+	* Returns 
+	*	- 0 when the order was rejected or a FOK or IOC order was unfilled within the wait time (adjustable with the SET_WAIT command). The order must then be cancelled by the plugin.
+	*	  Trade or order ID number when the order was successfully placed. If the broker API does not provide trade or order IDs, the plugin should generate a unique 6-digit number, f.i. from a counter, and return it as a trade ID.
+	*	-1 when the trade or order identifier is a UUID that is then retrieved with the GET_UUID command.
+	*	-2 when the broker API did not respond at all within the wait time. The plugin must then attempt to cancel the order. Zorro will display a "possible orphan" warning.
+	*	-3 when the order was accepted, but got no ID yet. The ID is then taken from the next subsequent BrokerBuy call that returned a valid ID. This is used for combo positions that require several orders.
+	*/
 	DLLFUNC_C int BrokerBuy2(char* Asset, int nAmount, double dStopDist, double dLimit, double* pPrice, int* pFill)
 	{
 		if (!fixThread) {
-			showMsg("FIX session not created");
+			show("BrokerBuy2: no FIX session");
+			return -2;
 		}
 
 		auto start = std::time(nullptr);
@@ -313,25 +279,61 @@ namespace zfix {
 			symbol, clOrdId, side, ordType, s_timeInForce, qty, limitPrice, stopPrice
 		);
 
+		show("BrokerBuy2: newOrderSingle " + msg.toString());
+
 		ExecReport report;
-		bool success = execReportQueue.pop(report, std::chrono::milliseconds(10));
-
-		LOG_DEBUG("BrokerBuy2 msg=%s\n", msg.toString().c_str());
-
-		bool fill = true;
-
-		if (fill) {
-			if (pPrice) {
-				*pPrice = 0;
-			}
-			if (pFill) {
-				*pFill = 0;
-			}
-
-			// reset s_amount, next asset might have lotAmount = 1, in that case SET_AMOUNT will not be called in advance
+		bool success = s_execReportQueue.pop(report, std::chrono::seconds(4));
+		if (!success) {
+			show("BrokerBuy2 timeout while waiting for FIX exec report!");
 		}
+		else {
+			if (report.execType == FIX::ExecType_REJECTED) {
+				show("BrokerBuy2: exec report " + report.toString());
 
-		return s_internalOrderId++;
+			}
+
+			if (report.execType == FIX::ExecType_PENDING_NEW) {
+
+			}
+
+			if (report.execType == FIX::ExecType_NEW) {
+
+			}
+
+			if (report.execType == FIX::ExecType_PARTIAL_FILL) {
+
+			}
+
+			if (report.execType == FIX::ExecType_FILL) {
+
+			}
+
+			if (report.execType == FIX::ExecType_PENDING_CANCEL) {
+
+			}
+
+			if (report.execType == FIX::ExecType_CANCELED) {
+
+			}
+
+
+			bool fill = true;
+
+			if (fill) {
+				if (pPrice) {
+					*pPrice = 0;
+				}
+				if (pFill) {
+					*pFill = 0;
+				}
+
+				// reset s_amount, next asset might have lotAmount = 1, in that case SET_AMOUNT will not be called in advance
+			}
+
+			return s_internalOrderId++;
+		}
+			
+		return 0;
 	}
 
 	DLLFUNC int BrokerTrade(int nTradeID, double* pOpen, double* pClose, double* pCost, double* pProfit) {
@@ -349,6 +351,8 @@ namespace zfix {
 
 	// https://zorro-project.com/manual/en/brokercommand.htm
 	DLLFUNC double BrokerCommand(int command, DWORD dwParameter) {
+		show("BrokerCommand");
+
 		switch (command)
 		{
 		case GET_COMPLIANCE:
@@ -452,7 +456,6 @@ namespace zfix {
 
 		case SET_LEVERAGE: {
 			LOG_DEBUG("BrokerCommand: SET_LEVERAGE param=%d\n", (int)dwParameter);
-			LOG_DEBUG("BrokerCommand: SET_LEVERAGE param=%f\n", *(double*)dwParameter);
 			break;
 		}
 

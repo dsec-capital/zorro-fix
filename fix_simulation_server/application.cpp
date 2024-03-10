@@ -5,7 +5,7 @@
 #include "quickfix/config.h"
 
 #include "application.h"
-#include "utils.h"
+#include "time_utils.h"
 
 #include "quickfix/Session.h"
 #include "quickfix/fix44/ExecutionReport.h"
@@ -13,6 +13,56 @@
 #include "quickfix/fix44/MarketDataRequestReject.h"
 #include "quickfix/fix44/MarketDataSnapshotFullRefresh.h"
 #include "quickfix/fix44/MarketDataIncrementalRefresh.h"
+
+
+void Application::runMarketDataUpdate() {
+	while (!done) {
+		std::this_thread::sleep_for(m_marketUpdatePeriod);
+
+		for (auto& market : m_orderMatcher.m_markets) {
+			market.second.simulateNext();
+			auto it = m_marketDataSubscriptions.find(market.first);
+			if (it != m_marketDataSubscriptions.end()) {
+				auto message = market.second.getUpdateMessage(
+					it->second.first, it->second.second, m_generator.genMarketDataID()
+				);
+				if (message.has_value()) {
+					FIX::Session::sendToTarget(message.value());
+				}
+			}
+		}
+	}
+}
+
+void Application::startMarketDataUpdates() {
+	m_logger->onEvent("OrderMatcher starting market data updates");
+	thread = std::thread(&Application::runMarketDataUpdate, this);
+}
+
+void Application::stopMarketDataUpdates() {
+	if (!started)
+		return;
+	started = false;
+	done = true;
+	if (thread.joinable())
+		thread.join();
+}
+
+void Application::marketDataSubscribe(const std::string& symbol, const std::string& senderCompID, const std::string& targetCompID) {
+	m_orderMatcher.getMarket(symbol);
+	m_marketDataSubscriptions.insert_or_assign(symbol, std::make_pair(senderCompID, targetCompID));
+}
+
+void Application::marketDataUnsubscribe(const std::string& symbol) {
+	auto it = m_marketDataSubscriptions.find(symbol);
+	if (it != m_marketDataSubscriptions.end())
+		m_marketDataSubscriptions.erase(it);
+}
+
+bool Application::marketDataSubscribed(const std::string& symbol) {
+	auto it = m_marketDataSubscriptions.find(symbol);
+	return it != m_marketDataSubscriptions.end();
+}
 
 void Application::onCreate(const FIX::SessionID&)
 {}
@@ -50,8 +100,8 @@ void Application::onMessage(const FIX44::NewOrderSingle& message, const FIX::Ses
 	FIX::Symbol symbol;
 	FIX::Side side;
 	FIX::OrdType ordType;
-	FIX::Price price;
-	FIX::OrderQty orderQty;
+	FIX::Price price(0);
+	FIX::OrderQty orderQty(0);
 	FIX::TimeInForce timeInForce(FIX::TimeInForce_DAY);
 
 	message.getHeader().get(senderCompID);
@@ -78,7 +128,7 @@ void Application::onMessage(const FIX44::NewOrderSingle& message, const FIX::Ses
 	}
 	catch (std::exception& e)
 	{
-		rejectOrder(senderCompID, targetCompID, clOrdID, symbol, side, e.what());
+		rejectOrder(senderCompID, targetCompID, clOrdID, symbol, price, side, ordType, orderQty, e.what());
 	}
 }
 
@@ -113,10 +163,11 @@ void Application::onMessage(const FIX44::MarketDataRequest& message, const FIX::
 	message.getHeader().get(targetCompID);
 	message.get(mdReqID);
 	message.get(subscriptionRequestType);
-	
-	if (subscriptionRequestType == FIX::SubscriptionRequestType_SNAPSHOT) {
-		message.get(marketDepth);
-		message.get(noRelatedSym);
+	message.get(marketDepth);
+	message.get(noRelatedSym);
+
+	if (subscriptionRequestType == FIX::SubscriptionRequestType_SNAPSHOT ||
+		subscriptionRequestType == FIX::SubscriptionRequestType_SNAPSHOT_AND_UPDATES) { 
 
 		for (int i = 1; i <= noRelatedSym; ++i)
 		{
@@ -124,41 +175,17 @@ void Application::onMessage(const FIX44::MarketDataRequest& message, const FIX::
 			message.getGroup(i, noRelatedSymGroup);
 			noRelatedSymGroup.get(symbol);
 
-			FIX44::MarketDataSnapshotFullRefresh data;
-			data.set(symbol);
-			data.set(mdReqID);
+			auto market = m_orderMatcher.getMarket(symbol.getString());
 
-			FIX::DateTime now = FIX::DateTime::nowUtc();
+			// flip to send back target->sender and sender->target
+			auto message = (*market).second.getSnapshotMessage(targetCompID.getValue(), senderCompID.getValue(), mdReqID.getValue());
+			FIX::Session::sendToTarget(message);
 
-			FIX44::MarketDataSnapshotFullRefresh::NoMDEntries group;
-			group.set(FIX::MDEntryType(FIX::MDEntryType_BID));
-			group.set(FIX::MDEntryPx(100));
-			group.set(FIX::MDEntrySize(10));
-			group.set(FIX::MDEntryDate(now));
-			group.set(FIX::MDEntryTime(now));
-			data.addGroup(group);
-
-			group.set(FIX::MDEntryType(FIX::MDEntryType_OFFER));
-			group.set(FIX::MDEntryPx(101));
-			group.set(FIX::MDEntrySize(11));
-			group.set(FIX::MDEntryDate(now));
-			group.set(FIX::MDEntryTime(now));
-			data.addGroup(group);
-
-			// flip to send back
-			auto& header = data.getHeader();
-			header.setField(FIX::SenderCompID(targetCompID));
-			header.setField(FIX::TargetCompID(senderCompID));
-
-			FIX::Session::sendToTarget(data);
+			if (subscriptionRequestType == FIX::SubscriptionRequestType_SNAPSHOT_AND_UPDATES) {
+				marketDataSubscribe(symbol.getValue(), targetCompID.getValue(), senderCompID.getValue());
+			}
 		}
-	}
-		
-
-
-	if (subscriptionRequestType == FIX::SubscriptionRequestType_SNAPSHOT_AND_UPDATES) {
-
-	}
+	} 
 }
 
 void Application::updateOrder(const Order& order, char status)
@@ -218,9 +245,15 @@ void Application::cancelOrder(const Order& order)
 }
 
 void Application::rejectOrder(
-	const FIX::SenderCompID& sender, const FIX::TargetCompID& target,
-	const FIX::ClOrdID& clOrdID, const FIX::Symbol& symbol,
-	const FIX::Side& side, const std::string& message)
+	const FIX::SenderCompID& sender, 
+	const FIX::TargetCompID& target,
+	const FIX::ClOrdID& clOrdID, 
+	const FIX::Symbol& symbol,
+	const FIX::Price& price,
+	const FIX::Side& side, 
+	const FIX::OrdType& ordType,
+	const FIX::OrderQty& orderQty,
+	const std::string& message)
 {
 	FIX::TargetCompID targetCompID(sender.getValue());
 	FIX::SenderCompID senderCompID(target.getValue());
@@ -237,7 +270,10 @@ void Application::rejectOrder(
 	);
 
 	fixOrder.set(symbol);
+	fixOrder.set(price);
 	fixOrder.set(clOrdID);
+	fixOrder.set(ordType);
+	fixOrder.set(orderQty);
 	fixOrder.set(FIX::Text(message));
 
 	try
@@ -326,3 +362,4 @@ FIX::OrdType Application::convert(Order::Type type)
 const OrderMatcher& Application::orderMatcher() {
 	return m_orderMatcher;
 }
+

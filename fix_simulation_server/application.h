@@ -4,8 +4,10 @@
 #include "id_generator.h"
 #include "order_matcher.h"
 #include "order.h"
+
 #include <queue>
 #include <iostream>
+#include <thread>
 
 #include "quickfix/Application.h"
 #include "quickfix/MessageCracker.h"
@@ -19,8 +21,25 @@
 
 class Application: public FIX::Application, public FIX::MessageCracker
 {
-	// Application overloads
+public:
+	Application(
+		FIX::Log *logger, 
+		std::chrono::milliseconds marketUpdatePeriod
+	) 
+		: m_logger(logger)
+		, m_orderMatcher(logger)
+		, m_marketUpdatePeriod(marketUpdatePeriod)
+	{}
 
+	void runMarketDataUpdate();
+
+	void startMarketDataUpdates();
+
+	void stopMarketDataUpdates();
+
+	const OrderMatcher& orderMatcher();
+
+private:
 	void onCreate(const FIX::SessionID&);
 
 	void onLogon(const FIX::SessionID& sessionID);
@@ -61,22 +80,43 @@ class Application: public FIX::Application, public FIX::MessageCracker
 	void cancelOrder(const Order& order);
 
 	void rejectOrder(
-		const FIX::SenderCompID&, const FIX::TargetCompID&,
-		const FIX::ClOrdID& clOrdID, const FIX::Symbol& symbol,
-		const FIX::Side& side, const std::string& message
+		const FIX::SenderCompID&, 
+		const FIX::TargetCompID&,
+		const FIX::ClOrdID& clOrdID, 
+		const FIX::Symbol& symbol,
+		const FIX::Price& price,
+		const FIX::Side& side,
+		const FIX::OrdType& ordType,
+		const FIX::OrderQty& orderQty,
+		const std::string& message
 	);
 
-	// Type conversions
 	Order::Side convert(const FIX::Side&);
+
 	Order::Type convert(const FIX::OrdType&);
+
 	FIX::Side convert(Order::Side);
+
 	FIX::OrdType convert(Order::Type);
 
+
+	void marketDataSubscribe(const std::string& symbol, const std::string& senderCompID, const std::string& targetCompID);
+
+	void marketDataUnsubscribe(const std::string& symbol);
+
+	bool marketDataSubscribed(const std::string& symbol);
+
+	FIX::Log* m_logger;
 	OrderMatcher m_orderMatcher;
 	IDGenerator m_generator;
 
-public:
-	const OrderMatcher& orderMatcher();
+	std::chrono::milliseconds m_marketUpdatePeriod;
+	std::map<std::string, std::pair<std::string, std::string>> m_marketDataSubscriptions;
+
+	std::thread thread;
+	bool started{ false };
+	std::atomic_bool done{ false };
+
 };
 
 #endif

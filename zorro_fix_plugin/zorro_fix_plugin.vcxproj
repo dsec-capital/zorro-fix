@@ -91,7 +91,7 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <AdditionalIncludeDirectories>$(SolutionDir)third-parties\quickfix\$(LibrariesArchitecture)-$(Configuration)\include</AdditionalIncludeDirectories>
-      <LanguageStandard>stdcpp17</LanguageStandard>
+      <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -170,17 +170,23 @@ robocopy "$(SolutionDir)spec" "%ZorroInstallDir%\Plugin\spec"  /MIR</Command>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="application.h" />
+    <ClInclude Include="book.h" />
     <ClInclude Include="broker_commands.h" />
     <ClInclude Include="exec_report.h" />
+    <ClInclude Include="fix_thread.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="id_generator.h" />
     <ClInclude Include="logger.h" />
+    <ClInclude Include="market_data.h" />
+    <ClInclude Include="order_tracker.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="blocking_queue.h" />
+    <ClInclude Include="time_utils.h" />
     <ClInclude Include="zorro_fix_plugin.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="application.cpp" />
+    <ClCompile Include="book.cpp" />
     <ClCompile Include="dllmain.cpp" />
     <ClCompile Include="logger.cpp" />
     <ClCompile Include="pch.cpp">

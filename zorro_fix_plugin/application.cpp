@@ -4,17 +4,40 @@
 #pragma warning(disable : 4503 4355 4786)
 #endif
 
+#include <iostream>
+#include <deque>
+
 #include "quickfix/config.h"
 #include "quickfix/Session.h"
 
 #include "logger.h"
 #include "application.h"
-#include <iostream>
+#include "time_utils.h"
+
 
 namespace zfix
 {
-	void Application::showMsg(const std::string& msg) const {
-		brokerError(msg.c_str());
+	Application::Application(
+		const FIX::SessionSettings& sessionSettings,
+		BlockingTimeoutQueue<ExecReport>& execReportQueue
+	) :
+		sessionSettings(sessionSettings),
+		execReportQueue(execReportQueue),
+		done(false)
+	{}
+
+	bool Application::hasBook(const std::string& symbol) {
+		std::unique_lock<std::mutex> mlock(mutex);
+		return books.contains(symbol);
+	}
+
+	TopOfBook Application::topOfBook(const std::string& symbol) {
+		std::unique_lock<std::mutex> mlock(mutex);
+		auto it = books.find(symbol);
+		if (it != books.end())
+			return it->second.topOfBook(symbol);
+		else
+			throw std::runtime_error(std::format("symbol {} not found in books", symbol));
 	}
 
 	void Application::onCreate(const FIX::SessionID&) {}
@@ -43,8 +66,7 @@ namespace zfix
 	void Application::fromApp(const FIX::Message& message, const FIX::SessionID& sessionID)
 		EXCEPT(FIX::FieldNotFound, FIX::IncorrectDataFormat, FIX::IncorrectTagValue, FIX::UnsupportedMessageType)
 	{
-		showMsg(message.toString());
-		LOG_INFO("IN: %s\n", message.toString().c_str());
+		LOG_DEBUG("IN fromApp: %s\n", message.toString().c_str());
 		crack(message, sessionID);
 	}
 
@@ -59,16 +81,68 @@ namespace zfix
 		}
 		catch (FIX::FieldNotFound&) {}
 
-		showMsg(message.toString());
-		LOG_INFO("OUT: %s\n", message.toString().c_str());
+		LOG_DEBUG("OUT toApp: %s\n", message.toString().c_str());
 	}
 
 	void Application::onMessage(const FIX44::MarketDataSnapshotFullRefresh& message, const FIX::SessionID&)
 	{
+		FIX::Symbol symbol;
+		FIX::NoMDEntries noMDEntries;
+		FIX44::MarketDataSnapshotFullRefresh::NoMDEntries noMDEntriesGroup;
+
+		message.get(symbol);
+		message.get(noMDEntries);
+
+		auto book = books.insert_or_assign(symbol, Book()).first;
+
+		for (int i = 1; i <= noMDEntries; ++i)
+		{
+			message.getGroup(i, noMDEntriesGroup);
+
+			FIX::MDEntryType type;
+			FIX::MDEntryDate date;
+			FIX::MDEntryTime time;
+			FIX::MDEntrySize size;
+			FIX::MDEntryPx price;
+
+			noMDEntriesGroup.get(type);
+			noMDEntriesGroup.get(date);
+			noMDEntriesGroup.get(time);
+			noMDEntriesGroup.get(size);
+			noMDEntriesGroup.get(price);
+
+			auto is_bid = type == FIX::MDEntryType_BID;
+			book->second.update_book(price, size, is_bid);
+		}
 	}
 
 	void Application::onMessage(const FIX44::MarketDataIncrementalRefresh& message, const FIX::SessionID&)
 	{
+		FIX::NoMDEntries noMDEntries;
+		FIX44::MarketDataIncrementalRefresh::NoMDEntries noMDEntriesGroup;
+
+		message.get(noMDEntries);
+
+		for (int i = 1; i <= noMDEntries; ++i)
+		{
+			message.getGroup(i, noMDEntriesGroup);
+
+			FIX::Symbol symbol;
+			FIX::MDEntryType type;
+			FIX::MDEntryDate date;
+			FIX::MDEntryTime time;
+			FIX::MDEntrySize size;
+			FIX::MDEntryPx price;
+			FIX::MDUpdateAction action;
+
+			noMDEntriesGroup.get(symbol);
+			noMDEntriesGroup.get(type);
+			noMDEntriesGroup.get(date);
+			noMDEntriesGroup.get(time);
+			noMDEntriesGroup.get(size);
+			noMDEntriesGroup.get(price);
+			noMDEntriesGroup.get(action);
+		}
 	}
 
 	void Application::onMessage(const FIX44::ExecutionReport& message, const FIX::SessionID&) 
@@ -146,7 +220,6 @@ namespace zfix
 		}
 
 		if (exec_type == FIX::ExecType_REJECTED) {
-			showMsg("FIX::ExecType_REJECTED " + message.toString());
 		}
 	
 		execReportQueue.push(report);
@@ -163,7 +236,7 @@ namespace zfix
 		const FIX::MarketDepth& markeDepth,
 		const FIX::SubscriptionRequestType& subscriptionRequestType
 	) {
-		FIX::MDReqID mdReqID(m_generator.genID());
+		FIX::MDReqID mdReqID(idGenerator.genID());
 		FIX44::MarketDataRequest request(mdReqID, subscriptionRequestType, markeDepth);
 		FIX44::MarketDataRequest::NoRelatedSym noRelatedSymGroup;
 		noRelatedSymGroup.set(symbol);
@@ -178,7 +251,7 @@ namespace zfix
 		header.setField(FIX::SenderCompID(senderCompID));
 		header.setField(FIX::TargetCompID(targetCompID));
 
-		showMsg("marketDataRequest: " + request.toString());
+		LOG_DEBUG("marketDataRequest: %s\n", request.toString().c_str());
 
 		FIX::Session::sendToTarget(request);
 
@@ -216,7 +289,7 @@ namespace zfix
 		header.setField(FIX::SenderCompID(senderCompID));
 		header.setField(FIX::TargetCompID(targetCompID));
 
-		showMsg("newOrderSingle: " + order.toString());
+		LOG_DEBUG("newOrderSingle: %s\n" , order.toString().c_str());
 
 		FIX::Session::sendToTarget(order);
 
@@ -243,7 +316,7 @@ namespace zfix
 		header.setField(FIX::SenderCompID(senderCompID));
 		header.setField(FIX::TargetCompID(targetCompID));
 
-		showMsg("orderCancelRequest: " + request.toString());
+		LOG_DEBUG("orderCancelRequest: %s\n", request.toString().c_str());
 
 		FIX::Session::sendToTarget(request);
 
@@ -275,7 +348,7 @@ namespace zfix
 		header.setField(FIX::SenderCompID(senderCompID));
 		header.setField(FIX::TargetCompID(targetCompID));
 
-		showMsg("orderCancelRequest: " + request.toString());
+		LOG_DEBUG("orderCancelRequest: %s\n", request.toString().c_str());
 
 		FIX::Session::sendToTarget(request);
 

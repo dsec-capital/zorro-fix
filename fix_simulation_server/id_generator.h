@@ -7,7 +7,7 @@
 class IDGenerator
 {
 public:
-	IDGenerator() : m_orderID(0), m_executionID(0) {}
+	IDGenerator() : m_orderID(0), m_executionID(0), m_mdReqID(0) {}
 
 	std::string genOrderID()
 	{
@@ -19,9 +19,15 @@ public:
 		return std::to_string(++m_executionID);
 	}
 
+	std::string genMarketDataID()
+	{
+		return std::to_string(++m_mdReqID);
+	}
+
 private:
 	long m_orderID;
 	long m_executionID;
+	long m_mdReqID;
 };
 
 #endif

@@ -6,6 +6,7 @@
 #include <string>
 #include <mutex>
 
+#include "time_utils.h"
 
 namespace zfix {
 
@@ -38,13 +39,21 @@ namespace zfix {
 
 		template<typename ... Args>
 		inline void log(LogLevel level, const char* format, Args... args) {
+			using namespace std::chrono;
 			mutex_.lock();
-			std::time_t t = std::time(nullptr);
-			struct tm _tm;
-			localtime_s(&_tm, &t);
-			char buf[25];
-			std::strftime(buf, sizeof(buf), "%F %T", &_tm);
-			fprintf(log_, "%s | %s | ", buf, to_string(level));
+			//std::time_t t = std::time(nullptr);
+			//struct tm _tm;
+			//localtime_s(&_tm, &t);
+			//char buf[25];
+			//std::strftime(buf, sizeof(buf), "%F %T", &_tm);
+			auto now = system_clock::now();
+			auto us = duration_cast<microseconds>(now.time_since_epoch()) % 1000000;
+			auto timer = system_clock::to_time_t(now);
+			std::tm bt = *std::localtime(&timer);
+			std::ostringstream oss;
+			oss << std::put_time(&bt, "%H:%M:%S");  
+			oss << '.' << std::setfill('0') << std::setw(6) << us.count();
+			fprintf(log_, "%s | %s | ", oss.str().c_str(), to_string(level));
 			fprintf(log_, format, std::forward<Args>(args)...);
 			fflush(log_);
 			mutex_.unlock();

@@ -83,7 +83,7 @@
       <InlineFunctionExpansion>Default</InlineFunctionExpansion>
       <OmitFramePointers />
       <RuntimeTypeInfo>true</RuntimeTypeInfo>
-      <LanguageStandard>stdcpp17</LanguageStandard>
+      <LanguageStandard>stdcpp20</LanguageStandard>
       <UseFullPaths>false</UseFullPaths>
     </ClCompile>
     <Link>
@@ -152,11 +152,14 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="application.h" />
+    <ClInclude Include="fodra_pham.h" />
     <ClInclude Include="id_generator.h" />
+    <ClInclude Include="logger.h" />
     <ClInclude Include="market.h" />
     <ClInclude Include="order.h" />
     <ClInclude Include="order_matcher.h" />
-    <ClInclude Include="utils.h" />
+    <ClInclude Include="price_sampler.h" />
+    <ClInclude Include="time_utils.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="session.cfg" />

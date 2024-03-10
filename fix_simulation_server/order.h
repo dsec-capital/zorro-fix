@@ -67,6 +67,7 @@ public:
 		m_lastExecutedPrice = price;
 		m_lastExecutedQuantity = quantity;
 	}
+
 	void cancel()
 	{
 		m_openQuantity = 0;

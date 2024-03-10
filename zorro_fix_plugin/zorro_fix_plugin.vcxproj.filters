@@ -46,6 +46,21 @@
     <ClInclude Include="exec_report.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="time_utils.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="order_tracker.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="market_data.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="fix_thread.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="book.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="zorro_fix_plugin.cpp">
@@ -61,6 +76,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="logger.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="book.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

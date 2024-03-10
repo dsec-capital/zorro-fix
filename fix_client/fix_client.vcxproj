@@ -79,7 +79,7 @@
       <ConformanceMode>Default</ConformanceMode>
       <SupportJustMyCode>false</SupportJustMyCode>
       <OmitFramePointers />
-      <LanguageStandard>stdcpp17</LanguageStandard>
+      <LanguageStandard>stdcpp20</LanguageStandard>
       <RuntimeTypeInfo>true</RuntimeTypeInfo>
       <UseFullPaths>false</UseFullPaths>
       <AdditionalIncludeDirectories>$(SolutionDir)third-parties\quickfix\$(LibrariesArchitecture)-$(Configuration)\include</AdditionalIncludeDirectories>
