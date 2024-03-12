@@ -49,7 +49,8 @@ void Application::stopMarketDataUpdates() {
 }
 
 void Application::marketDataSubscribe(const std::string& symbol, const std::string& senderCompID, const std::string& targetCompID) {
-	m_orderMatcher.getMarket(symbol);
+	auto market = m_orderMatcher.getMarket(symbol);
+	(*market).second.simulateNext();
 	m_marketDataSubscriptions.insert_or_assign(symbol, std::make_pair(senderCompID, targetCompID));
 }
 

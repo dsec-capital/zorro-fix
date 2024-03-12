@@ -6,6 +6,7 @@
 
 #include <iostream>
 #include <random>
+#include <thread>
 
 #include "quickfix/fix44/MarketDataSnapshotFullRefresh.h"
 #include "quickfix/fix44/MarketDataIncrementalRefresh.h"
@@ -29,9 +30,10 @@ Market::Market(
 {}
 
 void Market::simulateNext() {
-	m_topOfBookPrevious = m_topOfBook;
 	auto spread = m_priceSampler->next_spread();
 	auto mid = m_priceSampler->next_mid_price();
+	std::unique_lock<std::mutex> ul(m_mutex);
+	m_topOfBookPrevious = m_topOfBook;
 	m_topOfBook.bidPrice = mid - spread / 2;
 	m_topOfBook.askPrice = mid + spread / 2;
 }
@@ -40,7 +42,11 @@ const TopOfBook& Market::getTopOfBook() const {
 	return m_topOfBook;
 }
 
-FIX::Message Market::getSnapshotMessage(const std::string& senderCompID, const std::string& targetCompID, const std::string& mdReqID) const {
+FIX::Message Market::getSnapshotMessage(const std::string& senderCompID, const std::string& targetCompID, const std::string& mdReqID) {
+	std::unique_lock<std::mutex> ul(m_mutex);
+	TopOfBook top = m_topOfBook;
+	ul.unlock();
+
 	FIX::DateTime now = FIX::DateTime::nowUtc();
 
 	FIX44::MarketDataSnapshotFullRefresh message;
@@ -48,16 +54,17 @@ FIX::Message Market::getSnapshotMessage(const std::string& senderCompID, const s
 	message.set(FIX::MDReqID(mdReqID));
 
 	FIX44::MarketDataSnapshotFullRefresh::NoMDEntries group;
+
 	group.set(FIX::MDEntryType(FIX::MDEntryType_BID));
-	group.set(FIX::MDEntryPx(m_topOfBook.bidPrice));
-	group.set(FIX::MDEntrySize(m_topOfBook.bidVolume));
+	group.set(FIX::MDEntryPx(top.bidPrice));
+	group.set(FIX::MDEntrySize(top.bidVolume));
 	group.set(FIX::MDEntryDate(now));
 	group.set(FIX::MDEntryTime(now));
 	message.addGroup(group);
 
 	group.set(FIX::MDEntryType(FIX::MDEntryType_OFFER));
-	group.set(FIX::MDEntryPx(m_topOfBook.askPrice));
-	group.set(FIX::MDEntrySize(m_topOfBook.askVolume));
+	group.set(FIX::MDEntryPx(top.askPrice));
+	group.set(FIX::MDEntrySize(top.askVolume));
 	group.set(FIX::MDEntryDate(now));
 	group.set(FIX::MDEntryTime(now));
 	message.addGroup(group);
@@ -69,7 +76,9 @@ FIX::Message Market::getSnapshotMessage(const std::string& senderCompID, const s
 	return message;
 }
 
-std::optional<FIX::Message> Market::getUpdateMessage(const std::string& senderCompID, const std::string& targetCompID, const std::string& mdReqID) const {
+std::optional<FIX::Message> Market::getUpdateMessage(const std::string& senderCompID, const std::string& targetCompID, const std::string& mdReqID) {
+	std::unique_lock<std::mutex> ul(m_mutex);
+
 	if (m_topOfBook.bidPrice == m_topOfBookPrevious.bidPrice &&
 		m_topOfBook.bidVolume == m_topOfBookPrevious.bidVolume &&
 		m_topOfBook.askPrice == m_topOfBookPrevious.askPrice &&
@@ -102,6 +111,8 @@ std::optional<FIX::Message> Market::getUpdateMessage(const std::string& senderCo
 		group.set(FIX::MDEntryTime(now));
 		message.addGroup(group);
 	}
+
+	ul.unlock();
 
 	auto& header = message.getHeader();
 	header.setField(FIX::SenderCompID(senderCompID));

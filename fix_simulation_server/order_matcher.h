@@ -52,13 +52,12 @@ public:
 	Markets::iterator getMarket(const std::string& symbol) {
 		auto it = m_markets.find(symbol);
 		if (it == m_markets.end()) {
-			it = m_markets.emplace(
+			it = m_markets.try_emplace(
 				symbol, 
-				Market(
-					symbol, 
-					100, 
-					100,
-					createSampler(symbol))
+				symbol, 
+				100, 
+				100,
+				createSampler(symbol)
 			).first;
 		}
 		return it;

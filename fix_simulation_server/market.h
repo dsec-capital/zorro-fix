@@ -9,6 +9,7 @@
 #include <string>
 #include <functional>
 #include <optional>
+#include <mutex>
 
 #include "quickfix/Message.h"
 
@@ -57,6 +58,11 @@ public:
 	}
 };
 
+inline std::ostream& operator<<(std::ostream& ostream, const TopOfBook& top)
+{
+	return ostream << top.toString();
+}
+
 class Market
 {
 public:
@@ -66,6 +72,10 @@ public:
 		double initialAskVolume,
 		const std::shared_ptr<PriceSampler>& priceSampler
 	);
+
+	Market(const Market&) = delete;
+
+	Market& operator= (const Market&) = delete;
 
 	bool insert(const Order& order);
 	
@@ -81,9 +91,9 @@ public:
 
 	const TopOfBook& getTopOfBook() const;
 
-	FIX::Message getSnapshotMessage(const std::string& senderCompID, const std::string& targetCompID, const std::string& mdReqID) const;
+	FIX::Message getSnapshotMessage(const std::string& senderCompID, const std::string& targetCompID, const std::string& mdReqID);
 
-	std::optional<FIX::Message> getUpdateMessage(const std::string& senderCompID, const std::string& targetCompID, const std::string& mdReqID) const;
+	std::optional<FIX::Message> getUpdateMessage(const std::string& senderCompID, const std::string& targetCompID, const std::string& mdReqID);
 
 private:
 	typedef std::multimap<double, Order, std::greater<double>> BidOrders;
@@ -91,6 +101,7 @@ private:
 
 	void match(Order& bid, Order& ask);
 
+	std::mutex m_mutex;
 	std::shared_ptr<PriceSampler> m_priceSampler;
 	std::string m_symbol;
 	TopOfBook m_topOfBook;

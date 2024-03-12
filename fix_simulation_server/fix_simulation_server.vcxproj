@@ -77,7 +77,7 @@
       </SDLCheck>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>Default</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)third-parties\quickfix\$(LibrariesArchitecture)-$(Configuration)\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)third-parties\quickfix\$(LibrariesArchitecture)-$(Configuration)\include;$(SolutionDir)third-parties\</AdditionalIncludeDirectories>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <SupportJustMyCode>false</SupportJustMyCode>
       <InlineFunctionExpansion>Default</InlineFunctionExpansion>

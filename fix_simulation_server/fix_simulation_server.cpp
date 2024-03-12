@@ -14,25 +14,30 @@
 #include <iostream>
 #include <fstream>
 #include <chrono>
+#include <toml++/toml.hpp>
 
 using namespace std::chrono_literals;
 
 
 int main(int argc, char** argv)
 {
-    if (argc != 2)
+    if (argc != 3)
     {
         std::cout << "usage: " << argv[0]
-            << " FILE." << std::endl;
+            << " settings_file market_config_file." << std::endl;
         return 0;
     }
-    std::string file = argv[1];
+    std::string settings_file = argv[1];
+    std::string market_config_file = argv[2];
 
     FIX::Log* screenLogger;
     try
     {
-        FIX::SessionSettings settings(file);
+        FIX::SessionSettings settings(settings_file);
 
+        toml::table tbl;
+        tbl = toml::parse_file(market_config_file);
+        std::cout << tbl << "\n";
 
         FIX::FileStoreFactory storeFactory(settings);
         FIX::ScreenLogFactory logFactory(settings);
@@ -64,6 +69,11 @@ int main(int argc, char** argv)
         acceptor.stop();
 
         return 0;
+    }
+    catch (const toml::parse_error& err)
+    {
+        std::cout << "Market config file parsing failed:\n" << err << "\n";
+        return 1;
     }
     catch (std::exception& e)
     {
