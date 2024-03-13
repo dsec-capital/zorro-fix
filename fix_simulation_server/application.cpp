@@ -49,8 +49,6 @@ void Application::stopMarketDataUpdates() {
 }
 
 void Application::marketDataSubscribe(const std::string& symbol, const std::string& senderCompID, const std::string& targetCompID) {
-	auto market = m_orderMatcher.getMarket(symbol);
-	(*market).second.simulateNext();
 	m_marketDataSubscriptions.insert_or_assign(symbol, std::make_pair(senderCompID, targetCompID));
 }
 
@@ -177,10 +175,13 @@ void Application::onMessage(const FIX44::MarketDataRequest& message, const FIX::
 			noRelatedSymGroup.get(symbol);
 
 			auto market = m_orderMatcher.getMarket(symbol.getString());
+			
+			// simulate market to have up to date first values for sure
+			market->second.simulateNext(); 
 
 			// flip to send back target->sender and sender->target
-			auto message = (*market).second.getSnapshotMessage(targetCompID.getValue(), senderCompID.getValue(), mdReqID.getValue());
-			FIX::Session::sendToTarget(message);
+			auto snapshot = market->second.getSnapshotMessage(targetCompID.getValue(), senderCompID.getValue(), mdReqID.getValue());
+			FIX::Session::sendToTarget(snapshot);
 
 			if (subscriptionRequestType == FIX::SubscriptionRequestType_SNAPSHOT_AND_UPDATES) {
 				marketDataSubscribe(symbol.getValue(), targetCompID.getValue(), senderCompID.getValue());

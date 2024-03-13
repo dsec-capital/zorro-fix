@@ -36,6 +36,7 @@ void Market::simulateNext() {
 	m_topOfBookPrevious = m_topOfBook;
 	m_topOfBook.bidPrice = mid - spread / 2;
 	m_topOfBook.askPrice = mid + spread / 2;
+	std::cout << "Market::simulateNext\n";
 }
 
 const TopOfBook& Market::getTopOfBook() const {
@@ -46,6 +47,9 @@ FIX::Message Market::getSnapshotMessage(const std::string& senderCompID, const s
 	std::unique_lock<std::mutex> ul(m_mutex);
 	TopOfBook top = m_topOfBook;
 	ul.unlock();
+
+	std::cout << "Market::getSnapshotMessage " << top << std::endl;
+
 
 	FIX::DateTime now = FIX::DateTime::nowUtc();
 
@@ -86,6 +90,8 @@ std::optional<FIX::Message> Market::getUpdateMessage(const std::string& senderCo
 		return std::optional<FIX::Message>();
 	}
 	
+	std::cout << "Market::getUpdateMessage " << m_topOfBook << std::endl;
+
 	FIX::DateTime now = FIX::DateTime::nowUtc();
 
 	FIX44::MarketDataIncrementalRefresh message;

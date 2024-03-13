@@ -93,7 +93,8 @@
       <AdditionalLibraryDirectories>$(SolutionDir)third-parties\quickfix\$(LibrariesArchitecture)-$(Configuration)\lib</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
-      <Command>copy /y "$(ProjectDir)\session.cfg" "$(SolutionDir)$(Configuration)"</Command>
+      <Command>copy /y "$(ProjectDir)session.cfg" "$(SolutionDir)$(Configuration)"
+copy /y "$(ProjectDir)market_config.toml" "$(SolutionDir)$(Configuration)"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -162,6 +163,7 @@
     <ClInclude Include="time_utils.h" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="market_config.toml" />
     <None Include="session.cfg" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

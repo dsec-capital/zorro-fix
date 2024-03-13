@@ -206,7 +206,7 @@ namespace zfix {
 						throw std::runtime_error(std::format("failed to get snapshot in {}ms", ms));
 					}
 					else {
-						std::this_thread::sleep_for(10ms);
+						std::this_thread::sleep_for(100ms);
 					}
 				}
 			}
@@ -222,7 +222,7 @@ namespace zfix {
 			return 0;
 		}
 		catch (...) {
-			show("BrokerAsset: undetermned excetion");
+			show("BrokerAsset: undetermined exception");
 			return 0;
 		}
 	}

@@ -37,13 +37,44 @@ int main(int argc, char** argv)
 
         toml::table tbl;
         tbl = toml::parse_file(market_config_file);
-        std::cout << tbl << "\n";
+
+        if (tbl.is_table()) {
+            for (auto [k, v] : *tbl.as_table()) {
+                auto symbol = std::string(k.str());
+                std::replace(symbol.begin(), symbol.end(), '_', '/');
+                std::cout << "symbol=" << symbol << ", values=" << v.as_table() << "\n";
+                if (v.is_table()) {
+                    auto sym_tbl = *v.as_table();
+                    auto price = sym_tbl["price"].value<double>();
+                    auto spread = sym_tbl["spread"].value<double>();
+                    auto bid_volume = sym_tbl["bid_volume"].value<double>();
+                    auto ask_volume = sym_tbl["ask_volume"].value<double>();
+                    std::cout << "parsed symbol sucessfully \n";
+                }
+                if (tbl[k.str()]["market_simulator"].is_table()) {
+                    auto sim_tbl = *tbl[k.str()]["market_simulator"].as_table();
+                    auto model = sim_tbl["model"].value<std::string>();
+                    auto alpha_plus = sim_tbl["alpha_plus"].value<double>();
+                    auto alpha_neg = sim_tbl["alpha_neg"].value<double>();
+                    auto tick_probs_arr = sim_tbl["tick_probs"].as_array();
+                    std::vector<double> tick_probs;
+                    tick_probs_arr->for_each([&tick_probs](toml::value<double>& elem)
+                        {
+                            tick_probs.push_back(elem.get());
+                        });
+                    std::cout << "parsed model \n";
+                }
+            }
+        }
+        else {
+            throw std::runtime_error("market config file incorrect");
+        }
 
         FIX::FileStoreFactory storeFactory(settings);
-        FIX::ScreenLogFactory logFactory(settings);
+        FIX::ScreenLogFactory logFactory(settings); 
         screenLogger = logFactory.create();
 
-        auto market_update_period = 100ms;
+        auto market_update_period = 2000ms;
         Application application(screenLogger, market_update_period);
         FIX::SocketAcceptor acceptor(application, storeFactory, settings, logFactory);
 
@@ -68,7 +99,7 @@ int main(int argc, char** argv)
         application.stopMarketDataUpdates();
         acceptor.stop();
 
-        return 0;
+        return 0; 
     }
     catch (const toml::parse_error& err)
     {
@@ -79,5 +110,6 @@ int main(int argc, char** argv)
     {
         std::cout << e.what() << std::endl;
         return 1;
-    }
-}
+    } 
+} 
+ 

@@ -56,5 +56,6 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="session.cfg" />
+    <None Include="market_config.toml" />
   </ItemGroup>
 </Project>
