@@ -12,53 +12,19 @@
 
 #include "quickfix/Log.h"
 
-class OrderMatcher
-{
+class OrderMatcher {
+public:
 	typedef std::map<std::string, Market> Markets;
 
-	std::random_device random_device;
-	std::mt19937 generator;
-	FIX::Log* logger;
-
-public:
-
-	OrderMatcher(FIX::Log* logger)
-		: random_device()
-		, generator(random_device()) 
-		, logger(logger)
+	OrderMatcher(Markets& markets, FIX::Log* logger)
+		: m_markets(markets)
+		, m_logger(logger)
 	{}
-
-	std::shared_ptr<PriceSampler> createSampler(const std::string& symbol) {
-		// TODO read from a config file
-		auto alpha_plus = 0.2;
-		auto alpha_neg = -0.2;
-		std::vector<double> tick_probs{ 0.1, 0.3, 0.2, 0.1, 0.1, 0.1, 0.1 };
-		auto tick_size = 0.5;
-		double initial_price = 100;
-		double initial_spread = 2 * tick_size;
-		int initial_dir = 1;
-		return std::make_shared<FodraPhamSampler<std::mt19937>>(
-			generator,
-			alpha_plus,
-			alpha_neg,
-			tick_probs,
-			tick_size,
-			initial_price,
-			initial_price,
-			initial_dir
-		);
-	}
 
 	Markets::iterator getMarket(const std::string& symbol) {
 		auto it = m_markets.find(symbol);
 		if (it == m_markets.end()) {
-			it = m_markets.try_emplace(
-				symbol, 
-				symbol, 
-				100, 
-				100,
-				createSampler(symbol)
-			).first;
+			throw std::runtime_error(std::format("no market defined for symbol {}", symbol));
 		}
 		return it;
 	}
@@ -115,7 +81,9 @@ public:
 			std::cout << i->first << std::endl;
 	}
 
-	Markets m_markets;
+	Markets& m_markets;
+	FIX::Log* m_logger;
+
 };
 
 #endif

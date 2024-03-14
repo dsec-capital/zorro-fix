@@ -8,8 +8,13 @@ protected:
 public:
     PriceSampler(std::mt19937& gen) : gen(gen) {}
 
-    virtual double initial_mid_price() = 0;
-    virtual double initial_spread() = 0;
-    virtual double next_mid_price() = 0;
-    virtual double next_spread() = 0;
+    virtual double actualMidPrice() = 0;
+    virtual double actualSpread() = 0;
+    virtual double actualBidVolume() = 0;
+    virtual double actualAskVolume() = 0;
+
+    virtual double nextMidPrice() = 0;
+    virtual double nextSpread() = 0;
+    virtual double nextBidVolume() = 0;
+    virtual double nextAskVolume() = 0;
 };

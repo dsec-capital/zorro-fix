@@ -2,6 +2,7 @@
 #define APPLICATION_H
 
 #include "id_generator.h"
+#include "market.h"
 #include "order_matcher.h"
 #include "order.h"
 
@@ -23,12 +24,14 @@ class Application: public FIX::Application, public FIX::MessageCracker
 {
 public:
 	Application(
+		std::map<std::string, Market>& market,
+		std::chrono::milliseconds marketUpdatePeriod,
 		FIX::Log *logger, 
-		std::chrono::milliseconds marketUpdatePeriod
-	) 
-		: m_logger(logger)
-		, m_orderMatcher(logger)
-		, m_marketUpdatePeriod(marketUpdatePeriod)
+		std::mutex& mutex
+	) : m_logger(logger)
+      , m_orderMatcher(market, logger)
+	  , m_marketUpdatePeriod(marketUpdatePeriod)
+	  , m_mutex(mutex)
 	{}
 
 	void runMarketDataUpdate();
@@ -106,16 +109,18 @@ private:
 
 	bool marketDataSubscribed(const std::string& symbol);
 
-	FIX::Log* m_logger;
-	OrderMatcher m_orderMatcher;
 	IDGenerator m_generator;
-
+	OrderMatcher m_orderMatcher;
 	std::chrono::milliseconds m_marketUpdatePeriod;
+
+	FIX::Log* m_logger;
+
 	std::map<std::string, std::pair<std::string, std::string>> m_marketDataSubscriptions;
 
-	std::thread thread;
-	bool started{ false };
-	std::atomic_bool done{ false };
+	std::mutex& m_mutex;
+	std::thread m_thread;
+	bool m_started{ false };
+	std::atomic_bool m_done{ false };
 
 };
 

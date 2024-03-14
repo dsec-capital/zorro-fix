@@ -110,8 +110,8 @@ public:
 
 template<class Generator>
 class FodraPhamSampler : public PriceSampler, public FodraPham<Generator> {
-    double initial_price_value;
-    double initial_spread_value;
+    double price_state, spread_state;
+    double bid_volume_state, ask_volume_state;
 
 public:
     FodraPhamSampler(
@@ -122,6 +122,8 @@ public:
         double tick_size,
         double initial_price,
         double initial_spread,
+        double initial_bid_volume,
+        double initial_ask_volume,
         int initial_dir
     )
         : PriceSampler(gen)
@@ -133,24 +135,43 @@ public:
             initial_price, 
             initial_dir
         )
-        , initial_price_value(initial_price)
-        , initial_spread_value(initial_spread)
+        , price_state(initial_price)
+        , spread_state(initial_spread)
+        , bid_volume_state(initial_bid_volume)
+        , ask_volume_state(initial_ask_volume)
     {}
 
-    virtual double initial_mid_price() {
-        return initial_price_value;
+    virtual double actualMidPrice() {
+        return price_state;
     }
 
-    virtual double initial_spread() {
-        return initial_spread_value;
+    virtual double actualSpread() {
+        return spread_state;
     }
 
-    virtual double next_mid_price() {
-        return FodraPham<Generator>::sample_next(gen);
+    virtual double actualBidVolume() {
+        return bid_volume_state;
     }
 
-    virtual double next_spread() {
-        return initial_spread_value;
+    virtual double actualAskVolume() {
+        return ask_volume_state;
+    }
+
+    virtual double nextMidPrice() {
+        price_state = FodraPham<Generator>::sample_next(gen);
+        return price_state;
+    }
+
+    virtual double nextSpread() {
+        return spread_state;
+    }
+
+    virtual double nextBidVolume() {
+        return bid_volume_state;
+    }
+
+    virtual double nextAskVolume() {
+        return ask_volume_state;
     }
 };
 

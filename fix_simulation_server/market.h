@@ -68,9 +68,8 @@ class Market
 public:
 	explicit Market(
 		const std::string &symbol,
-		double initialBidVolume,
-		double initialAskVolume,
-		const std::shared_ptr<PriceSampler>& priceSampler
+		const std::shared_ptr<PriceSampler>& priceSampler,
+		std::mutex& mutex
 	);
 
 	Market(const Market&) = delete;
@@ -101,9 +100,9 @@ private:
 
 	void match(Order& bid, Order& ask);
 
-	std::mutex m_mutex;
-	std::shared_ptr<PriceSampler> m_priceSampler;
+	std::mutex& m_mutex;
 	std::string m_symbol;
+	std::shared_ptr<PriceSampler> m_priceSampler;
 	TopOfBook m_topOfBook;
 	TopOfBook m_topOfBookPrevious;
 
@@ -112,7 +111,6 @@ private:
 	AskOrders m_askOrders;
 
 	double m_simulatedMidPrice{0};
-
 };
 
 #endif

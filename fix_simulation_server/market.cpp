@@ -7,36 +7,39 @@
 #include <iostream>
 #include <random>
 #include <thread>
+#include <format>
 
 #include "quickfix/fix44/MarketDataSnapshotFullRefresh.h"
 #include "quickfix/fix44/MarketDataIncrementalRefresh.h"
 
 Market::Market(
 	const std::string& symbol,
-	double initialBidVolume,
-	double initialAskVolume,
-	const std::shared_ptr<PriceSampler>& priceSampler
+	const std::shared_ptr<PriceSampler>& priceSampler,
+	std::mutex& mutex
 )
-	: m_priceSampler(priceSampler)
-	, m_simulatedMidPrice(priceSampler->initial_mid_price())
+	: m_mutex(mutex)
+	, m_priceSampler(priceSampler)
+	, m_simulatedMidPrice(priceSampler->actualMidPrice())
 	, m_symbol(symbol)
 	, m_topOfBook(
 		symbol,
-		m_simulatedMidPrice - priceSampler->initial_spread() / 2, 
-		initialBidVolume,
-	    m_simulatedMidPrice + priceSampler->initial_spread() / 2,
-		initialAskVolume) 
+		m_simulatedMidPrice - priceSampler->actualSpread() / 2, 
+		priceSampler->actualBidVolume(),
+	    m_simulatedMidPrice + priceSampler->actualSpread() / 2,
+		priceSampler->actualAskVolume())
 	, m_topOfBookPrevious(m_topOfBook)
 {}
 
 void Market::simulateNext() {
-	auto spread = m_priceSampler->next_spread();
-	auto mid = m_priceSampler->next_mid_price();
 	std::unique_lock<std::mutex> ul(m_mutex);
+	auto spread = m_priceSampler->nextSpread();
+	auto mid = m_priceSampler->nextMidPrice();
 	m_topOfBookPrevious = m_topOfBook;
 	m_topOfBook.bidPrice = mid - spread / 2;
+	m_topOfBook.bidVolume = m_priceSampler->nextBidVolume();
 	m_topOfBook.askPrice = mid + spread / 2;
-	std::cout << "Market::simulateNext\n";
+	m_topOfBook.askVolume = m_priceSampler->nextAskVolume();
+	std::cout << m_symbol << ": " << m_topOfBook << std::endl;
 }
 
 const TopOfBook& Market::getTopOfBook() const {

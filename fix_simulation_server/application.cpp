@@ -16,7 +16,7 @@
 
 
 void Application::runMarketDataUpdate() {
-	while (!done) {
+	while (!m_done) {
 		std::this_thread::sleep_for(m_marketUpdatePeriod);
 
 		for (auto& market : m_orderMatcher.m_markets) {
@@ -36,16 +36,16 @@ void Application::runMarketDataUpdate() {
 
 void Application::startMarketDataUpdates() {
 	m_logger->onEvent("OrderMatcher starting market data updates");
-	thread = std::thread(&Application::runMarketDataUpdate, this);
+	m_thread = std::thread(&Application::runMarketDataUpdate, this);
 }
 
 void Application::stopMarketDataUpdates() {
-	if (!started)
+	if (!m_started)
 		return;
-	started = false;
-	done = true;
-	if (thread.joinable())
-		thread.join();
+	m_started = false;
+	m_done = true;
+	if (m_thread.joinable())
+		m_thread.join();
 }
 
 void Application::marketDataSubscribe(const std::string& symbol, const std::string& senderCompID, const std::string& targetCompID) {

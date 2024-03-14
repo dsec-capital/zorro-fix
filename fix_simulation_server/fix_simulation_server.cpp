@@ -8,6 +8,7 @@
 #include "quickfix/SocketAcceptor.h"
 #include "quickfix/SessionSettings.h"
 
+#include "market.h"
 #include "application.h"
 
 #include <string>
@@ -18,7 +19,6 @@
 
 using namespace std::chrono_literals;
 
-
 int main(int argc, char** argv)
 {
     if (argc != 3)
@@ -27,16 +27,25 @@ int main(int argc, char** argv)
             << " settings_file market_config_file." << std::endl;
         return 0;
     }
-    std::string settings_file = argv[1];
-    std::string market_config_file = argv[2];
 
-    FIX::Log* screenLogger;
     try
     {
+        std::mutex mutex;
+        std::string settings_file = argv[1];
+        std::string market_config_file = argv[2];
+        std::random_device random_device;
+        std::mt19937 generator(random_device());
+        FIX::Log* screenLogger;
+
         FIX::SessionSettings settings(settings_file);
 
         toml::table tbl;
         tbl = toml::parse_file(market_config_file);
+
+        std::optional<double> price, spread, tick_size;
+        std::optional<std::string> model;
+
+        std::map<std::string, Market> markets;
 
         if (tbl.is_table()) {
             for (auto [k, v] : *tbl.as_table()) {
@@ -45,24 +54,49 @@ int main(int argc, char** argv)
                 std::cout << "symbol=" << symbol << ", values=" << v.as_table() << "\n";
                 if (v.is_table()) {
                     auto sym_tbl = *v.as_table();
-                    auto price = sym_tbl["price"].value<double>();
-                    auto spread = sym_tbl["spread"].value<double>();
-                    auto bid_volume = sym_tbl["bid_volume"].value<double>();
-                    auto ask_volume = sym_tbl["ask_volume"].value<double>();
-                    std::cout << "parsed symbol sucessfully \n";
+                    price = sym_tbl["price"].value<double>();
+                    spread = sym_tbl["spread"].value<double>();
+                    tick_size = sym_tbl["tick_size"].value<double>();
+                }
+                else {
+                    throw std::runtime_error("market config file incorrect");
                 }
                 if (tbl[k.str()]["market_simulator"].is_table()) {
                     auto sim_tbl = *tbl[k.str()]["market_simulator"].as_table();
-                    auto model = sim_tbl["model"].value<std::string>();
-                    auto alpha_plus = sim_tbl["alpha_plus"].value<double>();
-                    auto alpha_neg = sim_tbl["alpha_neg"].value<double>();
-                    auto tick_probs_arr = sim_tbl["tick_probs"].as_array();
-                    std::vector<double> tick_probs;
-                    tick_probs_arr->for_each([&tick_probs](toml::value<double>& elem)
-                        {
-                            tick_probs.push_back(elem.get());
-                        });
-                    std::cout << "parsed model \n";
+                    model = sim_tbl["model"].value<std::string>();
+                    if (model == "fodra-pham") {
+                        std::vector<double> tick_probs;
+                        std::optional<double> bid_volume, ask_volume;
+                        std::optional<double> alpha_plus, alpha_neg;
+                        bid_volume = sim_tbl["bid_volume"].value<double>();
+                        ask_volume = sim_tbl["ask_volume"].value<double>();
+                        alpha_plus = sim_tbl["alpha_plus"].value<double>();
+                        alpha_neg = sim_tbl["alpha_neg"].value<double>();
+                        auto tick_probs_arr = sim_tbl["tick_probs"].as_array();
+                        tick_probs_arr->for_each([&tick_probs](toml::value<double>& elem)
+                            {
+                                tick_probs.push_back(elem.get());
+                            });
+                        auto sampler = std::make_shared<FodraPhamSampler<std::mt19937>>(
+                                generator,
+                                alpha_plus.value(),
+                                alpha_neg.value(),
+                                tick_probs,
+                                tick_size.value(),
+                                price.value(),
+                                spread.value(),
+                                bid_volume.value(),
+                                ask_volume.value(),
+                                1
+                            );
+                        markets.try_emplace(symbol, symbol, sampler, mutex);
+                    }
+                    else {
+                        throw std::runtime_error("unknown price sampler type");
+                    }
+                }
+                else {
+                    throw std::runtime_error(std::format("no market simulator defined for {}", symbol));
                 }
             }
         }
@@ -75,7 +109,7 @@ int main(int argc, char** argv)
         screenLogger = logFactory.create();
 
         auto market_update_period = 2000ms;
-        Application application(screenLogger, market_update_period);
+        Application application(markets, market_update_period, screenLogger, mutex);
         FIX::SocketAcceptor acceptor(application, storeFactory, settings, logFactory);
 
         acceptor.start();
