@@ -2,15 +2,16 @@
 #pragma warning(disable : 4503 4355 4786)
 #endif
 
-#include "spdlog/spdlog.h"
-
 #include "pch.h"
+
 #include "application.h"
 
 #include "quickfix/config.h"
 #include "quickfix/Session.h"
 
 #include "common/time_utils.h"
+
+#include "spdlog/spdlog.h"
 
 namespace zfix {
 
@@ -43,15 +44,15 @@ namespace zfix {
 
 	void Application::onLogon(const FIX::SessionID& sessionID)
 	{
-		//spdlog::debug("Application::onLogon {}", sessionID.toString());
+		SPDLOG_INFO("Application::onLogon {}", sessionID.toString());
 		senderCompID = sessionSettings.get(sessionID).getString("SenderCompID");
 		targetCompID = sessionSettings.get(sessionID).getString("TargetCompID");
-		//spdlog::debug("senderCompID={}, targetCompID={}", senderCompID, targetCompID);
+		SPDLOG_INFO("senderCompID={}, targetCompID={}", senderCompID, targetCompID);
 	}
 
 	void Application::onLogout(const FIX::SessionID& sessionID)
 	{
-		//spdlog::info("Application::onLogout {}", sessionID.toString());
+		SPDLOG_INFO("Application::onLogout {}", sessionID.toString());
 	}
 
 	void Application::fromAdmin(
@@ -65,7 +66,7 @@ namespace zfix {
 	void Application::fromApp(const FIX::Message& message, const FIX::SessionID& sessionID)
 		EXCEPT(FIX::FieldNotFound, FIX::IncorrectDataFormat, FIX::IncorrectTagValue, FIX::UnsupportedMessageType)
 	{
-		//spdlog::debug("IN fromApp: {}", message.toString());
+		SPDLOG_DEBUG("IN fromApp: {}", message.toString());
 		crack(message, sessionID);
 	}
 
@@ -80,7 +81,7 @@ namespace zfix {
 		}
 		catch (FIX::FieldNotFound&) {}
 
-		//spdlog::debug("OUT toApp: {}", message.toString());
+		SPDLOG_DEBUG("OUT toApp: {}", message.toString());
 	}
 
 	void Application::onMessage(const FIX44::MarketDataSnapshotFullRefresh& message, const FIX::SessionID&)
@@ -250,7 +251,7 @@ namespace zfix {
 		header.setField(FIX::SenderCompID(senderCompID));
 		header.setField(FIX::TargetCompID(targetCompID));
 
-		//spdlog::debug("marketDataRequest: {}", request.toString());
+		SPDLOG_DEBUG("marketDataRequest: {}", request.toString());
 
 		FIX::Session::sendToTarget(request);
 
@@ -288,7 +289,7 @@ namespace zfix {
 		header.setField(FIX::SenderCompID(senderCompID));
 		header.setField(FIX::TargetCompID(targetCompID));
 
-		//spdlog::debug("newOrderSingle: {}" , order.toString());
+		SPDLOG_DEBUG("newOrderSingle: {}" , order.toString());
 
 		FIX::Session::sendToTarget(order);
 
@@ -315,7 +316,7 @@ namespace zfix {
 		header.setField(FIX::SenderCompID(senderCompID));
 		header.setField(FIX::TargetCompID(targetCompID));
 
-		//spdlog::debug("orderCancelRequest: {}", request.toString());
+		SPDLOG_DEBUG("orderCancelRequest: {}", request.toString());
 
 		FIX::Session::sendToTarget(request);
 
@@ -347,7 +348,7 @@ namespace zfix {
 		header.setField(FIX::SenderCompID(senderCompID));
 		header.setField(FIX::TargetCompID(targetCompID));
 
-		//spdlog::debug("orderCancelRequest: {}", request.toString());
+		SPDLOG_DEBUG("orderCancelRequest: {}", request.toString());
 
 		FIX::Session::sendToTarget(request);
 

@@ -63,6 +63,14 @@ namespace common {
         return oss.str();
     }
 
+    inline std::string timestamp_posfix() {
+        using namespace std::chrono; 
+        const auto timer = system_clock::to_time_t(system_clock::now());
+        const std::tm bt = localtime_xp(timer);
+        std::ostringstream oss;
+        oss << std::put_time(&bt, "%F_%H%M%S");  
+        return oss.str();
+    }
 }
 
 #endif  

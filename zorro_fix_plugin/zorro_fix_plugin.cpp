@@ -1,9 +1,8 @@
-#include "pch.h"
-
 #pragma warning(disable : 4996 4244 4312)
 
-#include "application.h"
+#include "pch.h"
 
+#include "application.h"
 #include "fix_thread.h"
 #include "zorro_fix_plugin.h"
 
@@ -12,21 +11,10 @@
 #include "common/blocking_queue.h"
 #include "common/time_utils.h"
 
-#include <time.h>
-#include <string>
-#include <vector>
-#include <memory>
-#include <fstream>
-#include <sstream>
-#include <thread>
-#include <iostream>
-#include <type_traits>
-#include <filesystem>
-#include <unordered_map>
-#include <chrono>
-#include <format>
-
 #include "broker_commands.h"
+
+#include "spdlog/spdlog.h"
+#include "spdlog/sinks/basic_file_sink.h"
 
 #define PLUGIN_VERSION	2
 #define INITIAL_PRICE	1.0
@@ -114,9 +102,9 @@ namespace zfix {
 		}
 		else {
 			if (fixThread != nullptr) {
-				show("BrokerLogin: Zorro-Fix-Bridge - stopping fix service...");
+				show("BrokerLogin: Zorro FIX Bridge - stopping FIX service...");
 				fixThread->cancel();
-				show("BrokerLogin: Zorro-Fix-Bridge - fix service stopped");
+				show("BrokerLogin: Zorro FIX Bridge - FIX service stopped");
 				fixThread = nullptr;
 			}	
 			return 0; // logged out status
@@ -129,11 +117,23 @@ namespace zfix {
 		(FARPROC&)BrokerProgress = fpProgress;
 
 		std::string cwd = std::filesystem::current_path().string();
-		show(std::format("BrokerOpen: Zorro-Fix-Bridge plugin opened in {}", cwd)); 
+		show(std::format("BrokerOpen: Zorro Fix Bridge plugin opened in {}", cwd)); 
 
-		//Logger::instance().init("zorro-fix-bridge");
-		//Logger::instance().setLevel(LogLevel::L_DEBUG);
-		SPDLOG_INFO("Logging started");
+		try
+		{
+			auto postfix = timestamp_posfix();
+			auto logger = spdlog::basic_logger_mt(
+				"basic_logger", 
+				std::format("Log/zorro-fix-bridge_{}.log", postfix)
+			);
+			spdlog::set_level(spdlog::level::debug);
+		}
+		catch (const spdlog::spdlog_ex& ex)
+		{
+			show(std::format("BrokerOpen: Zorro FIX Bridge failed to init log: {}", ex.what()));
+		}
+
+		SPDLOG_INFO("Logging started, cwd={}", cwd);
 
 		return PLUGIN_VERSION;
 	}
@@ -442,7 +442,7 @@ namespace zfix {
 
 		case SET_DIAGNOSTICS: {
 			if ((int)dwParameter == 1 || (int)dwParameter == 0) {
-				//Logger::instance().setLevel((int)dwParameter ? LogLevel::L_DEBUG : LogLevel::L_OFF);
+				spdlog::set_level((int)dwParameter ? spdlog::level::debug : spdlog::level::info);
 				return dwParameter;
 			}
 			break;
