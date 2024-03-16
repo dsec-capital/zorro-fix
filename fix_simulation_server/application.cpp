@@ -2,18 +2,17 @@
 #pragma warning( disable : 4503 4355 4786 )
 #endif
 
-#include "quickfix/config.h"
-
 #include "application.h"
-#include "time_utils.h"
 
+#include "common/time_utils.h"
+
+#include "quickfix/config.h"
 #include "quickfix/Session.h"
 #include "quickfix/fix44/ExecutionReport.h"
 #include "quickfix/fix44/BusinessMessageReject.h"
 #include "quickfix/fix44/MarketDataRequestReject.h"
 #include "quickfix/fix44/MarketDataSnapshotFullRefresh.h"
 #include "quickfix/fix44/MarketDataIncrementalRefresh.h"
-
 
 void Application::runMarketDataUpdate() {
 	while (!m_done) {

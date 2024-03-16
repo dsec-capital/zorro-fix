@@ -3,14 +3,14 @@
 #pragma warning(disable : 4996 4244 4312)
 
 #include "application.h"
-#include "logger.h"
-#include "market_data.h"
-#include "exec_report.h"
-#include "zorro_fix_plugin.h"
-#include "broker_commands.h"
-#include "blocking_queue.h"
-#include "time_utils.h"
+
 #include "fix_thread.h"
+#include "zorro_fix_plugin.h"
+
+#include "common/market_data.h"
+#include "common/exec_report.h"
+#include "common/blocking_queue.h"
+#include "common/time_utils.h"
 
 #include <time.h>
 #include <string>
@@ -26,13 +26,17 @@
 #include <chrono>
 #include <format>
 
+#include "broker_commands.h"
+
 #define PLUGIN_VERSION	2
 #define INITIAL_PRICE	1.0
 #define INITIAL_ID		1000
 
-using namespace std::chrono_literals;
-
 namespace zfix {
+
+	using namespace common;
+	using namespace std::chrono_literals;
+
 	int maxSnaphsotWaitingIterations = 100; 
 	std::chrono::milliseconds fixBlockinQueueWaitingTime = 500ms;
 	std::string settingsCfgFile = "Plugin/zorro_fix_client.cfg";
@@ -85,12 +89,12 @@ namespace zfix {
 	DLLFUNC int BrokerLogin(char* User, char* Pwd, char* Type, char* Account) {
 		if (User) {
 			if (fixThread != nullptr) {
-				showf("BrokerLogin: Zorro-Fix-Bridge - stopping fix service on repeated login...");
+				show("BrokerLogin: Zorro-Fix-Bridge - stopping fix service on repeated login...");
 				fixThread->cancel();
-				showf("BrokerLogin: Zorro-Fix-Bridge - fix service stopped on repeated login");
+				show("BrokerLogin: Zorro-Fix-Bridge - fix service stopped on repeated login");
 				fixThread = nullptr;
 			}
-			showf("BrokerLogin: Zorro-Fix-Bridge - starting fix service...");
+			show("BrokerLogin: Zorro-Fix-Bridge - starting fix service...");
 			try { 
 				fixThread = std::unique_ptr<FixThread>(
 					new FixThread(
@@ -98,21 +102,21 @@ namespace zfix {
 						s_execReportQueue
 					)
 				);
+				fixThread->start();
+				show("BrokerLogin: Zorro-Fix-Bridge - fix service running");
+				return 1; // logged in status
 			}
 			catch (std::exception& e) {
 				fixThread = nullptr;
-				showf(e.what());
+				show(std::format("BrokerLogin: exception starting fix service {}", e.what()));
 				return 0;  
 			}
-			fixThread->start();
-			showf("BrokerLogin: Zorro-Fix-Bridge - fix service running");
-			return 1; // logged in status
 		}
 		else {
 			if (fixThread != nullptr) {
-				showf("BrokerLogin: Zorro-Fix-Bridge - stopping fix service...");
+				show("BrokerLogin: Zorro-Fix-Bridge - stopping fix service...");
 				fixThread->cancel();
-				showf("BrokerLogin: Zorro-Fix-Bridge - fix service stopped");
+				show("BrokerLogin: Zorro-Fix-Bridge - fix service stopped");
 				fixThread = nullptr;
 			}	
 			return 0; // logged out status
@@ -125,11 +129,11 @@ namespace zfix {
 		(FARPROC&)BrokerProgress = fpProgress;
 
 		std::string cwd = std::filesystem::current_path().string();
-		showf("BrokerOpen: Zorro-Fix-Bridge plugin opened in <%s>\n", cwd.c_str()); 
+		show(std::format("BrokerOpen: Zorro-Fix-Bridge plugin opened in {}", cwd)); 
 
-		Logger::instance().init("zorro-fix-bridge");
-		Logger::instance().setLevel(LogLevel::L_DEBUG);
-		LOG_INFO("Logging started\n");
+		//Logger::instance().init("zorro-fix-bridge");
+		//Logger::instance().setLevel(LogLevel::L_DEBUG);
+		SPDLOG_INFO("Logging started");
 
 		return PLUGIN_VERSION;
 	}
@@ -191,23 +195,21 @@ namespace zfix {
 				// we do a busy polling to wait for the market data snapshot arriving
 				int count = 0;
 				auto start = std::chrono::system_clock::now();
-				bool timeout = false;
-				bool snapshot = false;
-				while (!snapshot && !timeout) {
+				while (true) {
+					if (count >= maxSnaphsotWaitingIterations) {
+						auto now = std::chrono::system_clock::now();
+						auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count();
+						throw std::runtime_error(std::format("failed to get snapshot in {}ms", ms));
+					}
+
 					bool success = fixApp.hasBook(symbol);
 					if (success) {
 						show(std::format("BrokerAsset: subscribed to symbol {}", Asset));
 						return 1;
 					}
+
 					++count;
-					if (count == maxSnaphsotWaitingIterations) {
-						auto now = std::chrono::system_clock::now();
-						auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count();
-						throw std::runtime_error(std::format("failed to get snapshot in {}ms", ms));
-					}
-					else {
-						std::this_thread::sleep_for(100ms);
-					}
+					std::this_thread::sleep_for(100ms);
 				}
 			}
 			else {
@@ -338,14 +340,13 @@ namespace zfix {
 	}
 
 	DLLFUNC int BrokerTrade(int nTradeID, double* pOpen, double* pClose, double* pCost, double* pProfit) {
-		LOG_DEBUG("BrokerTrade: %d\n", nTradeID);
-
+		SPDLOG_DEBUG("BrokerTrade: {}", nTradeID);
 
 		return 0;
 	}
 
 	DLLFUNC_C int BrokerSell2(int nTradeID, int nAmount, double Limit, double* pClose, double* pCost, double* pProfit, int* pFill) {
-		LOG_DEBUG("BrokerSell2 nTradeID=%d nAmount=%d limit=%f\n", nTradeID, nAmount, Limit);
+		SPDLOG_DEBUG("BrokerSell2 nTradeID={} nAmount{} limit={}", nTradeID, nAmount, Limit);
 
 		return 0;
 	}
@@ -417,7 +418,7 @@ namespace zfix {
 				return 0; 
 			}
 
-			LOG_DEBUG("SET_ORDERTYPE: %d\n", (int)dwParameter);
+			SPDLOG_DEBUG("SET_ORDERTYPE: {}", (int)dwParameter);
 			return (int)dwParameter;
 		}
 
@@ -426,7 +427,7 @@ namespace zfix {
 
 		case SET_PRICETYPE: {
 			auto s_priceType = (int)dwParameter;
-			LOG_DEBUG("SET_PRICETYPE: %d\n", s_priceType);
+			SPDLOG_DEBUG("SET_PRICETYPE: {}", s_priceType);
 			return dwParameter;
 		}
 
@@ -435,13 +436,13 @@ namespace zfix {
 
 		case SET_AMOUNT: {
 			auto s_amount = *(double*)dwParameter;
-			LOG_DEBUG("SET_AMOUNT: %.8f\n", s_amount);
+			SPDLOG_DEBUG("SET_AMOUNT: {}", s_amount);
 			break;
 		}
 
 		case SET_DIAGNOSTICS: {
 			if ((int)dwParameter == 1 || (int)dwParameter == 0) {
-				Logger::instance().setLevel((int)dwParameter ? LogLevel::L_DEBUG : LogLevel::L_OFF);
+				//Logger::instance().setLevel((int)dwParameter ? LogLevel::L_DEBUG : LogLevel::L_OFF);
 				return dwParameter;
 			}
 			break;
@@ -456,22 +457,22 @@ namespace zfix {
 			return 500;
 
 		case SET_LEVERAGE: {
-			LOG_DEBUG("BrokerCommand: SET_LEVERAGE param=%d\n", (int)dwParameter);
+			SPDLOG_DEBUG("BrokerCommand: SET_LEVERAGE param={}", (int)dwParameter);
 			break;
 		}
 
 		case SET_LIMIT: {
 			auto limit = *(double*)dwParameter;
-			LOG_DEBUG("BrokerCommand: SET_LIMIT param=%f\n", limit);
+			SPDLOG_DEBUG("BrokerCommand: SET_LIMIT param={}", limit);
 			break;
 		}
 
 		case SET_FUNCTIONS:
-			LOG_DEBUG("BrokerCommand: SET_FUNCTIONS param=%d\n", (int)dwParameter);
+			SPDLOG_DEBUG("BrokerCommand: SET_FUNCTIONS param={}", (int)dwParameter);
 			break;
 
 		default:
-			LOG_DEBUG("BrokerCommand: unhandled command %d param=%lu\n", command, dwParameter);
+			SPDLOG_DEBUG("BrokerCommand: unhandled command {} param={}", command, dwParameter);
 			break;
 		}
 

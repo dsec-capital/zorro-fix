@@ -7,7 +7,18 @@
 #ifndef PCH_H
 #define PCH_H
 
-// add headers that you want to pre-compile here
+#include <deque>
+#include <queue>
+#include <string>
+#include <vector>
+#include <memory>
+#include <sstream>
+#include <iostream>
+#include <chrono>
+#include <mutex>
+#include <atomic>
+#include <thread>
+
 #include "framework.h"
 
 #endif //PCH_H

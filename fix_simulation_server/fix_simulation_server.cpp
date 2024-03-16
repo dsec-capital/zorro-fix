@@ -8,6 +8,8 @@
 #include "quickfix/SocketAcceptor.h"
 #include "quickfix/SessionSettings.h"
 
+#include "common/price_sampler.h"
+
 #include "market.h"
 #include "application.h"
 
@@ -42,11 +44,9 @@ int main(int argc, char** argv)
         toml::table tbl;
         tbl = toml::parse_file(market_config_file);
 
-        std::optional<double> price, spread, tick_size;
-        std::optional<std::string> model;
-
+        double price, spread, tick_size;
         std::map<std::string, Market> markets;
-
+    
         if (tbl.is_table()) {
             for (auto [k, v] : *tbl.as_table()) {
                 auto symbol = std::string(k.str());
@@ -54,41 +54,22 @@ int main(int argc, char** argv)
                 std::cout << "symbol=" << symbol << ", values=" << v.as_table() << "\n";
                 if (v.is_table()) {
                     auto sym_tbl = *v.as_table();
-                    price = sym_tbl["price"].value<double>();
-                    spread = sym_tbl["spread"].value<double>();
-                    tick_size = sym_tbl["tick_size"].value<double>();
+                    price = sym_tbl["price"].value<double>().value();
+                    spread = sym_tbl["spread"].value<double>().value();
+                    tick_size = sym_tbl["tick_size"].value<double>().value();
                 }
                 else {
                     throw std::runtime_error("market config file incorrect");
                 }
                 if (tbl[k.str()]["market_simulator"].is_table()) {
-                    auto sim_tbl = *tbl[k.str()]["market_simulator"].as_table();
-                    model = sim_tbl["model"].value<std::string>();
-                    if (model == "fodra-pham") {
-                        std::vector<double> tick_probs;
-                        std::optional<double> bid_volume, ask_volume;
-                        std::optional<double> alpha_plus, alpha_neg;
-                        bid_volume = sim_tbl["bid_volume"].value<double>();
-                        ask_volume = sim_tbl["ask_volume"].value<double>();
-                        alpha_plus = sim_tbl["alpha_plus"].value<double>();
-                        alpha_neg = sim_tbl["alpha_neg"].value<double>();
-                        auto tick_probs_arr = sim_tbl["tick_probs"].as_array();
-                        tick_probs_arr->for_each([&tick_probs](toml::value<double>& elem)
-                            {
-                                tick_probs.push_back(elem.get());
-                            });
-                        auto sampler = std::make_shared<FodraPhamSampler<std::mt19937>>(
-                                generator,
-                                alpha_plus.value(),
-                                alpha_neg.value(),
-                                tick_probs,
-                                tick_size.value(),
-                                price.value(),
-                                spread.value(),
-                                bid_volume.value(),
-                                ask_volume.value(),
-                                1
-                            );
+                    auto sampler = price_sampler_factory(
+                        generator,
+                        *tbl[k.str()]["market_simulator"].as_table(),
+                        price, 
+                        spread, 
+                        tick_size
+                    );
+                    if (sampler != nullptr) {
                         markets.try_emplace(symbol, symbol, sampler, mutex);
                     }
                     else {

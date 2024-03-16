@@ -17,8 +17,6 @@ namespace zfix
 	long(__cdecl* http_result)(int id, char* content, long size);
 	void(__cdecl* http_free)(int id);
 
-	void showMsg(const char* text, const char* detail = NULL);
-
 	// zorro functions
 	DLLFUNC_C int BrokerOpen(char* Name, FARPROC fpError, FARPROC fpProgress);
 	DLLFUNC_C void BrokerHTTP(FARPROC fpSend, FARPROC fpStatus, FARPROC fpResult, FARPROC fpFree);

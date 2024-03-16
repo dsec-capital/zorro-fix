@@ -1,6 +1,9 @@
 #ifndef FIX_THREAD_H
 #define FIX_THREAD_H
 
+#include "pch.h"
+#include "application.h"
+
 #include "quickfix/config.h"
 #include "quickfix/FileStore.h"
 #include "quickfix/SocketInitiator.h"
@@ -11,25 +14,20 @@
 #endif
 #include "quickfix/SessionSettings.h"
 #include "quickfix/Log.h"
-#include "application.h"
 
-#include <string>
-#include <vector>
-#include <memory>
-#include <sstream>
-#include <thread>
-#include <iostream>
-#include <chrono>
+#include "spdlog/spdlog.h"
 
-#include "logger.h"
-#include "market_data.h"
-#include "exec_report.h"
-#include "order_tracker.h"
+#include "common/market_data.h"
+#include "common/exec_report.h"
+#include "common/order_tracker.h"
+#include "common/blocking_queue.h"
+#include "common/time_utils.h"
+
 #include "broker_commands.h"
-#include "blocking_queue.h"
-#include "time_utils.h"
 
 namespace zfix {
+
+	using namespace common;
 
 	class FixThread {
 		bool started;
@@ -104,10 +102,10 @@ namespace zfix {
 				return;
 			started = false;
 			initiator->stop(true);
-			LOG_INFO("FixThread: FIX initiator and application stopped - going to join\n")
-				if (thread.joinable())
-					thread.join();
-			LOG_INFO("FixThread: FIX initiator stopped - joined\n")
+			SPDLOG_INFO("FixThread: FIX initiator and application stopped - going to join");
+			if (thread.joinable())
+				thread.join();
+			SPDLOG_INFO("FixThread: FIX initiator stopped - joined");
 		}
 
 		zfix::Application& fixApp() {

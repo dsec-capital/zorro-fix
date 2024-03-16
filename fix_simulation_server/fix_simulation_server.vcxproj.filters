@@ -29,33 +29,14 @@
     <ClInclude Include="application.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="id_generator.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="market.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="order.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="order_matcher.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="time_utils.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="fodra_pham.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="price_sampler.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="logger.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="session.cfg" />
-    <None Include="market_config.toml" />
   </ItemGroup>
 </Project>

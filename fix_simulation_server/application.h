@@ -1,10 +1,11 @@
 #ifndef APPLICATION_H
 #define APPLICATION_H
 
-#include "id_generator.h"
+#include "common/order.h"
+#include "common/id_generator.h"
+
 #include "market.h"
 #include "order_matcher.h"
-#include "order.h"
 
 #include <queue>
 #include <iostream>

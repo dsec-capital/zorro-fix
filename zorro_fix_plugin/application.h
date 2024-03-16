@@ -15,20 +15,17 @@
 #include "quickfix/fix44/MarketDataSnapshotFullRefresh.h"
 #include "quickfix/fix44/MarketDataIncrementalRefresh.h"
 
-#include <mutex>
-#include <atomic>
-#include <queue>
-
-#include "id_generator.h"
-#include "blocking_queue.h"
-#include "exec_report.h"
-#include "market_data.h"
-#include "order_tracker.h"
-#include "book.h"
+#include "common/id_generator.h"
+#include "common/blocking_queue.h"
+#include "common/exec_report.h"
+#include "common/market_data.h"
+#include "common/order_tracker.h"
+#include "common/book.h"
 
 
 namespace zfix
 {
+	using namespace common;
 
 	class Application: public FIX::Application, public FIX::MessageCracker
 	{
