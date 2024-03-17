@@ -12,33 +12,23 @@
 #include "quickfix/fix44/MarketDataSnapshotFullRefresh.h"
 #include "quickfix/fix44/MarketDataIncrementalRefresh.h"
 
+#include "common/time_utils.h"
+
+
 Market::Market(
-	const std::string& symbol,
 	const std::shared_ptr<PriceSampler>& priceSampler,
 	std::mutex& mutex
-)
-	: m_mutex(mutex)
-	, m_priceSampler(priceSampler)
-	, m_simulatedMidPrice(priceSampler->actualMidPrice())
-	, m_symbol(symbol)
-	, m_topOfBook(
-		symbol,
-		m_simulatedMidPrice - priceSampler->actualSpread() / 2, 
-		priceSampler->actualBidVolume(),
-	    m_simulatedMidPrice + priceSampler->actualSpread() / 2,
-		priceSampler->actualAskVolume())
-	, m_topOfBookPrevious(m_topOfBook)
+) : m_mutex(mutex)
+  , m_priceSampler(priceSampler)
+  , m_topOfBook(priceSampler->history_rbegin()->second)
+  , m_topOfBookPrevious(m_topOfBook)
 {}
 
-void Market::simulateNext() {
+void Market::simulate_next() {
 	std::unique_lock<std::mutex> ul(m_mutex);
-	auto spread = m_priceSampler->nextSpread();
-	auto mid = m_priceSampler->nextMidPrice();
+	m_priceSampler->simulate_next(get_current_system_clock());
 	m_topOfBookPrevious = m_topOfBook;
-	m_topOfBook.bidPrice = mid - spread / 2;
-	m_topOfBook.bidVolume = m_priceSampler->nextBidVolume();
-	m_topOfBook.askPrice = mid + spread / 2;
-	m_topOfBook.askVolume = m_priceSampler->nextAskVolume();
+	m_topOfBook = m_priceSampler->history_rbegin()->second;
 	std::cout << m_symbol << ": " << m_topOfBook << std::endl;
 }
 
@@ -63,15 +53,15 @@ FIX::Message Market::getSnapshotMessage(const std::string& senderCompID, const s
 	FIX44::MarketDataSnapshotFullRefresh::NoMDEntries group;
 
 	group.set(FIX::MDEntryType(FIX::MDEntryType_BID));
-	group.set(FIX::MDEntryPx(top.bidPrice));
-	group.set(FIX::MDEntrySize(top.bidVolume));
+	group.set(FIX::MDEntryPx(top.bid_price));
+	group.set(FIX::MDEntrySize(top.bid_volume));
 	group.set(FIX::MDEntryDate(now));
 	group.set(FIX::MDEntryTime(now));
 	message.addGroup(group);
 
 	group.set(FIX::MDEntryType(FIX::MDEntryType_OFFER));
-	group.set(FIX::MDEntryPx(top.askPrice));
-	group.set(FIX::MDEntrySize(top.askVolume));
+	group.set(FIX::MDEntryPx(top.ask_price));
+	group.set(FIX::MDEntrySize(top.ask_volume));
 	group.set(FIX::MDEntryDate(now));
 	group.set(FIX::MDEntryTime(now));
 	message.addGroup(group);
@@ -86,10 +76,10 @@ FIX::Message Market::getSnapshotMessage(const std::string& senderCompID, const s
 std::optional<FIX::Message> Market::getUpdateMessage(const std::string& senderCompID, const std::string& targetCompID, const std::string& mdReqID) {
 	std::unique_lock<std::mutex> ul(m_mutex);
 
-	if (m_topOfBook.bidPrice == m_topOfBookPrevious.bidPrice &&
-		m_topOfBook.bidVolume == m_topOfBookPrevious.bidVolume &&
-		m_topOfBook.askPrice == m_topOfBookPrevious.askPrice &&
-		m_topOfBook.askVolume == m_topOfBookPrevious.askVolume) {
+	if (m_topOfBook.bid_price == m_topOfBookPrevious.bid_price &&
+		m_topOfBook.bid_volume == m_topOfBookPrevious.bid_volume &&
+		m_topOfBook.ask_price == m_topOfBookPrevious.ask_price &&
+		m_topOfBook.ask_volume == m_topOfBookPrevious.ask_volume) {
 		return std::optional<FIX::Message>();
 	}
 	
@@ -101,21 +91,21 @@ std::optional<FIX::Message> Market::getUpdateMessage(const std::string& senderCo
 	message.set(FIX::MDReqID(mdReqID));
 
 	FIX44::MarketDataIncrementalRefresh::NoMDEntries group;
-	if (m_topOfBook.bidPrice != m_topOfBookPrevious.bidPrice || m_topOfBook.bidVolume != m_topOfBookPrevious.bidVolume) {
+	if (m_topOfBook.bid_price != m_topOfBookPrevious.bid_price || m_topOfBook.bid_volume != m_topOfBookPrevious.bid_volume) {
 		group.set(FIX::Symbol(m_symbol));
 		group.set(FIX::MDEntryType(FIX::MDEntryType_BID));
-		group.set(FIX::MDEntryPx(m_topOfBook.bidPrice));
-		group.set(FIX::MDEntrySize(m_topOfBook.bidVolume));
+		group.set(FIX::MDEntryPx(m_topOfBook.bid_price));
+		group.set(FIX::MDEntrySize(m_topOfBook.bid_volume));
 		group.set(FIX::MDEntryDate(now));
 		group.set(FIX::MDEntryTime(now));
 		message.addGroup(group);
 	}
 
-	if (m_topOfBook.askPrice != m_topOfBookPrevious.askPrice || m_topOfBook.askVolume != m_topOfBookPrevious.askVolume) {
+	if (m_topOfBook.ask_price != m_topOfBookPrevious.ask_price || m_topOfBook.ask_volume != m_topOfBookPrevious.ask_volume) {
 		group.set(FIX::MDEntryType(FIX::MDEntryType_OFFER));
 		group.set(FIX::Symbol(m_symbol));
-		group.set(FIX::MDEntryPx(m_topOfBook.askPrice));
-		group.set(FIX::MDEntrySize(m_topOfBook.askVolume));
+		group.set(FIX::MDEntryPx(m_topOfBook.ask_price));
+		group.set(FIX::MDEntrySize(m_topOfBook.ask_volume));
 		group.set(FIX::MDEntryDate(now));
 		group.set(FIX::MDEntryTime(now));
 		message.addGroup(group);

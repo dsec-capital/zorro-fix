@@ -1,12 +1,14 @@
 #include "pch.h"
 
 #include "fodra_pham.h"
+#include "time_utils.h"
 
 namespace common {
 
     std::shared_ptr<PriceSampler> price_sampler_factory(
         std::mt19937& generator,
         toml::table& tbl,
+        const std::string& symbol,
         double price,
         double spread,
         double tick_size,
@@ -28,6 +30,8 @@ namespace common {
                 });
             return std::make_shared<FodraPhamSampler<std::mt19937>>(
                 generator,
+                symbol,
+                get_current_system_clock(),
                 alpha_plus.value(),
                 alpha_neg.value(),
                 tick_probs,

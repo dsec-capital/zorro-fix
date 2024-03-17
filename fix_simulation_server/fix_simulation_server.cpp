@@ -67,12 +67,13 @@ int main(int argc, char** argv)
                     auto sampler = price_sampler_factory(
                         generator,
                         *tbl[k.str()]["market_simulator"].as_table(),
+                        symbol,
                         price, 
                         spread, 
                         tick_size
                     );
                     if (sampler != nullptr) {
-                        markets.try_emplace(symbol, symbol, sampler, mutex);
+                        markets.try_emplace(symbol, sampler, mutex);
                     }
                     else {
                         throw std::runtime_error("unknown price sampler type");

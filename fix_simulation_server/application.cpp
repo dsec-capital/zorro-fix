@@ -18,8 +18,10 @@ void Application::runMarketDataUpdate() {
 	while (!m_done) {
 		std::this_thread::sleep_for(m_marketUpdatePeriod);
 
+		auto now = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch());
+
 		for (auto& market : m_orderMatcher.m_markets) {
-			market.second.simulateNext();
+			market.second.simulate_next();
 			auto it = m_marketDataSubscriptions.find(market.first);
 			if (it != m_marketDataSubscriptions.end()) {
 				auto message = market.second.getUpdateMessage(
@@ -176,7 +178,7 @@ void Application::onMessage(const FIX44::MarketDataRequest& message, const FIX::
 			auto market = m_orderMatcher.getMarket(symbol.getString());
 			
 			// simulate market to have up to date first values for sure
-			market->second.simulateNext(); 
+			market->second.simulate_next(); 
 
 			// flip to send back target->sender and sender->target
 			auto snapshot = market->second.getSnapshotMessage(targetCompID.getValue(), senderCompID.getValue(), mdReqID.getValue());

@@ -17,37 +17,37 @@ namespace common {
 
 		TopOfBook(
 			const std::string& symbol,
-			double bidPrice,
-			double bidVolume,
-			double askPrice,
-			double askVolume
+			double bid_price,
+			double bid_volume,
+			double ask_price,
+			double ask_volume
 		) : symbol(symbol),
-			bidPrice(bidPrice),
-			bidVolume(bidVolume),
-			askPrice(askPrice),
-			askVolume(askVolume)
+			bid_price(bid_price),
+			bid_volume(bid_volume),
+			ask_price(ask_price),
+			ask_volume(ask_volume)
 		{}
 
 		double mid() const {
-			return 0.5 * (bidPrice + askPrice);
+			return 0.5 * (bid_price + ask_price);
 		}
 
 		double spread() const {
-			return askPrice - bidPrice;
+			return ask_price - bid_price;
 		}
 
 		std::string symbol{};
-		double bidPrice{ 0 };
-		double bidVolume{ 0 };
-		double askPrice{ 0 };
-		double askVolume{ 0 };
+		double bid_price{ 0 };
+		double bid_volume{ 0 };
+		double ask_price{ 0 };
+		double ask_volume{ 0 };
 
 		std::string toString() const {
 			return "symbol=" + symbol + ", "
-				"bidPrice=" + std::to_string(bidPrice) + ", "
-				"bidVolume=" + std::to_string(bidVolume) + ", "
-				"askPrice=" + std::to_string(askPrice) + ", "
-				"askVolume=" + std::to_string(askVolume);
+				"bid_price=" + std::to_string(bid_price) + ", "
+				"bid_volume=" + std::to_string(bid_volume) + ", "
+				"ask_price=" + std::to_string(ask_price) + ", "
+				"ask_volume=" + std::to_string(ask_volume);
 		}
 	};
 

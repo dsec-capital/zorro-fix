@@ -20,7 +20,6 @@ class Market
 {
 public:
 	explicit Market(
-		const std::string &symbol,
 		const std::shared_ptr<PriceSampler>& priceSampler,
 		std::mutex& mutex
 	);
@@ -39,7 +38,7 @@ public:
 	
 	void display() const;
 
-	void simulateNext();
+	void simulate_next();
 
 	const TopOfBook& getTopOfBook() const;
 
@@ -56,6 +55,7 @@ private:
 	std::mutex& m_mutex;
 	std::string m_symbol;
 	std::shared_ptr<PriceSampler> m_priceSampler;
+
 	TopOfBook m_topOfBook;
 	TopOfBook m_topOfBookPrevious;
 

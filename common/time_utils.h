@@ -10,6 +10,10 @@ namespace common {
     typedef std::chrono::time_point<std::chrono::system_clock> time_point;
     typedef std::chrono::time_point<std::chrono::steady_clock> time_point_steady;
 
+    inline std::chrono::nanoseconds get_current_system_clock() {
+        return std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch());
+    }
+    
     inline std::tm localtime_xp(std::time_t timer)
     {
         std::tm bt{};
