@@ -12,6 +12,7 @@
 
 #include "market.h"
 #include "application.h"
+#include "rest_server.h"
 
 #include <string>
 #include <iostream>
@@ -38,6 +39,7 @@ int main(int argc, char** argv)
         std::random_device random_device;
         std::mt19937 generator(random_device());
         FIX::Log* screenLogger;
+        RestServer restServer("0.0.0.0", 8080);
 
         FIX::SessionSettings settings(settings_file);
 
@@ -95,6 +97,7 @@ int main(int argc, char** argv)
 
         acceptor.start();
         application.startMarketDataUpdates();
+        restServer.run();
 
         while (true)
         {

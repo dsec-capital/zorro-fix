@@ -14,32 +14,6 @@ namespace common {
 
             - https://arxiv.org/pdf/1305.0105.pdf
             - https://park.itc.u-tokyo.ac.jp/takahashi-lab/WPs/Pham130927.pdf
-
-        Python sample implementation
-
-            class SemiMarkovMicroStructure:
-
-                def __init__(self, alpha_plus, alpha_neg, tick_probs, tick_size):
-                    self.alpha_plus = alpha_plus
-                    self.alpha_neg = alpha_neg
-                    self.transition_matrix = np.array([
-                        [(1. + alpha_plus)/2, (1. - alpha_plus)/2],
-                        [(1. - alpha_neg)/2, (1. + alpha_neg)/2]
-                    ])
-                    self.direction_states = [-1, 1]
-                    self.direction_chain = MarkovChain(self.transition_matrix, self.direction_states)
-                    tick_jumps = np.cumsum([tick_size]*len(tick_probs))
-                    self.tick_distribution = stats.rv_discrete(
-                        name='tick_distribution',
-                        values=(tick_jumps, tick_probs)
-                    )
-
-                def sample(self, n, initial_price=100, initial_dir=1):
-                    directions = self.direction_chain.generate_states(initial_dir, n)
-                    tick_jumps = self.tick_distribution.rvs(size=n)
-                    increments = np.multiply(tick_jumps, directions)
-                    relative_prices = np.cumsum(increments)
-                    return initial_price + relative_prices
     */
     template<class Generator>
     class FodraPham {

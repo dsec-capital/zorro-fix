@@ -35,6 +35,9 @@
     <ClInclude Include="order_matcher.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="rest_server.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="session.cfg" />
