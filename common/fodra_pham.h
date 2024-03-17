@@ -205,14 +205,14 @@ namespace common {
         virtual void initialize_history(
             const std::chrono::nanoseconds& from,
             const std::chrono::nanoseconds& now,
-            const std::chrono::nanoseconds& sample_period,
-            std::map<std::chrono::nanoseconds, TopOfBook>& history
+            const std::chrono::nanoseconds& sample_period
         ) {
             std::map<std::chrono::nanoseconds, std::pair<double, double>> mid_history;
             FodraPham<Generator>::initialize_history(
                 gen, from, now, sample_period, mid_history
             );
 
+            history.clear();
             for (const auto& [t, mid_spread] : mid_history) {
                 const auto& [mid, spread] = mid_spread;
                 history.try_emplace(t, 

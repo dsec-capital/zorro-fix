@@ -35,8 +35,7 @@ namespace common {
         virtual void initialize_history(
             const std::chrono::nanoseconds& from, 
             const std::chrono::nanoseconds& now,
-            const std::chrono::nanoseconds& sample_period,
-            std::map<std::chrono::nanoseconds, TopOfBook>& history
+            const std::chrono::nanoseconds& sample_period
         ) = 0;
 
         history_t::const_reverse_iterator history_rbegin() const {
