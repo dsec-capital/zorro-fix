@@ -8,19 +8,22 @@
 namespace common {
 
     /*
-    Mid Price Model
+        Mid Price Model
 
         Following Fodra and Pham
 
             - https://arxiv.org/pdf/1305.0105.pdf
             - https://park.itc.u-tokyo.ac.jp/takahashi-lab/WPs/Pham130927.pdf
+
+        Currently the interarrival times are kept constant and not modelled with
+        a Markov renewal process.
     */
     template<class Generator>
     class FodraPham {
     protected:
         double alpha_plus;
         double alpha_neg;
-        std::vector<double> tick_probs; // slight difference to Python implementation: 0 jump allowed
+        std::vector<double> tick_probs;
         double tick_size;
         double price_state;
         int direction_state;
