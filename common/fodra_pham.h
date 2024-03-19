@@ -226,6 +226,7 @@ namespace common {
 
             history_age = now - from;
         }
+
     };
 
 }

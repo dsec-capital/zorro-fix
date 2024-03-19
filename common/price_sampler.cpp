@@ -46,6 +46,7 @@ namespace common {
             auto sample_period = std::chrono::milliseconds(tbl["history_sample_period_millis"].value<int>().value());
             sampler->initialize_history(now - history_period, now, sample_period);
 
+            sampler->create_bars(std::chrono::minutes(1));
             return sampler;
         }
         else {

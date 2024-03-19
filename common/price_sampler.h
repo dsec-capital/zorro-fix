@@ -50,6 +50,17 @@ namespace common {
             return history.size();
         }
 
+        void create_bars(std::chrono::minutes bar_period) {
+            if (history.empty())
+                return;
+
+            auto bar_period_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(bar_period);
+            auto from = history.begin()->first;
+
+            auto x = from / bar_period;
+
+        }
+
     protected:
 
         std::chrono::nanoseconds history_age{ 0 };
