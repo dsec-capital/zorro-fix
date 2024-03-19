@@ -32,43 +32,30 @@ namespace common {
 
         virtual double actual_spread() const = 0;
 
-        virtual void simulate_next(const std::chrono::nanoseconds& now) = 0;
+        virtual TopOfBook simulate_next(const std::chrono::nanoseconds& now) = 0;
 
         virtual void initialize_history(
             const std::chrono::nanoseconds& from, 
             const std::chrono::nanoseconds& now,
-            const std::chrono::nanoseconds& sample_period
+            const std::chrono::nanoseconds& sample_period,
+            std::map<std::chrono::nanoseconds, TopOfBook>& history
         ) = 0;
 
-        history_t::const_reverse_iterator history_rbegin() const {
-            return history.crbegin();
-        }
-
-        history_t::const_reverse_iterator history_rend() const {
-            return history.crend();
-        }
-
-        size_t history_size() const {
-            return history.size();
-        }
-
     protected:
-
-        std::chrono::nanoseconds history_age{ 0 };
-        history_t history;
+        
     };
 
     inline void build_bars(
-      std::vector<Bar>& bars,
+      BarBuilder& builder,
       const std::map<std::chrono::nanoseconds, TopOfBook> &history,
-      const std::chrono::nanoseconds& bar_period
+      std::map<std::chrono::nanoseconds, Bar>& bars
     ) {
       if (history.empty()) {
         return;
       }
 
       auto it = history.begin();
-      auto from = round_up(it->first, bar_period);
+      auto from = round_up(it->first, builder.get_bar_period());
       while (it->first < from && it != history.end()) {
         ++it;
       }
@@ -76,11 +63,6 @@ namespace common {
       if (it == history.end()) {
         return;
       }
-
-      BarBuilder builder(bar_period, [&bars](
-            const std::chrono::nanoseconds& start, const std::chrono::nanoseconds& end, double o, double h, double l, double c){
-         bars.emplace_back(Bar{start, end, o, h, l, c});
-      });
 
       while (it != history.end()) {
         builder.add(it->first, it->second.mid());

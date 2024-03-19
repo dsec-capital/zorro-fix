@@ -14,21 +14,46 @@
 namespace common {
 
 	Market::Market(
-		const std::shared_ptr<PriceSampler>& price_sampler
-	) :  price_sampler(price_sampler)
-	  , top_of_book(priceSampler->history_rbegin()->second)
-	  , top_of_book_previous(top_of_book)
-	{}
+		const std::shared_ptr<PriceSampler>& price_sampler,
+		const std::chrono::nanoseconds& bar_period,
+		const std::chrono::nanoseconds& history_age,
+		const std::chrono::nanoseconds& sample_period
+	) : price_sampler(price_sampler)
+	  , bar_period(bar_period)
+	  , history_age(history_age)
+      , bar_builder(bar_period, [this](
+		  const std::chrono::nanoseconds& start, const std::chrono::nanoseconds& end, double o, double h, double l, double c) {
+			  this->bars.try_emplace(end, Bar{ start, end, o, h, l, c });
+		  })
+	{
+		auto now = get_current_system_clock();
+		price_sampler->initialize_history(now - history_age, now, sample_period, top_of_books);
+		build_bars(bar_builder, top_of_books, bars);
+	}
 
 	void Market::simulate_next() {
-		price_sampler->simulate_next(get_current_system_clock());
-		top_of_book_previous = top_of_book;
-		top_of_book = price_sampler->history_rbegin()->second;
-		std::cout << symbol << ": " << top_of_book << std::endl;
+		auto now = get_current_system_clock();
+		top_of_books.try_emplace(now, price_sampler->simulate_next(now));
+		std::cout << symbol << ": " << top_of_books.rbegin()->second << std::endl;
+
+		auto ageCutoff = now - history_age;
+		while (top_of_books.begin() != top_of_books.end() && top_of_books.begin()->first < ageCutoff) {
+			top_of_books.erase(top_of_books.begin());
+		}
+
+		bar_builder.add(now, get_top_of_book().mid());
+		while (bars.begin() != bars.end() && bars.begin()->first < ageCutoff) {
+			bars.erase(bars.begin());
+		}
 	}
 
 	const TopOfBook& Market::get_top_of_book() const {
-		return top_of_book;
+		return top_of_books.rbegin()->second;
+	}
+
+	const TopOfBook& Market::get_previous_top_of_book() const {
+		auto it = top_of_books.rbegin();
+		return (it++)->second;
 	}
 
 	bool Market::insert(const Order& order)

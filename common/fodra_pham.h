@@ -189,23 +189,19 @@ namespace common {
 
         virtual void simulate_next(const std::chrono::nanoseconds& now) {
             price_state = FodraPham<Generator>::sample_next(gen, now);
-            history.try_emplace(now,
-                symbol,
+            return TopOfBook(symbol,
                 price_state - spread_state / 2,
                 bid_volume_state,
                 price_state + spread_state / 2,
                 ask_volume_state
             );
-            auto ageCutoff = now - history_age;
-            while (history.begin() != history.end() && history.begin()->first < ageCutoff) {
-                history.erase(history.begin());
-            }
         }
 
         virtual void initialize_history(
             const std::chrono::nanoseconds& from,
             const std::chrono::nanoseconds& now,
-            const std::chrono::nanoseconds& sample_period
+            const std::chrono::nanoseconds& sample_period,
+            std::map<std::chrono::nanoseconds, TopOfBook>& history
         ) {
             std::map<std::chrono::nanoseconds, std::pair<double, double>> mid_history;
             FodraPham<Generator>::initialize_history(
@@ -223,8 +219,6 @@ namespace common {
                     ask_volume_state
                 );
             }
-
-            history_age = now - from;
         }
 
     };

@@ -31,6 +31,10 @@ namespace common {
             , on_bar(on_bar)
         {}
 
+        std::chrono::nanoseconds get_bar_period() const {
+            return bar_period;
+        }
+
         // emit a bar based on time event only, e.g. based on a timer event
         void check_close(const std::chrono::nanoseconds& time) {
             if (time >= end && open != 0) {

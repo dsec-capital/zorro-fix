@@ -20,12 +20,13 @@ void Application::runMarketDataUpdate() {
 
 		auto now = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch());
 
-		for (auto& market : m_orderMatcher.m_markets) {
-			market.second.simulate_next();
-			auto it = m_marketDataSubscriptions.find(market.first);
+		for (auto& [symbol, market] : m_orderMatcher.m_markets) {
+			market.simulate_next();
+			auto it = m_marketDataSubscriptions.find(symbol);
 			if (it != m_marketDataSubscriptions.end()) {
 				auto message = getUpdateMessage(
-					it->second.first, it->second.second, xxx top of books
+					it->second.first, it->second.second, 
+					market.get_top_of_book(), market.get_previous_top_of_book()
 				);
 				if (message.has_value()) {
 					FIX::Session::sendToTarget(message.value());
