@@ -110,6 +110,19 @@ private:
 
 	bool marketDataSubscribed(const std::string& symbol);
 
+	FIX::Message getSnapshotMessage(
+		const std::string& senderCompID,
+		const std::string& targetCompID,
+		const TopOfBook& top
+	);
+
+	std::optional<FIX::Message> getUpdateMessage(
+		const std::string& senderCompID,
+		const std::string& targetCompID,
+		const TopOfBook& topOfBook,
+		const TopOfBook& topOfBookPrevious
+	);
+
 	IDGenerator m_generator;
 	OrderMatcher m_orderMatcher;
 	std::chrono::milliseconds m_marketUpdatePeriod;

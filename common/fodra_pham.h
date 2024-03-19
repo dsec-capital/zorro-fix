@@ -52,7 +52,7 @@ namespace common {
           , tick_probs(tick_probs)
           , tick_size(tick_size)
           , price_state(initial_price)
-          , spread_state(spread_state)
+          , spread_state(initial_spread)
           , direction_state(initial_dir)
           , jump_distribution(tick_probs.begin(), tick_probs.end())
           , from_up_jump((1. + alpha_plus) / 2)

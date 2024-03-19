@@ -149,21 +149,25 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="bar_builder.h" />
     <ClInclude Include="blocking_queue.h" />
     <ClInclude Include="book.h" />
     <ClInclude Include="exec_report.h" />
     <ClInclude Include="fodra_pham.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="id_generator.h" />
+    <ClInclude Include="market.h" />
     <ClInclude Include="market_data.h" />
     <ClInclude Include="order.h" />
     <ClInclude Include="order_tracker.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="price_sampler.h" />
     <ClInclude Include="time_utils.h" />
+    <ClInclude Include="utils.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="book.cpp" />
+    <ClCompile Include="market.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>

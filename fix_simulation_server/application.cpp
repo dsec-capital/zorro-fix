@@ -24,8 +24,8 @@ void Application::runMarketDataUpdate() {
 			market.second.simulate_next();
 			auto it = m_marketDataSubscriptions.find(market.first);
 			if (it != m_marketDataSubscriptions.end()) {
-				auto message = market.second.getUpdateMessage(
-					it->second.first, it->second.second, m_generator.genMarketDataID()
+				auto message = getUpdateMessage(
+					it->second.first, it->second.second, xxx top of books
 				);
 				if (message.has_value()) {
 					FIX::Session::sendToTarget(message.value());
@@ -189,6 +189,86 @@ void Application::onMessage(const FIX44::MarketDataRequest& message, const FIX::
 			}
 		}
 	} 
+}
+
+FIX::Message Application::getSnapshotMessage(
+	const std::string& senderCompID, 
+	const std::string& targetCompID, 
+	const TopOfBook& top
+) {
+	FIX::DateTime now = FIX::DateTime::nowUtc();
+
+	FIX44::MarketDataSnapshotFullRefresh message;
+	message.set(FIX::Symbol(top.symbol));
+	message.set(FIX::MDReqID(m_generator.genMarketDataID()));
+
+	FIX44::MarketDataSnapshotFullRefresh::NoMDEntries group;
+
+	group.set(FIX::MDEntryType(FIX::MDEntryType_BID));
+	group.set(FIX::MDEntryPx(top.bid_price));
+	group.set(FIX::MDEntrySize(top.bid_volume));
+	group.set(FIX::MDEntryDate(now));
+	group.set(FIX::MDEntryTime(now));
+	message.addGroup(group);
+
+	group.set(FIX::MDEntryType(FIX::MDEntryType_OFFER));
+	group.set(FIX::MDEntryPx(top.ask_price));
+	group.set(FIX::MDEntrySize(top.ask_volume));
+	group.set(FIX::MDEntryDate(now));
+	group.set(FIX::MDEntryTime(now));
+	message.addGroup(group);
+
+	auto& header = message.getHeader();
+	header.setField(FIX::SenderCompID(senderCompID));
+	header.setField(FIX::TargetCompID(targetCompID));
+
+	return message;
+}
+
+std::optional<FIX::Message> Application::getUpdateMessage(
+	const std::string& senderCompID, 
+	const std::string& targetCompID, 
+	const TopOfBook& topOfBook,
+	const TopOfBook& topOfBookPrevious
+) {
+	if (topOfBook.bid_price == topOfBookPrevious.bid_price &&
+		topOfBook.bid_volume == topOfBookPrevious.bid_volume &&
+		topOfBook.ask_price == topOfBookPrevious.ask_price &&
+		topOfBook.ask_volume == topOfBookPrevious.ask_volume) {
+		return std::optional<FIX::Message>();
+	}
+
+	FIX::DateTime now = FIX::DateTime::nowUtc();
+
+	FIX44::MarketDataIncrementalRefresh message;
+	message.set(FIX::MDReqID(m_generator.genMarketDataID()));
+
+	FIX44::MarketDataIncrementalRefresh::NoMDEntries group;
+	if (topOfBook.bid_price != topOfBookPrevious.bid_price || topOfBook.bid_volume != topOfBookPrevious.bid_volume) {
+		group.set(FIX::Symbol(topOfBook.symbol));
+		group.set(FIX::MDEntryType(FIX::MDEntryType_BID));
+		group.set(FIX::MDEntryPx(topOfBook.bid_price));
+		group.set(FIX::MDEntrySize(topOfBook.bid_volume));
+		group.set(FIX::MDEntryDate(now));
+		group.set(FIX::MDEntryTime(now));
+		message.addGroup(group);
+	}
+
+	if (topOfBook.ask_price != topOfBookPrevious.ask_price || topOfBook.ask_volume != topOfBookPrevious.ask_volume) {
+		group.set(FIX::MDEntryType(FIX::MDEntryType_OFFER));
+		group.set(FIX::Symbol(topOfBook.symbol));
+		group.set(FIX::MDEntryPx(topOfBook.ask_price));
+		group.set(FIX::MDEntrySize(topOfBook.ask_volume));
+		group.set(FIX::MDEntryDate(now));
+		group.set(FIX::MDEntryTime(now));
+		message.addGroup(group);
+	}
+
+	auto& header = message.getHeader();
+	header.setField(FIX::SenderCompID(senderCompID));
+	header.setField(FIX::TargetCompID(targetCompID));
+
+	return std::optional<FIX::Message>(message);
 }
 
 void Application::updateOrder(const Order& order, char status)

@@ -1,6 +1,8 @@
 #ifndef UTILS_H
 #define UTILS_H
 
+#include <chrono>
+
 namespace common {
 
   inline double round_up(double in, double multiple) {
@@ -29,5 +31,15 @@ namespace common {
     return in - in % multiple;
   }
 
+  inline std::chrono::nanoseconds round_up(const std::chrono::nanoseconds& in, const std::chrono::nanoseconds multiple)
+  {
+      int is_positive = (int)(in.count() >= 0);
+      return ((in + is_positive * (multiple - std::chrono::nanoseconds(1))) / multiple) * multiple;
+  }
+
+  inline std::chrono::nanoseconds round_down(const std::chrono::nanoseconds& in, const std::chrono::nanoseconds& multiple) {
+      return in - in % multiple;
+  }
 }
+
 #endif

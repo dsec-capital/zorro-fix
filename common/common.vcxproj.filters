@@ -51,6 +51,15 @@
     <ClInclude Include="market_data.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="bar_builder.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="utils.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="market.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp">
@@ -60,6 +69,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="price_sampler.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="market.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

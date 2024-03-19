@@ -6,6 +6,7 @@
 #include <memory>
 #include <toml++/toml.hpp>
 
+#include "utils.h"
 #include "market_data.h"
 #include "bar_builder.h"
 
@@ -59,8 +60,8 @@ namespace common {
 
     inline void build_bars(
       std::vector<Bar>& bars,
-      const std::map<std::chrono::nanoseconds, TopOfBook> &history
-      const std::chrono:nanoseconds& bar_period
+      const std::map<std::chrono::nanoseconds, TopOfBook> &history,
+      const std::chrono::nanoseconds& bar_period
     ) {
       if (history.empty()) {
         return;
@@ -76,13 +77,13 @@ namespace common {
         return;
       }
 
-      auto BarBuilder builder(bar_period, [&bars](
+      BarBuilder builder(bar_period, [&bars](
             const std::chrono::nanoseconds& start, const std::chrono::nanoseconds& end, double o, double h, double l, double c){
          bars.emplace_back(Bar{start, end, o, h, l, c});
       });
 
       while (it != history.end()) {
-        builder.add(it->first, it->second->mid());
+        builder.add(it->first, it->second.mid());
       }
     }
 
