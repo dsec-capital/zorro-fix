@@ -7,6 +7,7 @@
 #include <toml++/toml.hpp>
 
 #include "market_data.h"
+#include "bar_builder.h"
 
 namespace common {
 
@@ -50,22 +51,40 @@ namespace common {
             return history.size();
         }
 
-        void create_bars(std::chrono::minutes bar_period) {
-            if (history.empty())
-                return;
-
-            auto bar_period_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(bar_period);
-            auto from = history.begin()->first;
-
-            auto x = from / bar_period;
-
-        }
-
     protected:
 
         std::chrono::nanoseconds history_age{ 0 };
         history_t history;
     };
+
+    inline void build_bars(
+      std::vector<Bar>& bars,
+      const std::map<std::chrono::nanoseconds, TopOfBook> &history
+      const std::chrono:nanoseconds& bar_period
+    ) {
+      if (history.empty()) {
+        return;
+      }
+
+      auto it = history.begin();
+      auto from = round_up(it->first, bar_period);
+      while (it->first < from && it != history.end()) {
+        ++it;
+      }
+
+      if (it == history.end()) {
+        return;
+      }
+
+      auto BarBuilder builder(bar_period, [&bars](
+            const std::chrono::nanoseconds& start, const std::chrono::nanoseconds& end, double o, double h, double l, double c){
+         bars.emplace_back(Bar{start, end, o, h, l, c});
+      });
+
+      while (it != history.end()) {
+        builder.add(it->first, it->second->mid());
+      }
+    }
 
     std::shared_ptr<PriceSampler> price_sampler_factory(
         std::mt19937& generator,
