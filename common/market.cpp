@@ -2,6 +2,7 @@
 
 #include "market.h"
 #include "time_utils.h"
+#include "json.h"
 
 namespace common {
 
@@ -22,9 +23,12 @@ namespace common {
 		auto now = get_current_system_clock();
 		top_of_books.try_emplace(now, price_sampler->actual_top_of_book());
 		price_sampler->initialize_history(now - history_age, now, sample_period, top_of_books);
-		std::cout << "top_of_books len=" << top_of_books.size() << std::endl;
 		build_bars(bar_builder, top_of_books, bars);
-		std::cout << "bars len=" << bars.size() << std::endl;
+
+		auto xx = get_bars_as_json();
+		auto s = xx.dump();
+		std::cout << s << std::endl;
+		std::cout << std::endl;
 	}
 
 	void Market::simulate_next() {
@@ -56,6 +60,14 @@ namespace common {
 		std::unique_lock<std::mutex> ul(mutex);
 		auto it = top_of_books.rbegin();
 		return (it++)->second;
+	}
+
+	const std::map<std::chrono::nanoseconds, Bar>& Market::get_bars() const {
+		return bars;
+	}
+
+	nlohmann::json Market::get_bars_as_json() const {
+		return to_json(bars);
 	}
 
 	bool Market::insert(const Order& order)

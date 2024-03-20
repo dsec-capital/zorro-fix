@@ -1,16 +1,20 @@
 #ifndef MARKET_H
 #define MARKET_H
 
-#include "order.h"
-#include "market_data.h"
-#include "price_sampler.h"
-#include "bar_builder.h"
-
 #include <map>
 #include <queue>
 #include <string>
 #include <functional>
 #include <mutex>
+
+#include "nlohmann/json.h"
+
+#include "order.h"
+#include "market_data.h"
+#include "price_sampler.h"
+#include "bar_builder.h"
+#include "json.h"
+
 
 namespace common {
 
@@ -44,6 +48,10 @@ namespace common {
 		const TopOfBook& get_top_of_book() const;
 
 		const TopOfBook& get_previous_top_of_book() const;
+
+		const std::map<std::chrono::nanoseconds, Bar>& get_bars() const;
+
+		nlohmann::json get_bars_as_json() const;
 
 	private:
 		typedef std::multimap<double, Order, std::greater<double>> BidOrders;

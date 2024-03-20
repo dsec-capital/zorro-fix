@@ -5,6 +5,8 @@
 #include <functional>
 #include <algorithm>
 
+#include "nlohmann/json.h"
+
 #include "utils.h"
 
 namespace common {

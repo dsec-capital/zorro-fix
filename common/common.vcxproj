@@ -156,6 +156,7 @@
     <ClInclude Include="fodra_pham.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="id_generator.h" />
+    <ClInclude Include="json.h" />
     <ClInclude Include="market.h" />
     <ClInclude Include="market_data.h" />
     <ClInclude Include="order.h" />

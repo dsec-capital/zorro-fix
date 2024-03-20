@@ -1,6 +1,8 @@
 #pragma once
 
 #include <thread>
+#include <format>
+
 #include <httplib/httplib.h>
 
 using namespace httplib;
@@ -18,6 +20,16 @@ public:
         server.Get("/hi", [](const Request& /*req*/, Response& res) {
             res.set_content("Hello World!", "text/plain");
             });
+
+        server.Get("/bars", [](const Request& req, Response& res) {
+            std::string symbol = "nan";
+            if (req.has_param("symbol")) {
+                symbol = req.get_param_value("symbol");
+            }
+            res.set_content(std::format("symbol={} body=<{}>", symbol, req.body), "text/plain");
+            });
+
+
     }
 
     void run() {
