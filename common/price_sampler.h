@@ -67,6 +67,7 @@ namespace common {
 
       while (it != history.end()) {
         builder.add(it->first, it->second.mid());
+        ++it;
       }
     }
 

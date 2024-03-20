@@ -22,7 +22,9 @@ namespace common {
 		auto now = get_current_system_clock();
 		top_of_books.try_emplace(now, price_sampler->actual_top_of_book());
 		price_sampler->initialize_history(now - history_age, now, sample_period, top_of_books);
+		std::cout << "top_of_books len=" << top_of_books.size() << std::endl;
 		build_bars(bar_builder, top_of_books, bars);
+		std::cout << "bars len=" << bars.size() << std::endl;
 	}
 
 	void Market::simulate_next() {

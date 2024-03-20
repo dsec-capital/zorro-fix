@@ -10,6 +10,7 @@
 
 #include "common/price_sampler.h"
 #include "common/market.h"
+#include "common/utils.h"
 
 #include "application.h"
 #include "rest_server.h"
@@ -38,7 +39,6 @@ int main(int argc, char** argv)
         std::random_device random_device;
         std::mt19937 generator(random_device());
         FIX::Log* screenLogger;
-        RestServer restServer("0.0.0.0", 8080);
 
         FIX::SessionSettings settings(settings_file);
 
@@ -46,72 +46,59 @@ int main(int argc, char** argv)
         tbl = toml::parse_file(market_config_file);
 
         std::map<std::string, Market> markets;
-    
-        if (tbl.is_table()) {
-            double price, spread, tick_size;
-            std::chrono::nanoseconds bar_period;
-            std::chrono::nanoseconds history_age;
-            std::chrono::milliseconds history_sample_period;
 
-            for (auto [k, v] : *tbl.as_table()) {
-                auto symbol = std::string(k.str());
-                std::replace(symbol.begin(), symbol.end(), '_', '/');
-                std::cout << "symbol=" << symbol << ", values=" << v.as_table() << "\n";
-                if (v.is_table()) {
-                    auto sym_tbl = *v.as_table();
-                    price = sym_tbl["price"].value<double>().value();
-                    spread = sym_tbl["spread"].value<double>().value();
-                    tick_size = sym_tbl["tick_size"].value<double>().value();
-                    bar_period = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                        std::chrono::seconds(sym_tbl["bar_period_seconds"].value<int>().value())
-                    );
-                    history_age = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                        std::chrono::hours(sym_tbl["history_period_hours"].value<int>().value())
-                    );
-                    history_sample_period = std::chrono::milliseconds(
-                        sym_tbl["history_sample_period_millis"].value<int>().value()
-                    );
-                }
-                else {
-                    throw std::runtime_error("market config file incorrect");
-                }
-                if (tbl[k.str()]["market_simulator"].is_table()) {
-                    auto sampler = price_sampler_factory(
-                        generator,
-                        *tbl[k.str()]["market_simulator"].as_table(),
-                        symbol,
-                        price, 
-                        spread, 
-                        tick_size
-                    );
-                    if (sampler != nullptr) {
-                        markets.try_emplace(
-                            symbol, 
-                            sampler, 
-                            bar_period, 
-                            history_age, 
-                            history_sample_period,
-                            mutex
-                        );
-                    }
-                    else {
-                        throw std::runtime_error("unknown price sampler type");
-                    }
-                }
-                else {
-                    throw std::runtime_error(std::format("no market simulator defined for {}", symbol));
-                }
+        auto cfg = tbl["config"];
+        auto server_host = cfg["http_server_host"].value<std::string>().value();
+        auto server_port = cfg["http_server_port"].value<int>().value();
+        auto market_update_period = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::hours(cfg["market_update_period_millis"].value<int>().value())
+        );
+
+        for (auto& [k, v] : *tbl["market"].as_table()) {
+            auto& sym_tbl = *v.as_table();
+            auto symbol = sym_tbl["symbol"].value<std::string>().value();
+            auto price = sym_tbl["price"].value<double>().value();
+            auto spread = sym_tbl["spread"].value<double>().value();
+            auto tick_size = sym_tbl["tick_size"].value<double>().value();
+            auto bar_period = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                std::chrono::seconds(sym_tbl["bar_period_seconds"].value<int>().value())
+            );
+            auto history_age = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                std::chrono::hours(sym_tbl["history_age_hours"].value<int>().value())
+            );
+            auto history_sample_period = std::chrono::milliseconds(
+                sym_tbl["history_sample_period_millis"].value<int>().value()
+            );
+
+            auto sampler = price_sampler_factory(
+                generator,
+                *sym_tbl["market_simulator"].as_table(),
+                symbol,
+                price,
+                spread,
+                tick_size
+            );
+            if (sampler != nullptr) {
+                markets.try_emplace(
+                    symbol,
+                    sampler,
+                    bar_period,
+                    history_age,
+                    history_sample_period,
+                    mutex
+                );
+            }
+            else {
+                throw std::runtime_error("unknown price sampler type");
             }
         }
-        else {
-            throw std::runtime_error("market config file incorrect");
-        }
+
+        RestServer restServer(server_host, server_port);
 
         FIX::FileStoreFactory storeFactory(settings);
         FIX::ScreenLogFactory logFactory(settings); 
         screenLogger = logFactory.create();
 
-        auto market_update_period = 2000ms;
         Application application(markets, market_update_period, screenLogger, mutex);
         FIX::SocketAcceptor acceptor(application, storeFactory, settings, logFactory);
 
