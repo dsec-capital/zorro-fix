@@ -10,6 +10,7 @@
 #include <queue>
 #include <string>
 #include <functional>
+#include <mutex>
 
 namespace common {
 
@@ -20,7 +21,8 @@ namespace common {
 			const std::shared_ptr<PriceSampler>& price_sampler,
 			const std::chrono::nanoseconds& bar_period,
 			const std::chrono::nanoseconds& history_age,
-			const std::chrono::nanoseconds& histroy_sample_period
+			const std::chrono::nanoseconds& histroy_sample_period,
+			std::mutex& mutex
 		);
 
 		Market(const Market&) = delete;
@@ -54,6 +56,7 @@ namespace common {
 		std::chrono::nanoseconds bar_period;
 		std::chrono::nanoseconds history_age;
 		BarBuilder bar_builder;
+		std::mutex& mutex;
 
 		std::map<std::chrono::nanoseconds, TopOfBook> top_of_books;
 		std::map<std::chrono::nanoseconds, Bar> bars;

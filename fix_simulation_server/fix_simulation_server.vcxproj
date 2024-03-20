@@ -155,7 +155,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="application.h" />
-    <ClInclude Include="order_matcher.h" />
     <ClInclude Include="rest_server.h" />
   </ItemGroup>
   <ItemGroup>

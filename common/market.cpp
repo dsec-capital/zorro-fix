@@ -9,13 +9,15 @@ namespace common {
 		const std::shared_ptr<PriceSampler>& price_sampler,
 		const std::chrono::nanoseconds& bar_period,
 		const std::chrono::nanoseconds& history_age,
-		const std::chrono::nanoseconds& sample_period
+		const std::chrono::nanoseconds& sample_period,
+		std::mutex& mutex
 	) : price_sampler(price_sampler)
 	  , bar_period(bar_period)
 	  , history_age(history_age)
       , bar_builder(bar_period, [this](const std::chrono::nanoseconds& start, const std::chrono::nanoseconds& end, double o, double h, double l, double c) {
 			  this->bars.try_emplace(end, Bar{ start, end, o, h, l, c });
 		  })
+      , mutex(mutex)
 	{
 		auto now = get_current_system_clock();
 		top_of_books.try_emplace(now, price_sampler->actual_top_of_book());
@@ -25,8 +27,9 @@ namespace common {
 
 	void Market::simulate_next() {
 		auto now = get_current_system_clock();
+
+		std::unique_lock<std::mutex> ul(mutex);
 		top_of_books.try_emplace(now, price_sampler->simulate_next(now));
-		std::cout << symbol << ": " << top_of_books.rbegin()->second << std::endl;
 
 		auto ageCutoff = now - history_age;
 		while (top_of_books.begin() != top_of_books.end() && top_of_books.begin()->first < ageCutoff) {
@@ -37,13 +40,18 @@ namespace common {
 		while (bars.begin() != bars.end() && bars.begin()->first < ageCutoff) {
 			bars.erase(bars.begin());
 		}
+		ul.release();
+
+		std::cout << symbol << ": " << top_of_books.rbegin()->second << std::endl;
 	}
 
 	const TopOfBook& Market::get_top_of_book() const {
+		std::unique_lock<std::mutex> ul(mutex);
 		return top_of_books.rbegin()->second;
 	}
 
 	const TopOfBook& Market::get_previous_top_of_book() const {
+		std::unique_lock<std::mutex> ul(mutex);
 		auto it = top_of_books.rbegin();
 		return (it++)->second;
 	}

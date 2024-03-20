@@ -26,9 +26,6 @@
     <ClInclude Include="application.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="order_matcher.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="rest_server.h">
       <Filter>Header Files</Filter>
     </ClInclude>

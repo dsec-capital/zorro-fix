@@ -22,7 +22,7 @@ void Application::runMarketDataUpdate() {
 
 		auto now = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch());
 
-		for (auto& [symbol, market] : m_orderMatcher.m_markets) {
+		for (auto& [symbol, market] : m_orderMatcher.markets) {
 			market.simulate_next();
 			auto it = m_marketDataSubscriptions.find(symbol);
 			if (it != m_marketDataSubscriptions.end()) {
@@ -180,10 +180,14 @@ void Application::onMessage(const FIX44::MarketDataRequest& message, const FIX::
 			message.getGroup(i, noRelatedSymGroup);
 			noRelatedSymGroup.get(symbol);
 
-			const auto& market = m_orderMatcher.getMarket(symbol.getString())->second;
+			const auto& market = m_orderMatcher.get_market(symbol.getString())->second;
 			
 			// flip to send back target->sender and sender->target
-			auto snapshot = getSnapshotMessage(targetCompID.getValue(), senderCompID.getValue(), market.get_top_of_book());
+			auto snapshot = getSnapshotMessage(
+				targetCompID.getValue(), 
+				senderCompID.getValue(), 
+				market.get_top_of_book()
+			);
 			FIX::Session::sendToTarget(snapshot);
 
 			if (subscriptionRequestType == FIX::SubscriptionRequestType_SNAPSHOT_AND_UPDATES) {

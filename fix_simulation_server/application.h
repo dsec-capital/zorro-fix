@@ -3,8 +3,7 @@
 
 #include "common/order.h"
 #include "common/id_generator.h"
-
-#include "order_matcher.h"
+#include "common/order_matcher.h"
 
 #include <queue>
 #include <iostream>
@@ -21,6 +20,8 @@
 #include "quickfix/fix44/OrderCancelRequest.h"
 #include "quickfix/fix44/MarketDataRequest.h"
 
+using namespace common;
+
 class Application: public FIX::Application, public FIX::MessageCracker
 {
 public:
@@ -30,7 +31,7 @@ public:
 		FIX::Log *logger, 
 		std::mutex& mutex
 	) : m_logger(logger)
-      , m_orderMatcher(market, logger)
+      , m_orderMatcher(market)
 	  , m_marketUpdatePeriod(marketUpdatePeriod)
 	  , m_mutex(mutex)
 	{}

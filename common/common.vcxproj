@@ -159,6 +159,7 @@
     <ClInclude Include="market.h" />
     <ClInclude Include="market_data.h" />
     <ClInclude Include="order.h" />
+    <ClInclude Include="order_matcher.h" />
     <ClInclude Include="order_tracker.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="price_sampler.h" />
