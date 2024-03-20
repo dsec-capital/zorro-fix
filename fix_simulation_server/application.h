@@ -136,7 +136,6 @@ private:
 	std::thread m_thread;
 	bool m_started{ false };
 	std::atomic_bool m_done{ false };
-
 };
 
 #endif
