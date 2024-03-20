@@ -41,11 +41,6 @@ namespace common {
                 ask_volume.value(),
                 initial_dir
             );
-            auto h = std::chrono::hours(tbl["history_period_hours"].value<int>().value());
-            auto history_period = std::chrono::duration_cast<std::chrono::nanoseconds>(h);
-            auto sample_period = std::chrono::milliseconds(tbl["history_sample_period_millis"].value<int>().value());
-            sampler->initialize_history(now - history_period, now, sample_period);
-
             return sampler;
         }
         else {

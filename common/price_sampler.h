@@ -29,6 +29,7 @@ namespace common {
         virtual double actual_ask_price() const = 0;
         virtual double actual_bid_volume() const = 0;
         virtual double actual_ask_volume() const = 0;
+        virtual TopOfBook actual_top_of_book() const = 0;
 
         virtual double actual_spread() const = 0;
 

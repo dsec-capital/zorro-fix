@@ -4,6 +4,8 @@
 
 #include "application.h"
 
+#include "common/market.h"
+#include "common/market_data.h"
 #include "common/time_utils.h"
 
 #include "quickfix/config.h"
@@ -25,8 +27,10 @@ void Application::runMarketDataUpdate() {
 			auto it = m_marketDataSubscriptions.find(symbol);
 			if (it != m_marketDataSubscriptions.end()) {
 				auto message = getUpdateMessage(
-					it->second.first, it->second.second, 
-					market.get_top_of_book(), market.get_previous_top_of_book()
+					it->second.first, 
+					it->second.second, 
+					market.get_top_of_book(), 
+					market.get_previous_top_of_book()
 				);
 				if (message.has_value()) {
 					FIX::Session::sendToTarget(message.value());
@@ -176,13 +180,10 @@ void Application::onMessage(const FIX44::MarketDataRequest& message, const FIX::
 			message.getGroup(i, noRelatedSymGroup);
 			noRelatedSymGroup.get(symbol);
 
-			auto market = m_orderMatcher.getMarket(symbol.getString());
+			const auto& market = m_orderMatcher.getMarket(symbol.getString())->second;
 			
-			// simulate market to have up to date first values for sure
-			market->second.simulate_next(); 
-
 			// flip to send back target->sender and sender->target
-			auto snapshot = market->second.getSnapshotMessage(targetCompID.getValue(), senderCompID.getValue(), mdReqID.getValue());
+			auto snapshot = getSnapshotMessage(targetCompID.getValue(), senderCompID.getValue(), market.get_top_of_book());
 			FIX::Session::sendToTarget(snapshot);
 
 			if (subscriptionRequestType == FIX::SubscriptionRequestType_SNAPSHOT_AND_UPDATES) {

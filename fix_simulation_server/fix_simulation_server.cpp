@@ -9,8 +9,8 @@
 #include "quickfix/SessionSettings.h"
 
 #include "common/price_sampler.h"
+#include "common/market.h"
 
-#include "market.h"
 #include "application.h"
 #include "rest_server.h"
 
@@ -46,10 +46,14 @@ int main(int argc, char** argv)
         toml::table tbl;
         tbl = toml::parse_file(market_config_file);
 
-        double price, spread, tick_size;
         std::map<std::string, Market> markets;
     
         if (tbl.is_table()) {
+            double price, spread, tick_size;
+            std::chrono::nanoseconds bar_period;
+            std::chrono::nanoseconds history_age;
+            std::chrono::milliseconds history_sample_period;
+
             for (auto [k, v] : *tbl.as_table()) {
                 auto symbol = std::string(k.str());
                 std::replace(symbol.begin(), symbol.end(), '_', '/');
@@ -59,6 +63,15 @@ int main(int argc, char** argv)
                     price = sym_tbl["price"].value<double>().value();
                     spread = sym_tbl["spread"].value<double>().value();
                     tick_size = sym_tbl["tick_size"].value<double>().value();
+                    bar_period = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                        std::chrono::seconds(sym_tbl["bar_period_seconds"].value<int>().value())
+                    );
+                    history_age = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                        std::chrono::hours(sym_tbl["history_period_hours"].value<int>().value())
+                    );
+                    history_sample_period = std::chrono::milliseconds(
+                        sym_tbl["history_sample_period_millis"].value<int>().value()
+                    );
                 }
                 else {
                     throw std::runtime_error("market config file incorrect");
@@ -73,7 +86,7 @@ int main(int argc, char** argv)
                         tick_size
                     );
                     if (sampler != nullptr) {
-                        markets.try_emplace(symbol, sampler, mutex);
+                        markets.try_emplace(symbol, sampler, bar_period, history_age, history_sample_period);
                     }
                     else {
                         throw std::runtime_error("unknown price sampler type");

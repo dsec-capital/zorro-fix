@@ -1,8 +1,6 @@
 #ifndef ORDERMATCHER_H
 #define ORDERMATCHER_H
 
-#include "market.h"
-
 #include <map>
 #include <iostream>
 #include <random>
@@ -10,6 +8,11 @@
 #include <chrono>
 
 #include "quickfix/Log.h"
+
+#include "common/market.h"
+
+using namespace common;
+
 
 class OrderMatcher {
 public:

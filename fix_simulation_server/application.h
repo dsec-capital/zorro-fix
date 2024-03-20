@@ -4,12 +4,12 @@
 #include "common/order.h"
 #include "common/id_generator.h"
 
-#include "market.h"
 #include "order_matcher.h"
 
 #include <queue>
 #include <iostream>
 #include <thread>
+#include <mutex>
 
 #include "quickfix/Application.h"
 #include "quickfix/MessageCracker.h"

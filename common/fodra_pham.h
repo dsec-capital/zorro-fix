@@ -153,15 +153,7 @@ namespace common {
           , spread_state(initial_spread)
           , bid_volume_state(initial_bid_volume)
           , ask_volume_state(initial_ask_volume)
-        {
-            history.try_emplace(actual_time,
-                symbol,
-                price_state - spread_state / 2,
-                bid_volume_state,
-                price_state + spread_state / 2,
-                ask_volume_state
-            );
-        }
+        {}
 
         virtual std::chrono::nanoseconds actual_time() const {
             return FodraPham<Generator>::actual_time;
@@ -187,7 +179,17 @@ namespace common {
             return spread_state;
         }
 
-        virtual void simulate_next(const std::chrono::nanoseconds& now) {
+        virtual TopOfBook actual_top_of_book() const {
+            return TopOfBook(
+                symbol,
+                price_state - spread_state / 2,
+                bid_volume_state,
+                price_state + spread_state / 2,
+                ask_volume_state
+            );
+        }
+
+        virtual TopOfBook simulate_next(const std::chrono::nanoseconds& now) {
             price_state = FodraPham<Generator>::sample_next(gen, now);
             return TopOfBook(symbol,
                 price_state - spread_state / 2,

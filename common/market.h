@@ -20,7 +20,7 @@ namespace common {
 			const std::shared_ptr<PriceSampler>& price_sampler,
 			const std::chrono::nanoseconds& bar_period,
 			const std::chrono::nanoseconds& history_age,
-			const std::chrono::nanoseconds& sample_period
+			const std::chrono::nanoseconds& histroy_sample_period
 		);
 
 		Market(const Market&) = delete;

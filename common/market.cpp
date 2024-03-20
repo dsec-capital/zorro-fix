@@ -1,12 +1,4 @@
-#ifdef _MSC_VER
-#pragma warning( disable : 4786 )
-#endif
-
-
-#include <iostream>
-#include <random>
-#include <thread>
-#include <format>
+#include "pch.h"
 
 #include "market.h"
 #include "time_utils.h"
@@ -21,12 +13,12 @@ namespace common {
 	) : price_sampler(price_sampler)
 	  , bar_period(bar_period)
 	  , history_age(history_age)
-      , bar_builder(bar_period, [this](
-		  const std::chrono::nanoseconds& start, const std::chrono::nanoseconds& end, double o, double h, double l, double c) {
+      , bar_builder(bar_period, [this](const std::chrono::nanoseconds& start, const std::chrono::nanoseconds& end, double o, double h, double l, double c) {
 			  this->bars.try_emplace(end, Bar{ start, end, o, h, l, c });
 		  })
 	{
 		auto now = get_current_system_clock();
+		top_of_books.try_emplace(now, price_sampler->actual_top_of_book());
 		price_sampler->initialize_history(now - history_age, now, sample_period, top_of_books);
 		build_bars(bar_builder, top_of_books, bars);
 	}
@@ -167,4 +159,5 @@ namespace common {
 	}
 
 }
+
 

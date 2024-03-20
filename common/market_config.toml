@@ -2,6 +2,9 @@
 price = 1.2
 spread = 0.002
 tick_size = 0.0001
+bar_periods_seconds = 60
+history_age_hours = 24
+history_sample_period_millis = 500
 [EUR_USD.market_simulator]
 	model = "fodra-pham"
 	bid_volume = 1000
@@ -9,13 +12,14 @@ tick_size = 0.0001
 	alpha_plus = 0.2
 	alpha_neg = 0.2
 	tick_probs = [0.1, 0.3, 0.2, 0.1, 0.1, 0.1, 0.1]
-	history_period_hours = 24
-	history_sample_period_millis = 500
 			
 [AUD_USD]
 price = 0.78
 spread = 0.002
 tick_size = 0.0001
+bar_periods_seconds = 60
+history_age_hours = 24
+history_sample_period_millis = 500
 [AUD_USD.market_simulator]
 	model = "fodra-pham"
 	bid_volume = 1000
@@ -23,5 +27,3 @@ tick_size = 0.0001
 	alpha_plus = 0.2
 	alpha_neg = 0.2
 	tick_probs = [0.1, 0.3, 0.2, 0.1, 0.1, 0.1, 0.1]
-	history_period_hours = 24
-	history_sample_period_millis = 500
