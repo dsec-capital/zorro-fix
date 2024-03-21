@@ -11,10 +11,37 @@
 
 namespace common {
 
-    struct Bar {
+    class Bar {
+    public:
+        Bar(
+            const std::chrono::nanoseconds& start,
+            const std::chrono::nanoseconds& end,
+            double open,
+            double high,
+            double low,
+            double close
+          ) : start(start)
+            , end(end)
+            , open(open)
+            , high(high)
+            , low(low)
+            , close(close)
+        {}
+
         std::chrono::nanoseconds start;
         std::chrono::nanoseconds end;
-        double open, close, high, low;
+        double open;
+        double high; 
+        double low;
+        double close;
+
+        std::string to_string() const {
+            return
+                "open=" + std::to_string(open) + ", " +
+                "high=" + std::to_string(high) + ", " +
+                "low=" + std::to_string(low) + ", " +
+                "close=" + std::to_string(close);
+        }
     };
 
     class BarBuilder {
@@ -23,7 +50,7 @@ namespace common {
         std::chrono::nanoseconds start{};
         std::chrono::nanoseconds end{};
         std::chrono::nanoseconds last_time{};
-        double open{ 0 }, close{ 0 }, high{ 0 }, low{ 0 };
+        double open{ 0 }, high{ 0 }, low{ 0 }, close{ 0 };
 
     public:
         BarBuilder(
@@ -67,8 +94,8 @@ namespace common {
                     on_bar(start, end, open, high, low, close);
                     auto new_start = round_down(time, bar_period);
                     open = last_time == new_start ? close : value;
-                    if (value > high) high = value;
-                    if (value < low) low = value;
+                    high = value > open ? value : open;
+                    low = value < open ? value : open;
                     close = value;
                     start = new_start;
                     end = new_start + bar_period;

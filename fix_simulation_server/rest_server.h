@@ -1,6 +1,7 @@
 #pragma once
 
 #include <thread>
+#include <mutex>
 #include <format>
 
 #include <httplib/httplib.h>
@@ -8,17 +9,34 @@
 using namespace httplib;
 
 class RestServer {
+
     std::string host;
     int port;
+    std::map<std::string, Market>& markets;
+    std::mutex& mutex;
 
     Server server;
     std::atomic_bool done{ false };
     std::thread thread;
 
 public: 
-    RestServer(const std::string& host, int port) : host(host), port(port) {
-        server.Get("/hi", [](const Request& /*req*/, Response& res) {
-            res.set_content("Hello World!", "text/plain");
+
+    RestServer(
+        const std::string& host,
+        int port,
+        std::map<std::string, Market>& markets,
+        std::mutex& mutex
+    ) : host(host)
+      , port(port) 
+      , markets(markets)
+      , mutex(mutex)
+    {
+        server.Get("/test", [](const Request& req, Response& res) {
+            std::string arg = "nan";
+            if (req.has_param("symbol")) {
+                arg = req.get_param_value("arg");
+            }
+            res.set_content(std::format("test : arg={}", arg), "text/plain");
             });
 
         server.Get("/bars", [](const Request& req, Response& res) {

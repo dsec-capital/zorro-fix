@@ -76,18 +76,19 @@ namespace common {
 		}
 
 		std::string toString() const {
-			return "symbol=" + symbol + ", "
-				"clOrdId=" + clOrdId + ", "
-				"owner=" + owner + ", "
-				"target=" + target + ", "
-				"side=" + std::to_string(side) + ", "
-				"type=" + std::to_string(type) + ", "
-				"price=" + std::to_string(price) + ", "
-				"quantity=" + std::to_string(quantity) + ", "
-				"openQuantity=" + std::to_string(openQuantity) + ", "
-				"executedQuantity=" + std::to_string(executedQuantity) + ", "
-				"avgExecutedPrice=" + std::to_string(avgExecutedPrice) + ", "
-				"lastExecutedPrice=" + std::to_string(lastExecutedPrice) + ", "
+			return 
+				"symbol=" + symbol + ", " +
+				"clOrdId=" + clOrdId + ", " +
+				"owner=" + owner + ", " +
+				"target=" + target + ", " +
+				"side=" + std::to_string(side) + ", " +
+				"type=" + std::to_string(type) + ", " +
+				"price=" + std::to_string(price) + ", " +
+				"quantity=" + std::to_string(quantity) + ", " +
+				"openQuantity=" + std::to_string(openQuantity) + ", " +
+				"executedQuantity=" + std::to_string(executedQuantity) + ", " +
+				"avgExecutedPrice=" + std::to_string(avgExecutedPrice) + ", " +
+				"lastExecutedPrice=" + std::to_string(lastExecutedPrice) + ", " +
 				"lastExecutedQuantity=" + std::to_string(lastExecutedQuantity);
 		}
 

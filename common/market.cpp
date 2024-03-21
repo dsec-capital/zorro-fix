@@ -16,7 +16,7 @@ namespace common {
 	  , bar_period(bar_period)
 	  , history_age(history_age)
       , bar_builder(bar_period, [this](const std::chrono::nanoseconds& start, const std::chrono::nanoseconds& end, double o, double h, double l, double c) {
-			  this->bars.try_emplace(end, Bar{ start, end, o, h, l, c });
+			this->bars.try_emplace(end, start, end, o, h, l, c);
 		  })
       , mutex(mutex)
 	{

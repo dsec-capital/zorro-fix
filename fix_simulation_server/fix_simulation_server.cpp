@@ -93,7 +93,7 @@ int main(int argc, char** argv)
             }
         }
 
-        RestServer restServer(server_host, server_port);
+        RestServer restServer(server_host, server_port, markets, mutex);
 
         FIX::FileStoreFactory storeFactory(settings);
         FIX::ScreenLogFactory logFactory(settings); 
