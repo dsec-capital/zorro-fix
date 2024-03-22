@@ -12,93 +12,101 @@
 
 namespace common {
 
-	class OrderFromExecReport
+	class OrderReport
 	{
-		friend std::ostream& operator<<(std::ostream&, const OrderFromExecReport&);
+		friend std::ostream& operator<<(std::ostream&, const OrderReport&);
 
 	public:
 
-		OrderFromExecReport(
+		OrderReport(
 			const ExecReport& report
-		) : symbol(report.symbol),
-			clOrdId(report.clOrdId),
-			orderId(report.orderId),
-			ordType(report.ordType),
-			ordStatus(report.ordStatus),
-			side(report.side),
-			price(report.price),
-			avgPx(report.avgPx),
-			orderQty(report.orderQty),
-			cumQty(report.cumQty),
-			leavesQty(report.leavesQty)
-		{}
+		);
 
-		OrderFromExecReport(
+		OrderReport(
 			const std::string& symbol,
-			const std::string& clOrdId,
-			const std::string& orderId,
-			const char ordType,
-			const char ordStatus,
+			const std::string& cl_ord_id,
+			const std::string& order_id,
+			const char ord_type,
+			const char ord_status,
 			const char side,
 			double price,
-			double avgPx,
-			double orderQty,
-			double cumQty,
-			double leavesQty
-		) : symbol(symbol),
-			clOrdId(clOrdId),
-			orderId(orderId),
-			ordType(ordType),
-			ordStatus(ordStatus),
-			side(side),
-			price(price),
-			avgPx(avgPx),
-			orderQty(orderQty),
-			cumQty(cumQty),
-			leavesQty(leavesQty)
-		{}
+			double avg_px,
+			double order_qty,
+			double cum_qty,
+			double leaves_qty
+		);
 
 		std::string symbol{};
-		std::string clOrdId{};
-		std::string orderId{};
-		char ordType{ FIX::OrdType_MARKET };
-		char ordStatus{ FIX::OrdStatus_REJECTED };
+		std::string cl_ord_id{};
+		std::string order_id{};
+		char ord_type{ FIX::OrdType_MARKET };
+		char ord_status{ FIX::OrdStatus_REJECTED };
 		char side{ FIX::Side_UNDISCLOSED };
 		double price{ 0 };
-		double avgPx{ 0 };
-		double orderQty{ 0 };
-		double cumQty{ 0 };
-		double leavesQty{ 0 };
+		double avg_px{ 0 };
+		double order_qty{ 0 };
+		double cum_qty{ 0 };
+		double leaves_qty{ 0 };
 
-		std::string toString() const {
-			return "symbol=" + symbol + ", "
-				"clOrdId=" + clOrdId + ", "
-				"orderId=" + orderId + ", "
-				"ordType=" + std::to_string(ordType) + ", "
-				"side=" + std::to_string(side) + ", "
-				"price=" + std::to_string(price) + ", "
-				"avgPx=" + std::to_string(avgPx) + ", "
-				"orderQty=" + std::to_string(orderQty) + ", "
-				"cumQty=" + std::to_string(cumQty) + ", "
-				"leavesQty=" + std::to_string(leavesQty);
-		}
+		std::string to_string() const;
 	};
 
-	inline std::ostream& operator<<(std::ostream& ostream, const OrderFromExecReport& report)
-	{
-		return ostream << report.toString();
-	}
+	std::ostream& operator<<(std::ostream&, const OrderReport&);
 
-	class OrderTracker {
-		std::unordered_map<uint32_t, OrderFromExecReport> pendingOrdersByClOrdId;
-		std::unordered_map<uint32_t, OrderFromExecReport> openOrdersByOrdId;
+	class Position {
+		friend std::ostream& operator<<(std::ostream&, const Position&);
 
 	public:
-		OrderTracker() {}
 
-		void process(const ExecReport& report) {
+		std::string account{};
+		std::string symbol{};
+		double avg_px{ 0 };
+		double qty_long{ 0 };
+		double qty_short{ 0 };
 
-		}
+		Position(
+			const std::string& account,
+			const std::string& symbol
+		);
+
+		std::string to_string() const;
+
+		double net_qty() const;
+	};
+
+	class NetPosition {
+		friend std::ostream& operator<<(std::ostream&, const NetPosition&);
+
+	public:
+
+		std::string account{};
+		std::string symbol{};
+		double avg_px{ 0 };
+		double qty{ 0 };
+
+		NetPosition(
+			const std::string& account,
+			const std::string& symbol
+		);
+
+		std::string to_string() const;
+	};
+
+	std::ostream& operator<<(std::ostream&, const Position&);
+
+	class OrderTracker {
+		std::string account;
+		std::unordered_map<std::string, NetPosition> position_by_symbol;
+		std::unordered_map<std::string, OrderReport> pending_orders_by_cl_ord_id;
+		std::unordered_map<std::string, OrderReport> open_orders_by_ord_id;
+		std::unordered_map<std::string, OrderReport> history_orders_by_ord_id;
+
+	public:
+		OrderTracker(const std::string& account);
+
+		NetPosition& net_position(const std::string& symbol);
+
+		void process(const ExecReport& report);
 	};
 
 }

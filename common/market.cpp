@@ -72,31 +72,31 @@ namespace common {
 
 	bool Market::insert(const Order& order)
 	{
-		if (order.getSide() == Order::buy)
-			bid_orders.insert(BidOrders::value_type(order.getPrice(), order));
+		if (order.get_side() == Order::buy)
+			bid_orders.insert(BidOrders::value_type(order.get_price(), order));
 		else
-			ask_orders.insert(AskOrders::value_type(order.getPrice(), order));
+			ask_orders.insert(AskOrders::value_type(order.get_price(), order));
 		return true;
 	}
 
 	void Market::erase(const Order& order)
 	{
-		std::string id = order.getClientID();
-		if (order.getSide() == Order::buy)
+		std::string id = order.get_client_id();
+		if (order.get_side() == Order::buy)
 		{
 			BidOrders::iterator i;
 			for (i = bid_orders.begin(); i != bid_orders.end(); ++i)
-				if (i->second.getClientID() == id)
+				if (i->second.get_client_id() == id)
 				{
 					bid_orders.erase(i);
 					return;
 				}
 		}
-		else if (order.getSide() == Order::sell)
+		else if (order.get_side() == Order::sell)
 		{
 			AskOrders::iterator i;
 			for (i = ask_orders.begin(); i != ask_orders.end(); ++i)
-				if (i->second.getClientID() == id)
+				if (i->second.get_client_id() == id)
 				{
 					ask_orders.erase(i);
 					return;
@@ -114,7 +114,7 @@ namespace common {
 			BidOrders::iterator iBid = bid_orders.begin();
 			AskOrders::iterator iAsk = ask_orders.begin();
 
-			if (iBid->second.getPrice() >= iAsk->second.getPrice())
+			if (iBid->second.get_price() >= iAsk->second.get_price())
 			{
 				Order& bid = iBid->second;
 				Order& ask = iAsk->second;
@@ -137,26 +137,26 @@ namespace common {
 		{
 			BidOrders::iterator i;
 			for (i = bid_orders.begin(); i != bid_orders.end(); ++i)
-				if (i->second.getClientID() == id) return i->second;
+				if (i->second.get_client_id() == id) return i->second;
 		}
 		else if (side == Order::sell)
 		{
 			AskOrders::iterator i;
 			for (i = ask_orders.begin(); i != ask_orders.end(); ++i)
-				if (i->second.getClientID() == id) return i->second;
+				if (i->second.get_client_id() == id) return i->second;
 		}
 		throw std::exception();
 	}
 
 	void Market::match(Order& bid, Order& ask)
 	{
-		double price = ask.getPrice();
+		double price = ask.get_price();
 		long quantity = 0;
 
-		if (bid.getOpenQuantity() > ask.getOpenQuantity())
-			quantity = ask.getOpenQuantity();
+		if (bid.get_open_quantity() > ask.get_open_quantity())
+			quantity = ask.get_open_quantity();
 		else
-			quantity = bid.getOpenQuantity();
+			quantity = bid.get_open_quantity();
 
 		bid.execute(price, quantity);
 		ask.execute(price, quantity);

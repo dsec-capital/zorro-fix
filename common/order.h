@@ -24,76 +24,34 @@ namespace common {
 			Type type,
 			double price,
 			long quantity
-		) : clOrdId(clOrdId),
-			symbol(symbol),
-			owner(owner),
-			target(target),
-			side(side),
-			type(type),
-			price(price),
-			quantity(quantity)
-		{
-			openQuantity = quantity;
-			executedQuantity = 0;
-			avgExecutedPrice = 0;
-			lastExecutedPrice = 0;
-			lastExecutedQuantity = 0;
-		}
+		);
 
-		const std::string& getClientID() const { return clOrdId; }
-		const std::string& getSymbol() const { return symbol; }
-		const std::string& getOwner() const { return owner; }
-		const std::string& getTarget() const { return target; }
-		Side getSide() const { return side; }
-		Type getType() const { return type; }
-		double getPrice() const { return price; }
-		long getQuantity() const { return quantity; }
+		const std::string& get_client_id() const;
+		const std::string& get_symbol() const;
+		const std::string& get_owner() const;
+		const std::string& get_target() const;
+		Side get_side() const;
+		Type getType() const;
+		double get_price() const;
+		long get_quantity() const;
 
-		long getOpenQuantity() const { return openQuantity; }
-		long getExecutedQuantity() const { return executedQuantity; }
-		double getAvgExecutedPrice() const { return avgExecutedPrice; }
-		double getLastExecutedPrice() const { return lastExecutedPrice; }
-		long getLastExecutedQuantity() const { return lastExecutedQuantity; }
+		long get_open_quantity() const;
+		long get_executed_quantity() const;
+		double get_avg_executed_price() const;
+		double get_last_executed_price() const;
+		long get_last_executed_quantity() const;
 
-		bool isFilled() const { return quantity == executedQuantity; }
-		bool isClosed() const { return openQuantity == 0; }
+		bool isFilled() const;
+		bool isClosed() const;
 
-		void execute(double price, long quantity)
-		{
-			avgExecutedPrice =
-				((quantity * price) + (avgExecutedPrice * executedQuantity))
-				/ (quantity + executedQuantity);
+		void execute(double price, long quantity);
 
-			openQuantity -= quantity;
-			executedQuantity += quantity;
-			lastExecutedPrice = price;
-			lastExecutedQuantity = quantity;
-		}
+		void cancel();
 
-		void cancel()
-		{
-			openQuantity = 0;
-		}
-
-		std::string toString() const {
-			return 
-				"symbol=" + symbol + ", " +
-				"clOrdId=" + clOrdId + ", " +
-				"owner=" + owner + ", " +
-				"target=" + target + ", " +
-				"side=" + std::to_string(side) + ", " +
-				"type=" + std::to_string(type) + ", " +
-				"price=" + std::to_string(price) + ", " +
-				"quantity=" + std::to_string(quantity) + ", " +
-				"openQuantity=" + std::to_string(openQuantity) + ", " +
-				"executedQuantity=" + std::to_string(executedQuantity) + ", " +
-				"avgExecutedPrice=" + std::to_string(avgExecutedPrice) + ", " +
-				"lastExecutedPrice=" + std::to_string(lastExecutedPrice) + ", " +
-				"lastExecutedQuantity=" + std::to_string(lastExecutedQuantity);
-		}
+		std::string to_string() const;
 
 	private:
-		std::string clOrdId;
+		std::string cl_ord_id;
 		std::string symbol;
 		std::string owner;
 		std::string target;
@@ -101,17 +59,14 @@ namespace common {
 		Type type;
 		double price;
 		long quantity;
-		long openQuantity;
-		long executedQuantity;
-		double avgExecutedPrice;
-		double lastExecutedPrice;
-		long lastExecutedQuantity;
+		long open_quantity;
+		long executed_quantity;
+		double avg_executed_price;
+		double last_executed_price;
+		long last_executed_quantity;
 	};
 
-	inline std::ostream& operator<<(std::ostream& ostream, const Order& order)
-	{
-		return ostream << order.toString();
-	}
+	std::ostream& operator<<(std::ostream&, const Order&);
 }
 
 #endif

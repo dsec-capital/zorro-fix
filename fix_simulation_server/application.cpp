@@ -279,28 +279,28 @@ std::optional<FIX::Message> Application::getUpdateMessage(
 
 void Application::updateOrder(const Order& order, char status)
 {
-	FIX::TargetCompID targetCompID(order.getOwner());
-	FIX::SenderCompID senderCompID(order.getTarget());
+	FIX::TargetCompID targetCompID(order.get_owner());
+	FIX::SenderCompID senderCompID(order.get_target());
 
 	FIX44::ExecutionReport fixOrder(
-		FIX::OrderID(order.getClientID()),
+		FIX::OrderID(order.get_client_id()),
 		FIX::ExecID(m_generator.genExecutionID()),
 		FIX::ExecType(status),
 		FIX::OrdStatus(status),
-		FIX::Side(convert(order.getSide())),
-		FIX::LeavesQty(order.getOpenQuantity()),
-		FIX::CumQty(order.getExecutedQuantity()),
-		FIX::AvgPx(order.getAvgExecutedPrice())
+		FIX::Side(convert(order.get_side())),
+		FIX::LeavesQty(order.get_open_quantity()),
+		FIX::CumQty(order.get_executed_quantity()),
+		FIX::AvgPx(order.get_avg_executed_price())
 	);
 
-	fixOrder.set(FIX::Symbol(order.getSymbol())); 
-	fixOrder.set(FIX::ClOrdID(order.getClientID()));
-	fixOrder.set(FIX::OrderQty(order.getQuantity()));
+	fixOrder.set(FIX::Symbol(order.get_symbol())); 
+	fixOrder.set(FIX::ClOrdID(order.get_client_id()));
+	fixOrder.set(FIX::OrderQty(order.get_quantity()));
 		
 	if (status == FIX::OrdStatus_FILLED || status == FIX::OrdStatus_PARTIALLY_FILLED)
 	{
-		fixOrder.set(FIX::LastQty(order.getLastExecutedQuantity()));
-		fixOrder.set(FIX::LastPx(order.getLastExecutedPrice()));
+		fixOrder.set(FIX::LastQty(order.get_last_executed_quantity()));
+		fixOrder.set(FIX::LastPx(order.get_last_executed_price()));
 	}
 
 	try
@@ -379,7 +379,7 @@ void Application::processOrder(const Order& order)
 		acceptOrder(order);
 
 		std::queue<Order> orders;
-		m_orderMatcher.match(order.getSymbol(), orders);
+		m_orderMatcher.match(order.get_symbol(), orders);
 
 		while (orders.size())
 		{

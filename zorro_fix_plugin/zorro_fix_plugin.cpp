@@ -290,32 +290,32 @@ namespace zfix {
 			show("BrokerBuy2 timeout while waiting for FIX exec report!");
 		}
 		else {
-			if (report.execType == FIX::ExecType_REJECTED) {
-				show("BrokerBuy2: exec report " + report.toString());
+			if (report.exec_type == FIX::ExecType_REJECTED) {
+				show("BrokerBuy2: exec report " + report.to_string());
 
 			}
 
-			if (report.execType == FIX::ExecType_PENDING_NEW) {
+			if (report.exec_type == FIX::ExecType_PENDING_NEW) {
 
 			}
 
-			if (report.execType == FIX::ExecType_NEW) {
+			if (report.exec_type == FIX::ExecType_NEW) {
 
 			}
 
-			if (report.execType == FIX::ExecType_PARTIAL_FILL) {
+			if (report.exec_type == FIX::ExecType_PARTIAL_FILL) {
 
 			}
 
-			if (report.execType == FIX::ExecType_FILL) {
+			if (report.exec_type == FIX::ExecType_FILL) {
 
 			}
 
-			if (report.execType == FIX::ExecType_PENDING_CANCEL) {
+			if (report.exec_type == FIX::ExecType_PENDING_CANCEL) {
 
 			}
 
-			if (report.execType == FIX::ExecType_CANCELED) {
+			if (report.exec_type == FIX::ExecType_CANCELED) {
 
 			}
 

@@ -31,13 +31,13 @@ namespace common {
 
 		bool insert(const Order& order)
 		{
-			auto it = get_market(order.getSymbol());
+			auto it = get_market(order.get_symbol());
 			return it->second.insert(order);
 		}
 
 		void erase(const Order& order)
 		{
-			Markets::iterator i = markets.find(order.getSymbol());
+			Markets::iterator i = markets.find(order.get_symbol());
 			if (i == markets.end()) return;
 			i->second.erase(order);
 		}

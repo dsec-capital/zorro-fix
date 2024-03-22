@@ -15,75 +15,48 @@ namespace common {
 
 	public:
 
-		ExecReport() {}
+		ExecReport();
 
 		ExecReport(
 			const std::string& symbol,
-			const std::string& clOrdId,
-			const std::string& orderId,
-			const std::string& execId,
-			const char execType,
-			const char ordType,
-			const char ordStatus,
+			const std::string& cl_ord_id,
+			const std::string& order_id,
+			const std::string& exec_id,
+			const char exec_type,
+			const char ord_type,
+			const char ord_status,
 			const char side,
 			double price,
-			double avgPx,
-			double orderQty,
-			double cumQty,
-			double leavesQty,
+			double avg_px,
+			double order_qty,
+			double last_qty,
+			double last_px,
+			double cum_qty,
+			double leaves_qty,
 			const std::string& text
-		) : symbol(symbol),
-			clOrdId(clOrdId),
-			orderId(orderId),
-			execId(execId),
-			execType(execType),
-			ordType(ordType),
-			ordStatus(ordStatus),
-			side(side),
-			price(price),
-			avgPx(avgPx),
-			orderQty(orderQty),
-			cumQty(cumQty),
-			leavesQty(leavesQty),
-			text(text)
-		{}
+		);
 
-		std::string symbol{};
-		std::string clOrdId{};
-		std::string orderId{};
-		std::string execId{};
-		char execType{ FIX::ExecType_REJECTED };
-		char ordType{ FIX::OrdType_MARKET };
-		char ordStatus{ FIX::OrdStatus_REJECTED };
-		char side{ FIX::Side_UNDISCLOSED };
-		double price{ 0 };
-		double avgPx{ 0 };
-		double orderQty{ 0 };
-		double cumQty{ 0 };
-		double leavesQty{ 0 };
-		std::string text{};
+		std::string symbol;
+		std::string cl_ord_id;
+		std::string order_id;
+		std::string exec_id;
+		char exec_type;
+		char ord_type;
+		char ord_status;
+		char side;
+		double price;
+		double avg_px;
+		double order_qty;
+		double last_qty;
+		double last_px;
+		double cum_qty;
+		double leaves_qty;
+		std::string text;
 
-		std::string toString() const {
-			return "symbol=" + symbol + ", "
-				"clOrdId=" + clOrdId + ", "
-				"orderId=" + orderId + ", "
-				"execId=" + execId + ", "
-				"execType=" + std::to_string(execType) + ", "
-				"ordType=" + std::to_string(ordType) + ", "
-				"side=" + std::to_string(side) + ", "
-				"price=" + std::to_string(price) + ", "
-				"avgPx=" + std::to_string(avgPx) + ", "
-				"orderQty=" + std::to_string(orderQty) + ", "
-				"cumQty=" + std::to_string(cumQty) + ", "
-				"leavesQty=" + std::to_string(leavesQty) + ", "
-				"text=" + text;
-		}
+		std::string to_string() const;
 	};
 
-	inline std::ostream& operator<<(std::ostream& ostream, const ExecReport& report)
-	{
-		return ostream << report.toString();
-	}
+	std::ostream& operator<<(std::ostream&, const ExecReport&);
 }
 
 #endif

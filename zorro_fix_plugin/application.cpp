@@ -20,10 +20,10 @@ namespace zfix {
 	Application::Application(
 		const FIX::SessionSettings& sessionSettings,
 		BlockingTimeoutQueue<ExecReport>& execReportQueue
-	) :
-		sessionSettings(sessionSettings),
-		execReportQueue(execReportQueue),
-		done(false)
+	) : sessionSettings(sessionSettings)
+	  , execReportQueue(execReportQueue)
+	  , done(false)
+     , orderTracker("account")
 	{}
 
 	bool Application::hasBook(const std::string& symbol) {
@@ -157,6 +157,8 @@ namespace zfix {
 		FIX::Side side;
 		FIX::Price price;
 		FIX::OrderQty order_qty;
+		FIX::LastQty last_qty;
+		FIX::LastPx last_px;
 		FIX::LeavesQty leaves_qty;
 		FIX::CumQty cum_qty;
 		FIX::AvgPx avg_px;
@@ -173,7 +175,9 @@ namespace zfix {
 		message.get(price);
 		message.get(avg_px);
 		message.get(order_qty);
+		message.get(last_qty);
 		message.get(leaves_qty);
+		message.get(last_px);
 		message.get(cum_qty);
 		message.get(text);
 
@@ -189,38 +193,13 @@ namespace zfix {
 			price.getValue(),
 			avg_px.getValue(),
 			order_qty.getValue(),
+			last_qty.getValue(),
+			last_px.getValue(),
 			cum_qty.getValue(),
 			leaves_qty.getValue(),
 			text.getString()
 		);
 
-		if (exec_type == FIX::ExecType_PENDING_NEW) {
-
-		}
-
-		if (exec_type == FIX::ExecType_NEW) {
-
-		}
-
-		if (exec_type == FIX::ExecType_PARTIAL_FILL) {
-
-		}
-
-
-		if (exec_type == FIX::ExecType_FILL) {
-
-		}
-
-		if (exec_type == FIX::ExecType_PENDING_CANCEL) {
-
-		}
-
-		if (exec_type == FIX::ExecType_CANCELED) {
-
-		}
-
-		if (exec_type == FIX::ExecType_REJECTED) {
-		}
 	
 		execReportQueue.push(report);
 	}
