@@ -72,6 +72,28 @@ namespace fix_sim {
                res.set_content(j.dump(), "application/json");
             }
          });
+
+         server.Get("/bar_range", [this](const Request& req, Response& res) {
+            std::string symbol = "nan";
+
+            if (req.has_param("symbol")) {
+               symbol = req.get_param_value("symbol");
+            }
+            auto it = this->markets.find(symbol);
+            if (it != this->markets.end() && !it->second.get_bars().empty()) {
+               const auto& bars = it->second.get_bars();
+               json j;
+               j["symbol"] = symbol;
+               j["from"] = bars.begin()->first.count();
+               j["to"] = bars.rbegin()->first.count();
+               res.set_content(j.dump(), "application/json");
+            }
+            else {
+               json j;
+               j["error"] = std::format("no bar data for symbol={}", symbol);
+               res.set_content(j.dump(), "application/json");
+            }
+         });
       }
 
       void run() {

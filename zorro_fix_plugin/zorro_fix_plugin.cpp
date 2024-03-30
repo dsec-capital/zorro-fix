@@ -135,6 +135,25 @@ namespace zfix {
 		return res->status;
 	}
 
+	int get_historical_bar_range(const char* Asset, std::chrono::nanoseconds& from, std::chrono::nanoseconds& to, bool verbose=true) {
+		auto request = std::format("/bar_range?symbol={}", Asset);
+		auto res = rest_client.Get(request);
+		if (res->status == httplib::StatusCode::OK_200) {
+			auto j = json::parse(res->body);
+			from = std::chrono::nanoseconds(j["from"].template get<long long>());
+			to = std::chrono::nanoseconds(j["to"].template get<long long>());
+			auto from_str = common::to_string(from);
+			auto to_str = common::to_string(to);
+			if (verbose)
+				show(std::format("get_historical_bar_range for {} from {} and {}", Asset, from_str, to_str));
+		}
+		else {
+			show(std::format("get_historical_bars: error {} for asset {}", res->status, Asset));
+		}
+
+		return res->status;
+	}
+
 	DLLFUNC_C void BrokerHTTP(FARPROC fpSend, FARPROC fpStatus, FARPROC fpResult, FARPROC fpFree) {
 		(FARPROC&)http_send = fpSend;
 		(FARPROC&)http_status = fpStatus;
@@ -302,7 +321,12 @@ namespace zfix {
 		show(std::format("BrokerHistory2: requesting {} tick minutes history for {}", nTickMinutes, Asset));
 
 		std::map<std::chrono::nanoseconds, Bar> bars;
-		get_historical_bars(Asset, tStart, tEnd, bars);
+		auto status = get_historical_bars(Asset, tStart, tEnd, bars);
+
+		if (status != httplib::StatusCode::OK_200 || bars.empty()) {
+			std::chrono::nanoseconds from, to;
+			auto status = get_historical_bar_range(Asset, from, to, true);
+		}
 
 		for (int i = 0; i < nTicks; i++) {
 			ticks->fOpen = 100;
