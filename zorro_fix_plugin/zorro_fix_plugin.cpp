@@ -46,7 +46,7 @@ namespace zfix {
 
 	int internalOrderId = 1000;
 
-	BlockingTimeoutQueue<ExecReport> s_execReportQueue;
+	BlockingTimeoutQueue<ExecReport> exec_report_queue;
 
 	enum ExchangeStatus {
 		Unavailable = 0,
@@ -62,27 +62,43 @@ namespace zfix {
 	//		script since the date and time functions will then return the local time instead of UTC, and time zone functions 
 	//		cannot be used.
 
-	// DATE is fractional time since midnight 1899-12-30
+	// DATE is fractional time in seconds since midnight 1899-12-30
 	// The type __time32_t is representing the time as seconds elapsed since midnight 1970-01-01
-	DATE convertTime(__time32_t t32)
+	DATE convert_time(__time32_t t32)
 	{
 		return (DATE)t32 / SECONDS_PER_DAY + DAYS_BETWEEN_1899_12_30_1979_01_01;  
 	}
 
-	__time32_t convertTime(DATE date)
+	__time32_t convert_time(DATE date)
 	{
 		return (__time32_t)((date - DAYS_BETWEEN_1899_12_30_1979_01_01) * SECONDS_PER_DAY);
 	}
 
-	std::chrono::nanoseconds convertTimeChrono(DATE date) {
+	std::chrono::nanoseconds convert_time_chrono(DATE date) {
 		auto count = (long long)((date - DAYS_BETWEEN_1899_12_30_1979_01_01) * MICROS_PER_DAY);
 		auto us = std::chrono::microseconds(count);
 		return std::chrono::duration_cast<std::chrono::nanoseconds>(us);
 	}
 
-	DATE convertTimeChrono(const std::chrono::nanoseconds& t) {
+	DATE convert_time_chrono(const std::chrono::nanoseconds& t) {
 		auto us = std::chrono::duration_cast<std::chrono::microseconds>(t).count();
 		return (DATE)us / MICROS_PER_DAY + DAYS_BETWEEN_1899_12_30_1979_01_01;
+	}
+
+	std::string time32_to_string(const __time32_t& ts, long ms=0)
+	{
+		const std::tm bt = localtime_xp(ts);
+		std::ostringstream oss;
+		oss << std::put_time(&bt, "%H:%M:%S"); // HH:MM:SS
+		if (ms > 0)
+			oss << '.' << std::setfill('0') << std::setw(3) << ms;
+		return oss.str();
+	}
+
+	std::string zorro_date_to_string(DATE date, bool millis=false) {
+		auto ts = convert_time(date);
+		auto ms = millis ? (long)(date * 1000) % 1000 : 0;
+		return time32_to_string(ts, ms);
 	}
 
 	template<typename ... Args>
@@ -97,6 +113,26 @@ namespace zfix {
 		if (!BrokerError) return;
 		auto tmsg = "[" + now_str() + "] " + msg;
 		BrokerError(tmsg.c_str());
+	}
+
+	// get historical data - note time is in UTC
+	// http://localhost:8080/bars?symbol=EUR/USD&from=2024-03-30 12:00:00&to=2024-03-30 16:00:00
+	int get_historical_bars(const char* Asset, DATE from, DATE to, std::map<std::chrono::nanoseconds, Bar>& bars) {
+		auto from_str = zorro_date_to_string(from);
+		auto to_str = zorro_date_to_string(to);
+		auto request = std::format("/bars?symbol={}&from={}&to={}", Asset, from_str, to_str);
+		auto res = rest_client.Get(request);
+		if (res->status == httplib::StatusCode::OK_200) {
+			auto j = json::parse(res->body);
+			std::map<std::chrono::nanoseconds, Bar> bars;
+			from_json(j, bars);
+			show(std::format("get_historical_bars for {}: number of bars {} between {} and {}", Asset, bars.size(), from_str, to_str));
+		}
+		else {
+			show(std::format("get_historical_bars for {}: error {} for request between {} and {}", Asset, res->status, from_str, to_str));
+		}
+
+		return res->status;
 	}
 
 	DLLFUNC_C void BrokerHTTP(FARPROC fpSend, FARPROC fpStatus, FARPROC fpResult, FARPROC fpFree) {
@@ -119,7 +155,7 @@ namespace zfix {
 				fixThread = std::unique_ptr<FixThread>(
 					new FixThread(
 						settingsCfgFile, 
-						s_execReportQueue
+						exec_report_queue
 					)
 				);
 				fixThread->start();
@@ -224,22 +260,6 @@ namespace zfix {
 					FIX::SubscriptionRequestType_SNAPSHOT_AND_UPDATES
 				);
 
-				// get historical data - not time is in UTC
-				// http://localhost:8080/bars?symbol=EUR/USD&from=2024-03-30 12:00:00&to=2024-03-30 16:00:00
-				auto request = std::format("/bars?symbol={}", Asset);
-				auto res = rest_client.Get(request);
-
-				if (res->status == httplib::StatusCode::OK_200) {
-					auto j = json::parse(res->body);
-					std::map<std::chrono::nanoseconds, Bar> bars;
-					from_json(j, bars);
-					show(std::format("**** BrokerAsset: bars {} for {}", bars.size(), Asset));
-
-				}
-
-
-
-
 				// we do a busy polling to wait for the market data snapshot arriving
 				int count = 0;
 				auto start = std::chrono::system_clock::now();
@@ -279,6 +299,11 @@ namespace zfix {
 
 	DLLFUNC int BrokerHistory2(char* Asset, DATE tStart, DATE tEnd, int nTickMinutes, int nTicks, T6* ticks)
 	{
+		show(std::format("BrokerHistory2: requesting {} tick minutes history for {}", nTickMinutes, Asset));
+
+		std::map<std::chrono::nanoseconds, Bar> bars;
+		get_historical_bars(Asset, tStart, tEnd, bars);
+
 		for (int i = 0; i < nTicks; i++) {
 			ticks->fOpen = 100;
 			ticks->fClose = 100;
@@ -333,7 +358,7 @@ namespace zfix {
 		show("BrokerBuy2: newOrderSingle " + msg.toString());
 
 		ExecReport report;
-		bool success = s_execReportQueue.pop(report, std::chrono::seconds(4));
+		bool success = exec_report_queue.pop(report, std::chrono::seconds(4));
 		if (!success) {
 			show("BrokerBuy2 timeout while waiting for FIX exec report!");
 		}
