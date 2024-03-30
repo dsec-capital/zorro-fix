@@ -19,10 +19,13 @@
 #include "spdlog/spdlog.h"
 #include "spdlog/sinks/basic_file_sink.h"
 
+#define PLUGIN_VERSION 1
 
-#define PLUGIN_VERSION	2
-#define INITIAL_PRICE	1.0
-#define INITIAL_ID		1000
+// Days between midnight 1899-12-30 and midnight 1970-01-01 is 25569
+#define DAYS_BETWEEN_1899_12_30_1979_01_01	25569.0
+#define SECONDS_PER_DAY								86400.0
+#define MILLIS_PER_DAY                       86400000.0 
+#define MICROS_PER_DAY                       86400000000.0 
 
 namespace zfix {
 
@@ -38,11 +41,10 @@ namespace zfix {
 	std::chrono::milliseconds fixBlockinQueueWaitingTime = 500ms;
 	std::string settingsCfgFile = "Plugin/zorro_fix_client.cfg";
 
+	FIX::TimeInForce timeInForce = FIX::TimeInForce_GOOD_TILL_CANCEL;
 	std::unique_ptr<zfix::FixThread> fixThread = nullptr;
 
-	int s_internalOrderId = 1000;
-
-	FIX::TimeInForce s_timeInForce = FIX::TimeInForce_GOOD_TILL_CANCEL;
+	int internalOrderId = 1000;
 
 	BlockingTimeoutQueue<ExecReport> s_execReportQueue;
 
@@ -52,14 +54,35 @@ namespace zfix {
 		Open = 2
 	};
 
+	// From Zorro documentation:
+	//		If not stated otherwise, all dates and times reflect the time stamp of the Close price at the end of the bar. 
+	//		Dates and times are normally UTC. Timestamps in historical data are supposed to be either UTC, or to be a date 
+	//		only with no additional time part, as for daily bars. 
+	//		It is possible to use historical data with local timestamps in the backtest, but this must be considered in the 
+	//		script since the date and time functions will then return the local time instead of UTC, and time zone functions 
+	//		cannot be used.
+
+	// DATE is fractional time since midnight 1899-12-30
+	// The type __time32_t is representing the time as seconds elapsed since midnight 1970-01-01
 	DATE convertTime(__time32_t t32)
 	{
-		return (DATE)t32 / (24. * 60. * 60.) + 25569.; // 25569. = DATE(1.1.1970 00:00)
+		return (DATE)t32 / SECONDS_PER_DAY + DAYS_BETWEEN_1899_12_30_1979_01_01;  
 	}
 
 	__time32_t convertTime(DATE date)
 	{
-		return (__time32_t)((date - 25569.) * 24. * 60. * 60.);
+		return (__time32_t)((date - DAYS_BETWEEN_1899_12_30_1979_01_01) * SECONDS_PER_DAY);
+	}
+
+	std::chrono::nanoseconds convertTimeChrono(DATE date) {
+		auto count = (long long)((date - DAYS_BETWEEN_1899_12_30_1979_01_01) * MICROS_PER_DAY);
+		auto us = std::chrono::microseconds(count);
+		return std::chrono::duration_cast<std::chrono::nanoseconds>(us);
+	}
+
+	DATE convertTimeChrono(const std::chrono::nanoseconds& t) {
+		auto us = std::chrono::duration_cast<std::chrono::microseconds>(t).count();
+		return (DATE)us / MICROS_PER_DAY + DAYS_BETWEEN_1899_12_30_1979_01_01;
 	}
 
 	template<typename ... Args>
@@ -201,18 +224,20 @@ namespace zfix {
 					FIX::SubscriptionRequestType_SNAPSHOT_AND_UPDATES
 				);
 
-				// get historical data 
-				// http://localhost:8080/bars?symbol=AUD/USD
+				// get historical data - not time is in UTC
+				// http://localhost:8080/bars?symbol=EUR/USD&from=2024-03-30 12:00:00&to=2024-03-30 16:00:00
 				auto request = std::format("/bars?symbol={}", Asset);
 				auto res = rest_client.Get(request);
-				res->status;
-				res->body;
 
-				auto j = json::parse(res->body);
-				std::map<std::chrono::nanoseconds, Bar> bars;
-				from_json(j, bars);
+				if (res->status == httplib::StatusCode::OK_200) {
+					auto j = json::parse(res->body);
+					std::map<std::chrono::nanoseconds, Bar> bars;
+					from_json(j, bars);
+					show(std::format("**** BrokerAsset: bars {} for {}", bars.size(), Asset));
 
-				show(std::format("**** BrokerAsset: bars {} for {}", bars.size(), Asset));
+				}
+
+
 
 
 				// we do a busy polling to wait for the market data snapshot arriving
@@ -295,14 +320,14 @@ namespace zfix {
 			ordType = FIX::OrdType_MARKET;
 
 		auto symbol = FIX::Symbol(Asset);
-		auto clOrdId = FIX::ClOrdID(std::to_string(s_internalOrderId));
+		auto clOrdId = FIX::ClOrdID(std::to_string(internalOrderId));
 		auto side = nAmount > 0 ? FIX::Side(FIX::Side_BUY) : FIX::Side(FIX::Side_SELL);
 		auto qty = FIX::OrderQty(std::abs(nAmount));
 		auto limitPrice = FIX::Price(dLimit);
 		auto stopPrice = FIX::StopPx(dStopDist);
 
 		auto msg = fixThread->fixApp().newOrderSingle(
-			symbol, clOrdId, side, ordType, s_timeInForce, qty, limitPrice, stopPrice
+			symbol, clOrdId, side, ordType, timeInForce, qty, limitPrice, stopPrice
 		);
 
 		show("BrokerBuy2: newOrderSingle " + msg.toString());
@@ -356,7 +381,7 @@ namespace zfix {
 				// reset s_amount, next asset might have lotAmount = 1, in that case SET_AMOUNT will not be called in advance
 			}
 
-			return s_internalOrderId++;
+			return internalOrderId++;
 		}
 			
 		return 0;
@@ -421,16 +446,16 @@ namespace zfix {
 			case 0:
 				return 0; 
 			case ORDERTYPE_IOC:
-				s_timeInForce = FIX::TimeInForce_IMMEDIATE_OR_CANCEL;
+				timeInForce = FIX::TimeInForce_IMMEDIATE_OR_CANCEL;
 				break;
 			case ORDERTYPE_GTC:
-				s_timeInForce = FIX::TimeInForce_GOOD_TILL_CANCEL;
+				timeInForce = FIX::TimeInForce_GOOD_TILL_CANCEL;
 				break;
 			case ORDERTYPE_FOK:
-				s_timeInForce = FIX::TimeInForce_FILL_OR_KILL;
+				timeInForce = FIX::TimeInForce_FILL_OR_KILL;
 				break;
 			case ORDERTYPE_DAY:
-				s_timeInForce = FIX::TimeInForce_DAY;
+				timeInForce = FIX::TimeInForce_DAY;
 				break;
 			default:
 				return 0;

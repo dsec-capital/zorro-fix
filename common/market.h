@@ -15,7 +15,6 @@
 #include "bar_builder.h"
 #include "json.h"
 
-
 namespace common {
 
 	class Market

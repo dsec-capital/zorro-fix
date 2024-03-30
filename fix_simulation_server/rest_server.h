@@ -54,10 +54,12 @@ namespace fix_sim {
                symbol = req.get_param_value("symbol");
             }
             if (req.has_param("from")) {
-               from = common::parse_datetime(req.get_param_value("from"));
+               auto from_param = req.get_param_value("from");
+               from = common::parse_datetime(from_param);
             }
             if (req.has_param("to")) {
-               to = common::parse_datetime(req.get_param_value("to"));
+               auto to_param = req.get_param_value("to");
+               to = common::parse_datetime(to_param);
             }
             auto it = this->markets.find(symbol);
             if (it != this->markets.end()) {
