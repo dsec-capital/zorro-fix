@@ -11,25 +11,26 @@ namespace common {
 
 	using json = nlohmann::json;
 
-	inline json to_json(const std::map<std::chrono::nanoseconds, Bar>& bars) {
-		std::vector<long long> start;
+	inline json to_json(
+		const std::chrono::nanoseconds& from, 
+		const std::chrono::nanoseconds& to, 
+		const std::map<std::chrono::nanoseconds, Bar>& bars
+	) {
 		std::vector<long long> end;
 		std::vector<double> open, close, high, low;
 		for (const auto& [key, bar] : bars) {
-			start.emplace_back(
-				std::chrono::duration_cast<std::chrono::milliseconds>(bar.start).count()
-			);
-			end.emplace_back(
-				std::chrono::duration_cast<std::chrono::milliseconds>(bar.end).count()
-			);
-			open.emplace_back(bar.open);
-			high.emplace_back(bar.high);
-			low.emplace_back(bar.low);
-			close.emplace_back(bar.close);
+			if (from <= bar.end && bar.end <= to) {
+				end.emplace_back(
+					std::chrono::duration_cast<std::chrono::nanoseconds>(bar.end).count()
+				);
+				open.emplace_back(bar.open);
+				high.emplace_back(bar.high);
+				low.emplace_back(bar.low);
+				close.emplace_back(bar.close);
+			}
 		}
 
 		json j;
-		j["start"] = start;
 		j["end"] = end;
 		j["open"] = open;
 		j["high"] = high;
@@ -39,9 +40,30 @@ namespace common {
 		return j;
 	}
 
+	inline void from_json(const json& j, std::map<std::chrono::nanoseconds, Bar>& bars) {
+		auto end = j["end"].get<std::vector<long long>>();
+		auto open = j["open"].get<std::vector<double>>();
+		auto high = j["high"].get<std::vector<double>>();
+		auto low = j["low"].get<std::vector<double>>();
+		auto close = j["close"].get<std::vector<double>>();
+		auto n = end.size();
+		assert(open.size() == n && high.size() == n && low.size() == n && close.size() == n);
+
+		bars.clear();
+		for (size_t i = 0; i < n; ++i) {
+			bars.try_emplace(
+				std::chrono::nanoseconds(end[i]),
+				std::chrono::nanoseconds(end[i]),
+				open[i],
+				high[i],
+				low[i],
+				close[i]
+			);
+		}
+	}
+
 	inline void to_json(json& j, const Bar& b) {
 		j = json{
-			{"start", b.start.count()},
 			{"end", b.end.count()},
 			{"open", b.open},
 			{"high", b.high},
@@ -51,12 +73,10 @@ namespace common {
 	}
 
 	inline void from_json(const json& j, Bar& b) {
-		b.start = std::chrono::nanoseconds(j["start"].template get<long long>());
 		b.end = std::chrono::nanoseconds(j["end"].template get<long long>());
 		j.at("open").get_to(b.open);
 		j.at("high").get_to(b.high);
 		j.at("low").get_to(b.low);
 		j.at("close").get_to(b.close);
 	}
-
 }

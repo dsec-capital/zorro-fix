@@ -2,6 +2,8 @@
 
 #include "exec_report.h"
 
+#include "quickfix/FixValues.h"
+
 namespace common {
 
 	ExecReport::ExecReport() {}

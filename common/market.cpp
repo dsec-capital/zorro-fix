@@ -15,8 +15,8 @@ namespace common {
 	) : price_sampler(price_sampler)
 	  , bar_period(bar_period)
 	  , history_age(history_age)
-      , bar_builder(bar_period, [this](const std::chrono::nanoseconds& start, const std::chrono::nanoseconds& end, double o, double h, double l, double c) {
-			this->bars.try_emplace(end, start, end, o, h, l, c);
+      , bar_builder(bar_period, [this](const std::chrono::nanoseconds& end, double o, double h, double l, double c) {
+			this->bars.try_emplace(end, end, o, h, l, c);
 		  })
       , mutex(mutex)
 	{
@@ -24,11 +24,6 @@ namespace common {
 		top_of_books.try_emplace(now, price_sampler->actual_top_of_book());
 		price_sampler->initialize_history(now - history_age, now, sample_period, top_of_books);
 		build_bars(bar_builder, top_of_books, bars);
-
-		auto xx = get_bars_as_json();
-		auto s = xx.dump();
-		std::cout << s << std::endl;
-		std::cout << std::endl;
 	}
 
 	void Market::simulate_next() {
@@ -66,8 +61,8 @@ namespace common {
 		return bars;
 	}
 
-	nlohmann::json Market::get_bars_as_json() const {
-		return to_json(bars);
+	nlohmann::json Market::get_bars_as_json(const std::chrono::nanoseconds& from, const std::chrono::nanoseconds& to) const {
+		return to_json(from, to, bars);
 	}
 
 	bool Market::insert(const Order& order)

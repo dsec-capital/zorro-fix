@@ -103,8 +103,8 @@
     <PostBuildEvent>
       <Command>echo %ZorroInstallDir%
 copy /y "$(SolutionDir)$(Configuration)\zorrofixplugin.dll" "%ZorroInstallDir%\Plugin\AAFixPlugin.dll"
-copy /y "$(ProjectDir)\zorro_fix_client.cfg" "$(SolutionDir)$(Configuration)"
-copy /y "$(ProjectDir)\zorro_fix_client.cfg" "%ZorroInstallDir%\Plugin"
+copy /y "$(ProjectDir)zorro_fix_client.cfg" "$(SolutionDir)$(Configuration)"
+copy /y "$(ProjectDir)zorro_fix_client.cfg" "%ZorroInstallDir%\Plugin"
 robocopy "$(SolutionDir)spec" "%ZorroInstallDir%\Plugin\spec"  /MIR</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
@@ -130,6 +130,13 @@ robocopy "$(SolutionDir)spec" "%ZorroInstallDir%\Plugin\spec"  /MIR</Command>
       <AdditionalLibraryDirectories>$(SolutionDir)$(Configuration);$(SolutionDir)third-parties\quickfix\$(LibrariesArchitecture)-$(Configuration)\lib</AdditionalLibraryDirectories>
       <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);quickfix.lib;ws2_32.lib;common.lib</AdditionalDependencies>
     </Link>
+    <PostBuildEvent>
+      <Command>echo %ZorroInstallDir%
+copy /y "$(SolutionDir)$(Configuration)\zorrofixplugin.dll" "%ZorroInstallDir%\Plugin\AAFixPlugin.dll"
+copy /y "$(ProjectDir)zorro_fix_client.cfg" "$(SolutionDir)$(Configuration)"
+copy /y "$(ProjectDir)zorro_fix_client.cfg" "%ZorroInstallDir%\Plugin"
+robocopy "$(SolutionDir)spec" "%ZorroInstallDir%\Plugin\spec"  /MIR</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -167,6 +174,7 @@ robocopy "$(SolutionDir)spec" "%ZorroInstallDir%\Plugin\spec"  /MIR</Command>
   </ItemDefinitionGroup>
   <ItemGroup>
     <None Include="cpp.hint" />
+    <None Include="README.md" />
     <None Include="zorro_fix_client.cfg" />
   </ItemGroup>
   <ItemGroup>

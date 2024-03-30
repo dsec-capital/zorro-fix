@@ -22,6 +22,7 @@
 #include <toml++/toml.hpp>
 
 using namespace std::chrono_literals;
+using namespace fix_sim;
 
 int main(int argc, char** argv)
 {
@@ -54,43 +55,45 @@ int main(int argc, char** argv)
             std::chrono::hours(cfg["market_update_period_millis"].value<int>().value())
         );
 
-        for (auto& [k, v] : *tbl["market"].as_table()) {
-            auto& sym_tbl = *v.as_table();
-            auto symbol = sym_tbl["symbol"].value<std::string>().value();
-            auto price = sym_tbl["price"].value<double>().value();
-            auto spread = sym_tbl["spread"].value<double>().value();
-            auto tick_size = sym_tbl["tick_size"].value<double>().value();
-            auto bar_period = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                std::chrono::seconds(sym_tbl["bar_period_seconds"].value<int>().value())
-            );
-            auto history_age = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                std::chrono::hours(sym_tbl["history_age_hours"].value<int>().value())
-            );
-            auto history_sample_period = std::chrono::milliseconds(
-                sym_tbl["history_sample_period_millis"].value<int>().value()
-            );
+        toml::array& symbols = *tbl.get_as<toml::array>("symbols");
+        for (auto& symbol : symbols) {
+           auto sym_tbl = *symbol.as_table();
+           auto symbol = sym_tbl["symbol"].value<std::string>().value();
+           auto price = sym_tbl["price"].value<double>().value();
+           auto spread = sym_tbl["spread"].value<double>().value();
+           auto tick_size = sym_tbl["tick_size"].value<double>().value();
+           auto bar_period = std::chrono::duration_cast<std::chrono::nanoseconds>(
+              std::chrono::seconds(sym_tbl["bar_period_seconds"].value<int>().value())
+           );
+           auto history_age = std::chrono::duration_cast<std::chrono::nanoseconds>(
+              std::chrono::hours(sym_tbl["history_age_hours"].value<int>().value())
+           );
+           auto history_sample_period = std::chrono::milliseconds(
+              sym_tbl["history_sample_period_millis"].value<int>().value()
+           );
 
-            auto sampler = price_sampler_factory(
-                generator,
-                *sym_tbl["market_simulator"].as_table(),
-                symbol,
-                price,
-                spread,
-                tick_size
-            );
-            if (sampler != nullptr) {
-                markets.try_emplace(
-                    symbol,
-                    sampler,
-                    bar_period,
-                    history_age,
-                    history_sample_period,
-                    mutex
-                );
-            }
-            else {
-                throw std::runtime_error("unknown price sampler type");
-            }
+           auto mkd_sim_tbl = *sym_tbl["market_simulator"].as_table();
+           auto sampler = price_sampler_factory(
+              generator,
+              mkd_sim_tbl,
+              symbol,
+              price,
+              spread,
+              tick_size
+           );
+           if (sampler != nullptr) {
+              markets.try_emplace(
+                 symbol,
+                 sampler,
+                 bar_period,
+                 history_age,
+                 history_sample_period,
+                 mutex
+              );
+           }
+           else {
+              throw std::runtime_error("unknown price sampler type");
+           }
         }
 
         RestServer restServer(server_host, server_port, markets, mutex);

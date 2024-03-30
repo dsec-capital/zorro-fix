@@ -3,35 +3,34 @@ http_server_host = "0.0.0.0"
 http_server_port = 8080
 market_update_period_millis = 2000
 
-[market]
-	[market.EUR_USD]
-	symbol = "EUR/USD"
-	price = 1.2
-	spread = 0.002
-	tick_size = 0.0001
-	bar_period_seconds = 60
-	history_age_hours = 24
-	history_sample_period_millis = 500
-	[market.EUR_USD.market_simulator]
-		model = "fodra-pham"
-		bid_volume = 1000
-		ask_volume = 1000
-		alpha_plus = 0.2
-		alpha_neg = 0.2
-		tick_probs = [0.1, 0.3, 0.2, 0.1, 0.1, 0.1, 0.1]
+[[symbols]]
+symbol = "EUR/USD"
+price = 1.2
+spread = 0.002
+tick_size = 0.0001
+bar_period_seconds = 60
+history_age_hours = 24
+history_sample_period_millis = 500
+[symbols.market_simulator]
+	model = "fodra-pham"
+	bid_volume = 1000
+	ask_volume = 1000
+	alpha_plus = 0.2
+	alpha_neg = 0.2
+	tick_probs = [0.1, 0.3, 0.2, 0.1, 0.1, 0.1, 0.1]
 			
-	[market.AUD_USD]
-	symbol = "AUD/USD"
-	price = 0.78
-	spread = 0.002
-	tick_size = 0.0001
-	bar_period_seconds = 60
-	history_age_hours = 24
-	history_sample_period_millis = 500
-	[market.AUD_USD.market_simulator]
-		model = "fodra-pham"
-		bid_volume = 1000
-		ask_volume = 1000
-		alpha_plus = 0.2
-		alpha_neg = 0.2
-		tick_probs = [0.1, 0.3, 0.2, 0.1, 0.1, 0.1, 0.1]
+[[symbols]]
+symbol = "AUD/USD"
+price = 0.78
+spread = 0.002
+tick_size = 0.0001
+bar_period_seconds = 60
+history_age_hours = 24
+history_sample_period_millis = 500
+[symbols.market_simulator]
+	model = "fodra-pham"
+	bid_volume = 500
+	ask_volume = 500
+	alpha_plus = 0.1
+	alpha_neg = 0.1
+	tick_probs = [0.1, 0.3, 0.2, 0.1, 0.1, 0.1, 0.1]

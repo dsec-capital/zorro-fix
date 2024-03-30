@@ -5,8 +5,6 @@
 #include <iomanip>
 #include <ostream>
 
-#include "quickfix/FixValues.h"
-
 namespace common {
 
 	class ExecReport
@@ -36,22 +34,22 @@ namespace common {
 			const std::string& text
 		);
 
-		std::string symbol;
-		std::string cl_ord_id;
-		std::string order_id;
-		std::string exec_id;
-		char exec_type;
-		char ord_type;
-		char ord_status;
-		char side;
-		double price;
-		double avg_px;
-		double order_qty;
-		double last_qty;
-		double last_px;
-		double cum_qty;
-		double leaves_qty;
-		std::string text;
+		std::string symbol{};
+		std::string cl_ord_id{};
+		std::string order_id{};
+		std::string exec_id{};
+		char exec_type{};
+		char ord_type{};
+		char ord_status{};
+		char side{};
+		double price{};
+		double avg_px{};
+		double order_qty{};
+		double last_qty{};
+		double last_px{};
+		double cum_qty{};
+		double leaves_qty{};
+		std::string text{};
 
 		std::string to_string() const;
 	};

@@ -51,7 +51,7 @@ namespace common {
 
 		const std::map<std::chrono::nanoseconds, Bar>& get_bars() const;
 
-		nlohmann::json get_bars_as_json() const;
+		nlohmann::json get_bars_as_json(const std::chrono::nanoseconds& from, const std::chrono::nanoseconds& to) const;
 
 	private:
 		typedef std::multimap<double, Order, std::greater<double>> BidOrders;

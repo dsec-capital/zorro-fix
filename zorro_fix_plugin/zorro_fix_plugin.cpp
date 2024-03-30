@@ -9,12 +9,16 @@
 #include "common/market_data.h"
 #include "common/exec_report.h"
 #include "common/blocking_queue.h"
+#include "common/json.h"
 #include "common/time_utils.h"
 
 #include "broker_commands.h"
 
+#include "nlohmann/json.h"
+#include "httplib/httplib.h"
 #include "spdlog/spdlog.h"
 #include "spdlog/sinks/basic_file_sink.h"
+
 
 #define PLUGIN_VERSION	2
 #define INITIAL_PRICE	1.0
@@ -24,6 +28,11 @@ namespace zfix {
 
 	using namespace common;
 	using namespace std::chrono_literals;
+
+	// http://localhost:8080/bars?symbol=AUD/USD
+	std::string rest_host = "http://localhost";
+	int rest_port = 8080;
+	httplib::Client rest_client(std::format("{}:{}", rest_host, rest_port));
 
 	int maxSnaphsotWaitingIterations = 100; 
 	std::chrono::milliseconds fixBlockinQueueWaitingTime = 500ms;
@@ -191,6 +200,20 @@ namespace zfix {
 					FIX::MarketDepth(1),
 					FIX::SubscriptionRequestType_SNAPSHOT_AND_UPDATES
 				);
+
+				// get historical data 
+				// http://localhost:8080/bars?symbol=AUD/USD
+				auto request = std::format("/bars?symbol={}", Asset);
+				auto res = rest_client.Get(request);
+				res->status;
+				res->body;
+
+				auto j = json::parse(res->body);
+				std::map<std::chrono::nanoseconds, Bar> bars;
+				from_json(j, bars);
+
+				show(std::format("**** BrokerAsset: bars {} for {}", bars.size(), Asset));
+
 
 				// we do a busy polling to wait for the market data snapshot arriving
 				int count = 0;

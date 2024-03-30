@@ -125,9 +125,7 @@ namespace common {
         using namespace std::chrono;
         auto itb = bids.begin();
         auto ita = asks.begin();
-        auto duration = duration_cast<milliseconds>(timestamp);
-        auto tp = time_point(duration);
-        auto time_str = ::common::to_string(tp);
+        auto time_str = common::to_string(timestamp);
         std::string out = "";
         out += std::format("------------------------------- {} -------------------------------\n", spread());
         for (auto l = 0; l < levels && itb != bids.end() && ita != asks.end(); ++l, ++itb, ++ita) {

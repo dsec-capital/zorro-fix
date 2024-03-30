@@ -8,27 +8,25 @@
 #include "nlohmann/json.h"
 
 #include "utils.h"
+#include "time_utils.h"
 
 namespace common {
 
     class Bar {
     public:
         Bar(
-            const std::chrono::nanoseconds& start,
             const std::chrono::nanoseconds& end,
             double open,
             double high,
             double low,
             double close
-          ) : start(start)
-            , end(end)
+          ) : end(end)
             , open(open)
             , high(high)
             , low(low)
             , close(close)
         {}
 
-        std::chrono::nanoseconds start;
         std::chrono::nanoseconds end;
         double open;
         double high; 
@@ -37,6 +35,7 @@ namespace common {
 
         std::string to_string() const {
             return
+                "end=" + common::to_string(end) + ", " +
                 "open=" + std::to_string(open) + ", " +
                 "high=" + std::to_string(high) + ", " +
                 "low=" + std::to_string(low) + ", " +
@@ -46,7 +45,7 @@ namespace common {
 
     class BarBuilder {
         std::chrono::nanoseconds bar_period;
-        std::function<void(const std::chrono::nanoseconds&, const std::chrono::nanoseconds&, double, double, double, double)> on_bar;
+        std::function<void(const std::chrono::nanoseconds&, double, double, double, double)> on_bar;
         std::chrono::nanoseconds start{};
         std::chrono::nanoseconds end{};
         std::chrono::nanoseconds last_time{};
@@ -55,7 +54,7 @@ namespace common {
     public:
         BarBuilder(
             const std::chrono::nanoseconds& bar_period,
-            std::function<void(const std::chrono::nanoseconds&, const std::chrono::nanoseconds&, double, double, double, double)> on_bar
+            std::function<void(const std::chrono::nanoseconds&, double, double, double, double)> on_bar
         ) : bar_period(bar_period)
             , on_bar(on_bar)
         {}
@@ -67,7 +66,7 @@ namespace common {
         // emit a bar based on time event only, e.g. based on a timer event
         void check_close(const std::chrono::nanoseconds& time) {
             if (time >= end && open != 0) {
-                on_bar(start, end, open, high, low, close);
+                on_bar(end, open, high, low, close);
                 open = 0;
             }
         }
@@ -91,7 +90,7 @@ namespace common {
                     last_time = time;
                 }
                 else {
-                    on_bar(start, end, open, high, low, close);
+                    on_bar(end, open, high, low, close);
                     auto new_start = round_down(time, bar_period);
                     open = last_time == new_start ? close : value;
                     high = value > open ? value : open;
