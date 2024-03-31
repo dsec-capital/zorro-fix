@@ -5,7 +5,7 @@
 
 namespace common {
 
-   using namespace std::chrono;
+    using namespace std::chrono;
     using namespace std::chrono_literals;
 
     typedef time_point<system_clock> time_point_t;
@@ -23,30 +23,51 @@ namespace common {
         return duration_cast<nanoseconds>(system_clock::now().time_since_epoch());
     }
     
-    inline std::tm localtime_xp(std::time_t timer)
+    inline std::tm localtime_xp(const std::time_t& t)
     {
         std::tm bt{};
 #if defined(__unix__)
-        localtime_r(&timer, &bt);
+        localtime_r(&t, &bt);
 #elif defined(_MSC_VER)
-        localtime_s(&bt, &timer);
+        localtime_s(&bt, &t);
 #else
         static std::mutex mtx;
         std::lock_guard<std::mutex> lock(mtx);
-        bt = *std::localtime(&timer);
+        bt = *std::localtime(&t);
 #endif
         return bt;
     }
 
+    inline std::tm gmtime_xp(const std::time_t &t) {
+       std::tm bt{};
+#if defined(_MSC_VER)
+       gmtime_s(&bt, &t);
+#else
+       bt = *std::gmtime(&t);
+#endif 
+       return bt;
+    }
+
+    inline std::string time32_to_string(const __time32_t& ts, long ms = 0)
+    {
+       const auto bt = gmtime_xp(ts);
+       std::ostringstream oss;
+       oss << std::put_time(&bt, "%Y-%m-%d %H:%M:%S");
+       if (ms > 0)
+          oss << '.' << std::setfill('0') << std::setw(3) << ms;
+       oss << "Z";
+       return oss.str();
+    }
+
     inline std::string to_string(const time_point_t& ts)
     {
-        const auto ms = duration_cast<milliseconds>(ts.time_since_epoch()) % 1000;
-        const auto timer = system_clock::to_time_t(ts);
-        const std::tm bt = localtime_xp(timer);
-        std::ostringstream oss;
-        oss << std::put_time(&bt, "%H:%M:%S"); // HH:MM:SS
-        oss << '.' << std::setfill('0') << std::setw(3) << ms.count();
-        return oss.str();
+       const auto t = system_clock::to_time_t(ts);
+       const auto ms = duration_cast<milliseconds>(ts.time_since_epoch()) % 1000;
+       const auto gt = gmtime_xp(t);
+       std::ostringstream oss;
+       oss << std::put_time(&gt, "%Y-%m-%d %H:%M:%S");
+       oss << '.' << std::setfill('0') << std::setw(3) << ms.count() << "Z";
+       return oss.str();
     }
 
     inline std::string to_string(const nanoseconds& ns) {
@@ -69,12 +90,12 @@ namespace common {
 
     inline std::string to_string(const steady_time_point_t& ts)
     {
+        const auto t = steady_clock_to_time_t(ts);
         const auto ms = duration_cast<milliseconds>(ts.time_since_epoch()) % 1000;
-        const auto timer = steady_clock_to_time_t(ts);
-        const std::tm bt = localtime_xp(timer);
+        const auto gt = gmtime_xp(t);
         std::ostringstream os;
-        os << std::put_time(&bt, "%H:%M:%S"); // HH:MM:SS
-        os << '.' << std::setfill('0') << std::setw(3) << ms.count();
+        os << std::put_time(&gt, "%Y-%m-%d %H:%M:%S");
+        os << '.' << std::setfill('0') << std::setw(3) << ms.count() << "Z";
         return os.str();
     }
 

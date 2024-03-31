@@ -19,7 +19,7 @@
 #include "spdlog/spdlog.h"
 #include "spdlog/sinks/basic_file_sink.h"
 
-#define PLUGIN_VERSION 1
+#define PLUGIN_VERSION 2
 
 // Days between midnight 1899-12-30 and midnight 1970-01-01 is 25569
 #define DAYS_BETWEEN_1899_12_30_1979_01_01	25569.0
@@ -37,15 +37,15 @@ namespace zfix {
 	int rest_port = 8080;
 	httplib::Client rest_client(std::format("{}:{}", rest_host, rest_port));
 
-	int maxSnaphsotWaitingIterations = 100; 
-	std::chrono::milliseconds fixBlockinQueueWaitingTime = 500ms;
-	std::string settingsCfgFile = "Plugin/zorro_fix_client.cfg";
-
-	FIX::TimeInForce timeInForce = FIX::TimeInForce_GOOD_TILL_CANCEL;
-	std::unique_ptr<zfix::FixThread> fixThread = nullptr;
+	int max_snaphsot_waiting_iterations = 10; 
+	std::chrono::milliseconds fix_blocking_queue_waiting_time = 500ms;
+	std::string settings_cfg_file = "Plugin/zorro_fix_client.cfg";
 
 	int internalOrderId = 1000;
+	FIX::TimeInForce timeInForce = FIX::TimeInForce_GOOD_TILL_CANCEL;
 
+	std::shared_ptr<spdlog::logger> spd_logger = nullptr;
+	std::unique_ptr<zfix::FixThread> fix_thread = nullptr;
 	BlockingTimeoutQueue<ExecReport> exec_report_queue;
 
 	enum ExchangeStatus {
@@ -62,7 +62,7 @@ namespace zfix {
 	//		script since the date and time functions will then return the local time instead of UTC, and time zone functions 
 	//		cannot be used.
 
-	// DATE is fractional time in seconds since midnight 1899-12-30
+	// DATE is fractional time in days since midnight 1899-12-30
 	// The type __time32_t is representing the time as seconds elapsed since midnight 1970-01-01
 	DATE convert_time(__time32_t t32)
 	{
@@ -83,16 +83,6 @@ namespace zfix {
 	DATE convert_time_chrono(const std::chrono::nanoseconds& t) {
 		auto us = std::chrono::duration_cast<std::chrono::microseconds>(t).count();
 		return (DATE)us / MICROS_PER_DAY + DAYS_BETWEEN_1899_12_30_1979_01_01;
-	}
-
-	std::string time32_to_string(const __time32_t& ts, long ms=0)
-	{
-		const std::tm bt = localtime_xp(ts);
-		std::ostringstream oss;
-		oss << std::put_time(&bt, "%H:%M:%S"); // HH:MM:SS
-		if (ms > 0)
-			oss << '.' << std::setfill('0') << std::setw(3) << ms;
-		return oss.str();
 	}
 
 	std::string zorro_date_to_string(DATE date, bool millis=false) {
@@ -117,38 +107,53 @@ namespace zfix {
 
 	// get historical data - note time is in UTC
 	// http://localhost:8080/bars?symbol=EUR/USD&from=2024-03-30 12:00:00&to=2024-03-30 16:00:00
-	int get_historical_bars(const char* Asset, DATE from, DATE to, std::map<std::chrono::nanoseconds, Bar>& bars) {
+	int get_historical_bars(const char* Asset, DATE from, DATE to, std::map<std::chrono::nanoseconds, Bar>& bars, bool verbose=false) {
 		auto from_str = zorro_date_to_string(from);
 		auto to_str = zorro_date_to_string(to);
 		auto request = std::format("/bars?symbol={}&from={}&to={}", Asset, from_str, to_str);
 		auto res = rest_client.Get(request);
 		if (res->status == httplib::StatusCode::OK_200) {
 			auto j = json::parse(res->body);
-			std::map<std::chrono::nanoseconds, Bar> bars;
 			from_json(j, bars);
-			show(std::format("get_historical_bars for {}: number of bars {} between {} and {}", Asset, bars.size(), from_str, to_str));
+			if (verbose) {
+				show(std::format(
+					"get_historical_bars: Asset={} from={} to={} num bars={}", 
+					Asset, from_str, to_str, bars.size()
+				));
+			}
 		}
 		else {
-			show(std::format("get_historical_bars for {}: error {} for request between {} and {}", Asset, res->status, from_str, to_str));
+			show(std::format(
+				"get_historical_bars error: Asset={} from={} to={} status={}", 
+				Asset, from_str, to_str, res->status
+			));
 		}
 
 		return res->status;
 	}
 
-	int get_historical_bar_range(const char* Asset, std::chrono::nanoseconds& from, std::chrono::nanoseconds& to, bool verbose=true) {
+	int get_historical_bar_range(const char* Asset, std::chrono::nanoseconds& from, std::chrono::nanoseconds& to, size_t& num_bars, bool verbose=false) {
 		auto request = std::format("/bar_range?symbol={}", Asset);
 		auto res = rest_client.Get(request);
 		if (res->status == httplib::StatusCode::OK_200) {
 			auto j = json::parse(res->body);
 			from = std::chrono::nanoseconds(j["from"].template get<long long>());
 			to = std::chrono::nanoseconds(j["to"].template get<long long>());
+			num_bars = j["num_bars"].template get<size_t>();
 			auto from_str = common::to_string(from);
 			auto to_str = common::to_string(to);
-			if (verbose)
-				show(std::format("get_historical_bar_range for {} from {} and {}", Asset, from_str, to_str));
+			if (verbose) {
+				show(std::format(
+					"get_historical_bar_range: Asset={} from={} to={} num bars={} body={}",
+					Asset, from_str, to_str, num_bars, res->body
+				));
+			}
 		}
 		else {
-			show(std::format("get_historical_bars: error {} for asset {}", res->status, Asset));
+			show(std::format(
+				"get_historical_bar_range error: Asset={} status={} body={}", 
+				Asset, res->status, res->body
+			));
 		}
 
 		return res->status;
@@ -162,39 +167,37 @@ namespace zfix {
 	}
 
 	DLLFUNC int BrokerLogin(char* User, char* Pwd, char* Type, char* Account) {
-		if (User) {
-			if (fixThread != nullptr) {
-				show("BrokerLogin: Zorro-Fix-Bridge - stopping fix service on repeated login...");
-				fixThread->cancel();
-				show("BrokerLogin: Zorro-Fix-Bridge - fix service stopped on repeated login");
-				fixThread = nullptr;
-			}
-			show("BrokerLogin: Zorro-Fix-Bridge - starting fix service...");
-			try { 
-				fixThread = std::unique_ptr<FixThread>(
+		try {
+			if (fix_thread == nullptr) {
+				show("BrokerLogin: FIX thread createing...");
+				fix_thread = std::unique_ptr<FixThread>(
 					new FixThread(
-						settingsCfgFile, 
+						settings_cfg_file,
 						exec_report_queue
 					)
 				);
-				fixThread->start();
-				show("BrokerLogin: Zorro-Fix-Bridge - fix service running");
+				show("BrokerLogin: FIX thread created");
+			}
+			if (User) {
+				show("BrokerLogin: FIX service starting...");
+				fix_thread->start();
+				show("BrokerLogin: FIX service running");
 				return 1; // logged in status
 			}
-			catch (std::exception& e) {
-				fixThread = nullptr;
-				show(std::format("BrokerLogin: exception starting fix service {}", e.what()));
-				return 0;  
+			else {
+				show("BrokerLogin: FIX service stopping...");
+				fix_thread->cancel();
+				show("BrokerLogin: FIX service stopped");
+				return 0; // logged out status
 			}
 		}
-		else {
-			if (fixThread != nullptr) {
-				show("BrokerLogin: Zorro FIX Bridge - stopping FIX service...");
-				fixThread->cancel();
-				show("BrokerLogin: Zorro FIX Bridge - FIX service stopped");
-				fixThread = nullptr;
-			}	
-			return 0; // logged out status
+		catch (std::exception& e) {
+			show(std::format("BrokerLogin: exception creating/starting FIX service {}", e.what()));
+			return 0;
+		}
+		catch (...) {
+			show("BrokerLogin: unknown exception");
+			return 0;
 		}
 	}
 
@@ -204,37 +207,38 @@ namespace zfix {
 		(FARPROC&)BrokerProgress = fpProgress;
 
 		std::string cwd = std::filesystem::current_path().string();
-		show(std::format("BrokerOpen: Zorro Fix Bridge plugin opened in {}", cwd)); 
+		show(std::format("BrokerOpen: FIX plugin opened in {}", cwd)); 
 
 		try
 		{
-			auto postfix = timestamp_posfix();
-			auto logger = spdlog::basic_logger_mt(
-				"basic_logger", 
-				std::format("Log/zorro-fix-bridge_{}.log", postfix)
-			);
-			spdlog::set_level(spdlog::level::debug);
+			if (!spd_logger) {
+				auto postfix = timestamp_posfix();
+				spd_logger = spdlog::basic_logger_mt(
+					"standard_logger",
+					std::format("Log/zorro-fix-bridge_spdlog_{}.log", postfix)
+				);
+				spdlog::set_default_logger(spd_logger);
+				spdlog::flush_every(std::chrono::seconds(2));
+				spdlog::set_level(spdlog::level::debug);
+				SPDLOG_INFO("Logging started, cwd={}", cwd);
+			}
 		}
 		catch (const spdlog::spdlog_ex& ex)
 		{
-			show(std::format("BrokerOpen: Zorro FIX Bridge failed to init log: {}", ex.what()));
+			show(std::format("BrokerOpen: FIX plugin failed to init log: {}", ex.what()));
 		}
-
-		SPDLOG_INFO("Logging started, cwd={}", cwd);
 
 		return PLUGIN_VERSION;
 	}
 
 	DLLFUNC int BrokerTime(DATE* pTimeGMT) {
-		if (!fixThread) {
+		if (!fix_thread) {
 			return ExchangeStatus::Unavailable;
 		}
 
-		const auto currentTime = std::chrono::duration_cast<std::chrono::milliseconds>(
-			std::chrono::system_clock::now().time_since_epoch()
-		).count();
+		const auto time = get_current_system_clock();
+		show(std::format("BrokerTime {}", common::to_string(time)));
 
-		show("BrokerTime");
 		return ExchangeStatus::Open;
 	}
 
@@ -264,14 +268,16 @@ namespace zfix {
 		double* pMarginCost, double* pRollLong, double* pRollShort) {
 
 		try {
-			if (fixThread == nullptr) {
+			if (fix_thread == nullptr) {
 				throw std::runtime_error("no FIX session");
 			}
 
-			auto& fixApp = fixThread->fixApp();
+			auto& fixApp = fix_thread->fixApp();
 
 			// subscribe to Asset market data
 			if (!pPrice) {  
+				show(std::format("BrokerAsset: subscribing for symbol {}", Asset));
+
 				FIX::Symbol symbol(Asset);
 				fixApp.marketDataRequest(
 					symbol,
@@ -279,25 +285,38 @@ namespace zfix {
 					FIX::SubscriptionRequestType_SNAPSHOT_AND_UPDATES
 				);
 
+				show(std::format("BrokerAsset: subscription request sent for symbol {}", Asset));
+
 				// we do a busy polling to wait for the market data snapshot arriving
-				int count = 0;
+				auto count = 0;
 				auto start = std::chrono::system_clock::now();
 				while (true) {
-					if (count >= maxSnaphsotWaitingIterations) {
+					if (count >= max_snaphsot_waiting_iterations) {
 						auto now = std::chrono::system_clock::now();
 						auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count();
 						throw std::runtime_error(std::format("failed to get snapshot in {}ms", ms));
 					}
 
-					bool success = fixApp.hasBook(symbol);
+					auto success = fixApp.hasBook(symbol);
 					if (success) {
 						show(std::format("BrokerAsset: subscribed to symbol {}", Asset));
-						return 1;
+						break;
 					}
 
 					++count;
 					std::this_thread::sleep_for(100ms);
+
+					show(std::format("BrokerAsset: waiting for {} count={}", Asset, count));
 				}
+
+				show(std::format("BrokerAsset: subscription request obtained symbol {}", Asset));
+
+				size_t num_bars;
+				std::chrono::nanoseconds from, to;
+				auto status = get_historical_bar_range(Asset, from, to, num_bars, false);
+				show(std::format("BrokerAsset: historical bar range request for symbol {} status={}", Asset, status));
+
+				return 1;
 			}
 			else {
 				TopOfBook top = fixApp.topOfBook(Asset);
@@ -306,7 +325,7 @@ namespace zfix {
 				return 1;
 			}
 		}
-		catch (const std::runtime_error& e) {
+		catch (const std::exception& e) {
 			show(std::format("BrokerAsset: Excetion {}", e.what()));
 			return 0;
 		}
@@ -318,25 +337,40 @@ namespace zfix {
 
 	DLLFUNC int BrokerHistory2(char* Asset, DATE tStart, DATE tEnd, int nTickMinutes, int nTicks, T6* ticks)
 	{
-		show(std::format("BrokerHistory2: requesting {} tick minutes history for {}", nTickMinutes, Asset));
+		auto seconds = nTicks * nTickMinutes * 60;
+		auto tStart2 = tEnd - seconds/SECONDS_PER_DAY;
+		auto from = zorro_date_to_string(tStart2);
+		auto to = zorro_date_to_string(tEnd);
+		show(std::format("BrokerHistory2 {}: requesting {} ticks bar period {} minutes from {} to {}", Asset, nTicks, nTickMinutes, from, to));
 
 		std::map<std::chrono::nanoseconds, Bar> bars;
-		auto status = get_historical_bars(Asset, tStart, tEnd, bars);
+		auto status = get_historical_bars(Asset, tStart2, tEnd, bars, false);
 
-		if (status != httplib::StatusCode::OK_200 || bars.empty()) {
+		auto count = 0;		
+		if (status == httplib::StatusCode::OK_200) {
+			for (auto it = bars.rbegin(); it != bars.rend() && count <= nTicks; ++it) {
+				const auto& bar = it->second;
+				auto time = convert_time_chrono(bar.end);
+				//show(std::format(
+				//	"[{}] {} : open={} high={} low={} close={}", 
+				//	count, zorro_date_to_string(time), bar.open, bar.high, bar.low, bar.close
+				//));
+				ticks->fOpen = (float)bar.open;
+				ticks->fClose = (float)bar.close;
+				ticks->fHigh = (float)bar.high;
+				ticks->fLow = (float)bar.low;
+				ticks->time = time;
+				++ticks;
+				++count;
+			}
+		}
+		else {
+			size_t num_bars;
 			std::chrono::nanoseconds from, to;
-			auto status = get_historical_bar_range(Asset, from, to, true);
+			auto status = get_historical_bar_range(Asset, from, to, num_bars, true);
 		}
 
-		for (int i = 0; i < nTicks; i++) {
-			ticks->fOpen = 100;
-			ticks->fClose = 100;
-			ticks->fHigh = 100;
-			ticks->fLow = 100;
-			ticks->time = tEnd - i * nTickMinutes / 1440.0;
-			ticks++;
-		}
-		return nTicks;
+		return count;
 	}
 
 	/*
@@ -351,7 +385,7 @@ namespace zfix {
 	*/
 	DLLFUNC_C int BrokerBuy2(char* Asset, int nAmount, double dStopDist, double dLimit, double* pPrice, int* pFill)
 	{
-		if (!fixThread) {
+		if (!fix_thread) {
 			show("BrokerBuy2: no FIX session");
 			return -2;
 		}
@@ -375,7 +409,7 @@ namespace zfix {
 		auto limitPrice = FIX::Price(dLimit);
 		auto stopPrice = FIX::StopPx(dStopDist);
 
-		auto msg = fixThread->fixApp().newOrderSingle(
+		auto msg = fix_thread->fixApp().newOrderSingle(
 			symbol, clOrdId, side, ordType, timeInForce, qty, limitPrice, stopPrice
 		);
 

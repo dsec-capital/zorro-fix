@@ -46,38 +46,49 @@ namespace fix_sim {
 
          // for example http://localhost:8080/bars?symbol=EUR/USD&from=2024-03-30 12:00:00&to=2024-03-30 16:00:00
          server.Get("/bars", [this](const Request& req, Response& res) {
+            std::string msg = "***** /bar";
+
             std::string symbol = "nan";
             std::chrono::nanoseconds from{0};
             std::chrono::nanoseconds to = common::get_current_system_clock();
 
             if (req.has_param("symbol")) {
                symbol = req.get_param_value("symbol");
+               msg += std::format(" symbol={}", symbol);
             }
             if (req.has_param("from")) {
                auto from_param = req.get_param_value("from");
                from = common::parse_datetime(from_param);
+               msg += std::format(" from={}", from_param);
             }
             if (req.has_param("to")) {
                auto to_param = req.get_param_value("to");
                to = common::parse_datetime(to_param);
+               msg += std::format(" to={}", to_param);
             }
             auto it = this->markets.find(symbol);
             if (it != this->markets.end()) {
-               auto content = it->second.get_bars_as_json(from, to).dump();
-               res.set_content(content, "application/json");
+               auto [content, n] = it->second.get_bars_as_json(from, to);
+               res.set_content(content.dump(), "application/json");
+               msg += std::format("response bars={}", n);
             }
             else {
                json j;
                j["error"] = std::format("no bar data for symbol={}", symbol);
                res.set_content(j.dump(), "application/json");
+               msg += std::format("error={}", j.dump());
             }
+
+            std::cout << msg << std::endl;
          });
 
          server.Get("/bar_range", [this](const Request& req, Response& res) {
-            std::string symbol = "nan";
+            std::string msg = "***** /bar_range";
 
+            std::string symbol = "nan";
             if (req.has_param("symbol")) {
                symbol = req.get_param_value("symbol");
+               msg += std::format(" symbol={}", symbol);
             }
             auto it = this->markets.find(symbol);
             if (it != this->markets.end() && !it->second.get_bars().empty()) {
@@ -86,13 +97,18 @@ namespace fix_sim {
                j["symbol"] = symbol;
                j["from"] = bars.begin()->first.count();
                j["to"] = bars.rbegin()->first.count();
+               j["num_bars"] = bars.size();
                res.set_content(j.dump(), "application/json");
+               msg += std::format("response={}", j.dump());
             }
             else {
                json j;
                j["error"] = std::format("no bar data for symbol={}", symbol);
                res.set_content(j.dump(), "application/json");
+               msg += std::format("error={}", j.dump());
             }
+
+            std::cout << msg << std::endl;
          });
       }
 

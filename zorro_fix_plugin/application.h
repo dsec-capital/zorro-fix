@@ -15,13 +15,14 @@
 #include "quickfix/fix44/MarketDataSnapshotFullRefresh.h"
 #include "quickfix/fix44/MarketDataIncrementalRefresh.h"
 
+#include "spdlog/spdlog.h"
+
 #include "common/id_generator.h"
 #include "common/blocking_queue.h"
 #include "common/exec_report.h"
 #include "common/market_data.h"
 #include "common/order_tracker.h"
 #include "common/book.h"
-
 
 namespace zfix
 {
@@ -77,6 +78,7 @@ namespace zfix
 	private:
 		FIX::SessionSettings sessionSettings;
 		BlockingTimeoutQueue<ExecReport>& execReportQueue;
+		std::shared_ptr<spdlog::logger> spdLogger;
 		std::deque<ExecReport> execReportStorageQueue;
 		std::string senderCompID;
 		std::string targetCompID;

@@ -61,7 +61,7 @@ namespace common {
 		return bars;
 	}
 
-	nlohmann::json Market::get_bars_as_json(const std::chrono::nanoseconds& from, const std::chrono::nanoseconds& to) const {
+	std::pair<nlohmann::json, int> Market::get_bars_as_json(const std::chrono::nanoseconds& from, const std::chrono::nanoseconds& to) const {
 		return to_json(from, to, bars);
 	}
 

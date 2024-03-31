@@ -25,6 +25,7 @@
 #include <iomanip>
 #include <format>
 #include <cmath>
+#include <ctime>
 
 #include "framework.h"
 

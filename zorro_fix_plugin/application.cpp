@@ -17,6 +17,12 @@ namespace zfix {
 
 	using namespace common;
 
+	std::string fix_string(const FIX::Message& msg) {
+		auto s = msg.toString();
+		std::replace(s.begin(), s.end(), '\x1', '|');  
+		return s;
+	}
+
 	Application::Application(
 		const FIX::SessionSettings& sessionSettings,
 		BlockingTimeoutQueue<ExecReport>& execReportQueue
@@ -24,7 +30,9 @@ namespace zfix {
 	  , execReportQueue(execReportQueue)
 	  , done(false)
      , orderTracker("account")
-	{}
+	{
+	
+	}
 
 	bool Application::hasBook(const std::string& symbol) {
 		std::unique_lock<std::mutex> mlock(mutex);
@@ -66,7 +74,7 @@ namespace zfix {
 	void Application::fromApp(const FIX::Message& message, const FIX::SessionID& sessionID)
 		EXCEPT(FIX::FieldNotFound, FIX::IncorrectDataFormat, FIX::IncorrectTagValue, FIX::UnsupportedMessageType)
 	{
-		SPDLOG_DEBUG("IN fromApp: {}", message.toString());
+		SPDLOG_INFO("IN fromApp: {}", fix_string(message));
 		crack(message, sessionID);
 	}
 
@@ -81,7 +89,7 @@ namespace zfix {
 		}
 		catch (FIX::FieldNotFound&) {}
 
-		SPDLOG_DEBUG("OUT toApp: {}", message.toString());
+		SPDLOG_INFO("OUT toApp: {}", fix_string(message));
 	}
 
 	void Application::onMessage(const FIX44::MarketDataSnapshotFullRefresh& message, const FIX::SessionID&)
@@ -230,7 +238,7 @@ namespace zfix {
 		header.setField(FIX::SenderCompID(senderCompID));
 		header.setField(FIX::TargetCompID(targetCompID));
 
-		SPDLOG_DEBUG("marketDataRequest: {}", request.toString());
+		SPDLOG_INFO("marketDataRequest: {}", fix_string(request));
 
 		FIX::Session::sendToTarget(request);
 
@@ -268,7 +276,7 @@ namespace zfix {
 		header.setField(FIX::SenderCompID(senderCompID));
 		header.setField(FIX::TargetCompID(targetCompID));
 
-		SPDLOG_DEBUG("newOrderSingle: {}" , order.toString());
+		SPDLOG_INFO("newOrderSingle: {}" , fix_string(order));
 
 		FIX::Session::sendToTarget(order);
 
@@ -295,7 +303,7 @@ namespace zfix {
 		header.setField(FIX::SenderCompID(senderCompID));
 		header.setField(FIX::TargetCompID(targetCompID));
 
-		SPDLOG_DEBUG("orderCancelRequest: {}", request.toString());
+		SPDLOG_INFO("orderCancelRequest: {}", fix_string(request));
 
 		FIX::Session::sendToTarget(request);
 
@@ -327,7 +335,7 @@ namespace zfix {
 		header.setField(FIX::SenderCompID(senderCompID));
 		header.setField(FIX::TargetCompID(targetCompID));
 
-		SPDLOG_DEBUG("orderCancelRequest: {}", request.toString());
+		SPDLOG_INFO("orderCancelRequest: {}", fix_string(request));
 
 		FIX::Session::sendToTarget(request);
 

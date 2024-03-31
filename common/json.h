@@ -11,13 +11,14 @@ namespace common {
 
 	using json = nlohmann::json;
 
-	inline json to_json(
+	inline std::pair<json, int> to_json(
 		const std::chrono::nanoseconds& from, 
 		const std::chrono::nanoseconds& to, 
 		const std::map<std::chrono::nanoseconds, Bar>& bars
 	) {
 		std::vector<long long> end;
 		std::vector<double> open, close, high, low;
+		int count = 0;
 		for (const auto& [key, bar] : bars) {
 			if (from <= bar.end && bar.end <= to) {
 				end.emplace_back(
@@ -27,6 +28,7 @@ namespace common {
 				high.emplace_back(bar.high);
 				low.emplace_back(bar.low);
 				close.emplace_back(bar.close);
+				++count;
 			}
 		}
 
@@ -37,7 +39,7 @@ namespace common {
 		j["low"] = low;
 		j["close"] = close;
 
-		return j;
+		return std::make_pair(j, count);
 	}
 
 	inline void from_json(const json& j, std::map<std::chrono::nanoseconds, Bar>& bars) {
