@@ -335,12 +335,12 @@ namespace zfix {
 		}
 	}
 
-	DLLFUNC int BrokerHistory2(char* Asset, DATE tStart, DATE tEnd, int nTickMinutes, int nTicks, T6* ticks)
-	{
+	DLLFUNC int BrokerHistory2(char* Asset, DATE tStart, DATE tEnd, int nTickMinutes, int nTicks, T6* ticks) {
 		auto seconds = nTicks * nTickMinutes * 60;
 		auto tStart2 = tEnd - seconds/SECONDS_PER_DAY;
 		auto from = zorro_date_to_string(tStart2);
 		auto to = zorro_date_to_string(tEnd);
+		
 		show(std::format("BrokerHistory2 {}: requesting {} ticks bar period {} minutes from {} to {}", Asset, nTicks, nTickMinutes, from, to));
 
 		std::map<std::chrono::nanoseconds, Bar> bars;
@@ -383,8 +383,7 @@ namespace zfix {
 	*	-2 when the broker API did not respond at all within the wait time. The plugin must then attempt to cancel the order. Zorro will display a "possible orphan" warning.
 	*	-3 when the order was accepted, but got no ID yet. The ID is then taken from the next subsequent BrokerBuy call that returned a valid ID. This is used for combo positions that require several orders.
 	*/
-	DLLFUNC_C int BrokerBuy2(char* Asset, int nAmount, double dStopDist, double dLimit, double* pPrice, int* pFill)
-	{
+	DLLFUNC_C int BrokerBuy2(char* Asset, int nAmount, double dStopDist, double dLimit, double* pPrice, int* pFill) {
 		if (!fix_thread) {
 			show("BrokerBuy2: no FIX session");
 			return -2;

@@ -75,8 +75,9 @@ namespace fix_sim {
             else {
                json j;
                j["error"] = std::format("no bar data for symbol={}", symbol);
-               res.set_content(j.dump(), "application/json");
-               msg += std::format("error={}", j.dump());
+               auto body = j.dump();
+               res.set_content(body, "application/json");
+               msg += std::format("error={}", body);
             }
 
             std::cout << msg << std::endl;
@@ -91,21 +92,24 @@ namespace fix_sim {
                msg += std::format(" symbol={}", symbol);
             }
             auto it = this->markets.find(symbol);
-            if (it != this->markets.end() && !it->second.get_bars().empty()) {
-               const auto& bars = it->second.get_bars();
+            
+            if (it != this->markets.end()) {
+               auto [from, to, num_bars] = it->second.get_bar_range();
                json j;
                j["symbol"] = symbol;
-               j["from"] = bars.begin()->first.count();
-               j["to"] = bars.rbegin()->first.count();
-               j["num_bars"] = bars.size();
-               res.set_content(j.dump(), "application/json");
-               msg += std::format("response={}", j.dump());
+               j["from"] = from.count();
+               j["to"] = to.count();
+               j["num_bars"] = num_bars;
+               auto body = j.dump();
+               res.set_content(body, "application/json");
+               msg += std::format("response={}", body);
             }
             else {
                json j;
                j["error"] = std::format("no bar data for symbol={}", symbol);
-               res.set_content(j.dump(), "application/json");
-               msg += std::format("error={}", j.dump());
+               auto body = j.dump();
+               res.set_content(body, "application/json");
+               msg += std::format("error={}", body);
             }
 
             std::cout << msg << std::endl;

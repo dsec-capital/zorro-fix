@@ -81,8 +81,11 @@ namespace common {
             throw std::runtime_error(std::format("empty book for symbol {}", symbol));
         return TopOfBook(
             symbol,
-            unscale(bids.begin()->first), bids.begin()->second,
-            unscale(asks.begin()->first), asks.begin()->second
+            get_current_system_clock(),
+            unscale(bids.begin()->first), 
+            bids.begin()->second,
+            unscale(asks.begin()->first), 
+            asks.begin()->second
         );
     }
 

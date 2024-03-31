@@ -22,6 +22,7 @@ namespace common {
 	public:
 		explicit Market(
 			const std::shared_ptr<PriceSampler>& price_sampler,
+			const TopOfBook& current,
 			const std::chrono::nanoseconds& bar_period,
 			const std::chrono::nanoseconds& history_age,
 			const std::chrono::nanoseconds& histroy_sample_period,
@@ -48,7 +49,7 @@ namespace common {
 
 		const TopOfBook& get_previous_top_of_book() const;
 
-		const std::map<std::chrono::nanoseconds, Bar>& get_bars() const;
+		std::tuple<std::chrono::nanoseconds, std::chrono::nanoseconds, size_t> get_bar_range() const;
 
 		std::pair<nlohmann::json, int> get_bars_as_json(const std::chrono::nanoseconds& from, const std::chrono::nanoseconds& to) const;
 

@@ -1,5 +1,6 @@
 #include "pch.h"
 
+#include "white_noise.h"
 #include "fodra_pham.h"
 #include "time_utils.h"
 
@@ -17,8 +18,6 @@ namespace common {
 		auto model = tbl["model"].value<std::string>();
         if (model == "fodra-pham") {
             std::vector<double> tick_probs;
-            auto bid_volume = tbl["bid_volume"].value<double>();
-            auto ask_volume = tbl["ask_volume"].value<double>();
             auto alpha_plus = tbl["alpha_plus"].value<double>();
             auto alpha_neg = tbl["alpha_neg"].value<double>();
             auto tick_probs_arr = tbl["tick_probs"].as_array();
@@ -26,22 +25,25 @@ namespace common {
                 {
                     tick_probs.push_back(elem.get());
                 });
-            auto now = get_current_system_clock();
-            auto sampler = std::make_shared<FodraPhamSampler<std::mt19937>>(
-                generator,
-                symbol,
-                now,
-                alpha_plus.value(),
-                alpha_neg.value(),
-                tick_probs,
-                tick_size,
-                price,
-                spread,
-                bid_volume.value(),
-                ask_volume.value(),
-                initial_dir
+            auto sampler = std::make_shared<FodraPham>(
+               symbol,
+               generator,
+               alpha_plus.value(),
+               alpha_neg.value(),
+               tick_probs,
+               tick_size,
+               initial_dir
             );
             return sampler;
+        }
+        else if (model == "white-noise") {
+           auto sigma = tbl["sigma"].value<double>();
+           auto sampler = std::make_shared<WhiteNoise>(
+              symbol,
+              generator,
+              sigma.value()
+           );
+           return sampler;
         }
         else {
             return std::shared_ptr<PriceSampler>();

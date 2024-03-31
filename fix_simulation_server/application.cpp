@@ -41,11 +41,12 @@ void Application::runMarketDataUpdate() {
 }
 
 void Application::startMarketDataUpdates() {
-	m_logger->onEvent("OrderMatcher starting market data updates");
+	std::cout << "====> starting market data updates" << std::endl;
 	m_thread = std::thread(&Application::runMarketDataUpdate, this);
 }
 
 void Application::stopMarketDataUpdates() {
+	std::cout << "====> stopping market data updates" << std::endl;
 	if (!m_started)
 		return;
 	m_started = false;

@@ -5,6 +5,8 @@
 #include <iomanip>
 #include <ostream>
 
+#include "time_utils.h"
+
 namespace common {
 
 	class TopOfBook
@@ -17,15 +19,17 @@ namespace common {
 
 		TopOfBook(
 			const std::string& symbol,
+			const std::chrono::nanoseconds& timestamp,
 			double bid_price,
 			double bid_volume,
 			double ask_price,
 			double ask_volume
-		) : symbol(symbol),
-			bid_price(bid_price),
-			bid_volume(bid_volume),
-			ask_price(ask_price),
-			ask_volume(ask_volume)
+		) : symbol(symbol)
+		  , timestamp(timestamp)
+		  , bid_price(bid_price)
+		  , bid_volume(bid_volume)
+		  , ask_price(ask_price)
+		  , ask_volume(ask_volume)
 		{}
 
 		double mid() const {
@@ -37,13 +41,15 @@ namespace common {
 		}
 
 		std::string symbol{};
+		std::chrono::nanoseconds timestamp;
 		double bid_price{ 0 };
 		double bid_volume{ 0 };
 		double ask_price{ 0 };
 		double ask_volume{ 0 };
 
 		std::string toString() const {
-			return "symbol=" + symbol + ", "
+			return "symbol=" + symbol + ", " 
+				"timestamp=" + common::to_string(timestamp) + ", " 
 				"bid_price=" + std::to_string(bid_price) + ", "
 				"bid_volume=" + std::to_string(bid_volume) + ", "
 				"ask_price=" + std::to_string(ask_price) + ", "

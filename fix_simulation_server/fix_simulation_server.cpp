@@ -52,16 +52,18 @@ int main(int argc, char** argv)
         auto server_host = cfg["http_server_host"].value<std::string>().value();
         auto server_port = cfg["http_server_port"].value<int>().value();
         auto market_update_period = std::chrono::duration_cast<std::chrono::milliseconds>(
-            std::chrono::hours(cfg["market_update_period_millis"].value<int>().value())
+            std::chrono::milliseconds(cfg["market_update_period_millis"].value<int>().value())
         );
 
         toml::array& symbols = *tbl.get_as<toml::array>("symbols");
         for (auto& symbol : symbols) {
            auto sym_tbl = *symbol.as_table();
            auto symbol = sym_tbl["symbol"].value<std::string>().value();
+           auto tick_size = sym_tbl["tick_size"].value<double>().value();
            auto price = sym_tbl["price"].value<double>().value();
            auto spread = sym_tbl["spread"].value<double>().value();
-           auto tick_size = sym_tbl["tick_size"].value<double>().value();
+           auto bid_volume = sym_tbl["bid_volume"].value<double>().value();
+           auto ask_volume = sym_tbl["ask_volume"].value<double>().value();
            auto bar_period = std::chrono::duration_cast<std::chrono::nanoseconds>(
               std::chrono::seconds(sym_tbl["bar_period_seconds"].value<int>().value())
            );
@@ -72,6 +74,14 @@ int main(int argc, char** argv)
               sym_tbl["history_sample_period_millis"].value<int>().value()
            );
 
+           auto top = TopOfBook(
+              symbol, 
+              get_current_system_clock(), 
+              price - spread/2,
+              bid_volume,
+              price + spread/2,
+              ask_volume
+           );
            auto mkd_sim_tbl = *sym_tbl["market_simulator"].as_table();
            auto sampler = price_sampler_factory(
               generator,
@@ -85,6 +95,7 @@ int main(int argc, char** argv)
               markets.try_emplace(
                  symbol,
                  sampler,
+                 top,
                  bar_period,
                  history_age,
                  history_sample_period,
@@ -96,7 +107,7 @@ int main(int argc, char** argv)
            }
         }
 
-        RestServer restServer(server_host, server_port, markets, mutex);
+        RestServer rest_server(server_host, server_port, markets, mutex);
 
         FIX::FileStoreFactory storeFactory(settings);
         FIX::ScreenLogFactory logFactory(settings); 
@@ -107,7 +118,7 @@ int main(int argc, char** argv)
 
         acceptor.start();
         application.startMarketDataUpdates();
-        restServer.run();
+        rest_server.run();
 
         while (true)
         {

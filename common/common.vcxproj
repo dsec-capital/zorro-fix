@@ -166,6 +166,7 @@
     <ClInclude Include="price_sampler.h" />
     <ClInclude Include="time_utils.h" />
     <ClInclude Include="utils.h" />
+    <ClInclude Include="white_noise.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="book.cpp" />

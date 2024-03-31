@@ -8,60 +8,71 @@ namespace common {
 
 	Market::Market(
 		const std::shared_ptr<PriceSampler>& price_sampler,
+		const TopOfBook& current,
 		const std::chrono::nanoseconds& bar_period,
 		const std::chrono::nanoseconds& history_age,
 		const std::chrono::nanoseconds& sample_period,
 		std::mutex& mutex
-	) : price_sampler(price_sampler)
+	) : symbol(price_sampler->get_symbol())
+	  , price_sampler(price_sampler)
 	  , bar_period(bar_period)
 	  , history_age(history_age)
-      , bar_builder(bar_period, [this](const std::chrono::nanoseconds& end, double o, double h, double l, double c) {
+     , bar_builder(bar_period, [this](const std::chrono::nanoseconds& end, double o, double h, double l, double c) {
+			std::cout << std::format("[{}] new bar end={} open={} high={} low={} close={}\n", symbol, common::to_string(end), o, h, l, c);
 			this->bars.try_emplace(end, end, o, h, l, c);
 		  })
       , mutex(mutex)
 	{
-		auto now = get_current_system_clock();
-		top_of_books.try_emplace(now, price_sampler->actual_top_of_book());
-		price_sampler->initialize_history(now - history_age, now, sample_period, top_of_books);
+		auto now = current.timestamp;
+		top_of_books.try_emplace(now, current);
+		price_sampler->sample_path(now, current, now - history_age, sample_period, top_of_books);
 		build_bars(bar_builder, top_of_books, bars);
 	}
 
 	void Market::simulate_next() {
 		auto now = get_current_system_clock();
 
-		std::unique_lock<std::mutex> ul(mutex);
-		top_of_books.try_emplace(now, price_sampler->simulate_next(now));
+		std::lock_guard<std::mutex> ul(mutex);
+
+		top_of_books.try_emplace(now, price_sampler->sample(top_of_books.rbegin()->second, now));
 
 		auto ageCutoff = now - history_age;
 		while (top_of_books.begin() != top_of_books.end() && top_of_books.begin()->first < ageCutoff) {
 			top_of_books.erase(top_of_books.begin());
 		}
 
-		bar_builder.add(now, get_top_of_book().mid());
-		while (bars.begin() != bars.end() && bars.begin()->first < ageCutoff) {
-			bars.erase(bars.begin());
+		if (!top_of_books.empty()) {
+			auto mid = top_of_books.rbegin()->second.mid();
+			bar_builder.add(now, mid);
+			while (bars.begin() != bars.end() && bars.begin()->first < ageCutoff) {
+				bars.erase(bars.begin());
+			}
 		}
-		ul.release();
-
-		std::cout << symbol << ": " << top_of_books.rbegin()->second << std::endl;
 	}
 
 	const TopOfBook& Market::get_top_of_book() const {
-		std::unique_lock<std::mutex> ul(mutex);
+		std::lock_guard<std::mutex> ul(mutex);
 		return top_of_books.rbegin()->second;
 	}
 
 	const TopOfBook& Market::get_previous_top_of_book() const {
-		std::unique_lock<std::mutex> ul(mutex);
+		std::lock_guard<std::mutex> ul(mutex);
 		auto it = top_of_books.rbegin();
 		return (it++)->second;
 	}
 
-	const std::map<std::chrono::nanoseconds, Bar>& Market::get_bars() const {
-		return bars;
+	std::tuple<std::chrono::nanoseconds, std::chrono::nanoseconds, size_t> Market::get_bar_range() const {
+		std::lock_guard<std::mutex> ul(mutex); 
+		std::chrono::nanoseconds from, to;
+		if (!bars.empty()) {
+			from = bars.begin()->second.end;
+			to = bars.end()->second.end;
+		}
+		return std::make_tuple(from, to, bars.size());
 	}
 
 	std::pair<nlohmann::json, int> Market::get_bars_as_json(const std::chrono::nanoseconds& from, const std::chrono::nanoseconds& to) const {
+		std::lock_guard<std::mutex> ul(mutex);
 		return to_json(from, to, bars);
 	}
 

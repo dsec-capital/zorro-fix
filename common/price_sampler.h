@@ -15,35 +15,52 @@ namespace common {
     class PriceSampler {
     protected:
 
-        std::mt19937& gen;
+       std::string symbol;
+       std::mt19937& gen;
 
     public:
 
         typedef std::map<std::chrono::nanoseconds, TopOfBook> history_t;
 
-        PriceSampler(std::mt19937& gen) : gen(gen) {}
+        PriceSampler(const std::string& symbol, std::mt19937& gen) : symbol(symbol), gen(gen) {}
 
-        virtual std::chrono::nanoseconds actual_time() const = 0;
+        const std::string& get_symbol() const {
+           return symbol;
+        }
 
-        virtual double actual_bid_price() const = 0;
-        virtual double actual_ask_price() const = 0;
-        virtual double actual_bid_volume() const = 0;
-        virtual double actual_ask_volume() const = 0;
-        virtual TopOfBook actual_top_of_book() const = 0;
+        virtual TopOfBook sample(const TopOfBook& current, const std::chrono::nanoseconds& t1) = 0;
 
-        virtual double actual_spread() const = 0;
+        virtual void push() = 0;
 
-        virtual TopOfBook simulate_next(const std::chrono::nanoseconds& now) = 0;
+        virtual void pop() = 0;
 
-        virtual void initialize_history(
-            const std::chrono::nanoseconds& from, 
-            const std::chrono::nanoseconds& now,
-            const std::chrono::nanoseconds& sample_period,
-            std::map<std::chrono::nanoseconds, TopOfBook>& history
-        ) = 0;
-
-    protected:
-        
+        void sample_path(
+           const std::chrono::nanoseconds& now,
+           const TopOfBook& current,
+           const std::chrono::nanoseconds& to,
+           const std::chrono::nanoseconds& sample_period,
+           std::map<std::chrono::nanoseconds, TopOfBook>& history
+        ) {
+           push();
+           TopOfBook state = current;
+           history.insert(std::make_pair(now, current));
+           std::chrono::nanoseconds t = now;
+           if (to < now) {
+              while (t > to) {
+                 t = t - sample_period;
+                 state = sample(state, t);
+                 history.insert(std::make_pair(t, state)); 
+              }
+           }
+           else {
+              while (t < to) {
+                 t = t + sample_period;
+                 state = sample(state, t);
+                 history.insert(std::make_pair(t, state));
+              }
+           }
+           pop();
+        }
     };
 
     inline void build_bars(
@@ -80,7 +97,6 @@ namespace common {
         double tick_size,
         int initial_dir = 1
     );
-
 }
 
 #endif 
