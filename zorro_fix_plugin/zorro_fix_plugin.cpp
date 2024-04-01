@@ -124,7 +124,7 @@ namespace zfix {
 			));
 		}
 
-		return res->status;
+		return res->status; 
 	}
 
 	int get_historical_bar_range(const char* Asset, std::chrono::nanoseconds& from, std::chrono::nanoseconds& to, size_t& num_bars, bool verbose=false) {
@@ -341,6 +341,7 @@ namespace zfix {
 		auto from = zorro_date_to_string(tStart2);
 		auto to = zorro_date_to_string(tEnd);
 		
+		spdlog::debug("BrokerHistory2 {}: requesting {} ticks bar period {} minutes from {} to {}", Asset, nTicks, nTickMinutes, from, to);
 		show(std::format("BrokerHistory2 {}: requesting {} ticks bar period {} minutes from {} to {}", Asset, nTicks, nTickMinutes, from, to));
 
 		std::map<std::chrono::nanoseconds, Bar> bars;
@@ -351,10 +352,10 @@ namespace zfix {
 			for (auto it = bars.rbegin(); it != bars.rend() && count <= nTicks; ++it) {
 				const auto& bar = it->second;
 				auto time = convert_time_chrono(bar.end);
-				//show(std::format(
-				//	"[{}] {} : open={:.5f} high={:.5f} low={:.5f} close={:.5f}", 
-				//	count, zorro_date_to_string(time), bar.open, bar.high, bar.low, bar.close
-				//));
+				spdlog::debug(
+					"[{}] {} : open={:.5f} high={:.5f} low={:.5f} close={:.5f}", 
+					count, zorro_date_to_string(time), bar.open, bar.high, bar.low, bar.close
+				);
 				ticks->fOpen = (float)bar.open;
 				ticks->fClose = (float)bar.close;
 				ticks->fHigh = (float)bar.high;
@@ -367,7 +368,9 @@ namespace zfix {
 		else {
 			size_t num_bars;
 			std::chrono::nanoseconds from, to;
-			auto status = get_historical_bar_range(Asset, from, to, num_bars, true);
+			auto status = get_historical_bar_range(Asset, from, to, num_bars, false);
+			spdlog::debug("BrokerHistory2 {}: error status={} bar range from={} to={}", Asset, status, common::to_string(from), common::to_string(to));
+			show(std::format("BrokerHistory2 {}: error status={} bar range from={} to={}", Asset, status, common::to_string(from), common::to_string(to)));
 		}
 
 		return count;
