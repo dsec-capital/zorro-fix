@@ -29,6 +29,8 @@ namespace common {
             //std::cout << std::format("[{}] hist bar end={} open={:.4f} high={:.4f} low={:.4f} close={:.4f}\n", symbol, common::to_string(end), o, h, l, c);
             this->bars.try_emplace(end, end, o, h, l, c);
          })
+      , current(current)
+      , previous(current)
       , oldest(current)
    {
       auto now = current.timestamp;
@@ -39,35 +41,29 @@ namespace common {
    void Market::simulate_next() {
       auto now = get_current_system_clock();
 
-      std::lock_guard<std::mutex> ul(mutex);
+      std::unique_lock<std::mutex> ul(mutex);
 
-      top_of_books.try_emplace(now, price_sampler->sample(top_of_books.rbegin()->second, now));
+      previous = current;
+      current = price_sampler->sample(current, now);
+      top_of_books.insert(std::make_pair(now, current));
 
       auto ageCutoff = now - history_age;
       while (top_of_books.begin() != top_of_books.end() && top_of_books.begin()->first < ageCutoff) {
          top_of_books.erase(top_of_books.begin());
       }
 
-      if (!top_of_books.empty()) {
-         auto mid = top_of_books.rbegin()->second.mid();
-         bar_builder.add(now, mid);
-         if (prune_bars) {
-            while (bars.begin() != bars.end() && bars.begin()->first < ageCutoff) {
-               bars.erase(bars.begin());
-            }
+      auto mid = current.mid();
+      bar_builder.add(now, mid);
+      if (prune_bars) {
+         while (bars.begin() != bars.end() && bars.begin()->first < ageCutoff) {
+            bars.erase(bars.begin());
          }
       }
    }
 
-   const TopOfBook& Market::get_top_of_book() const {
+   std::pair<TopOfBook, TopOfBook> Market::get_top_of_book() const {
       std::lock_guard<std::mutex> ul(mutex);
-      return top_of_books.rbegin()->second;
-   }
-
-   const TopOfBook& Market::get_previous_top_of_book() const {
-      std::lock_guard<std::mutex> ul(mutex);
-      auto it = top_of_books.rbegin();
-      return (it++)->second;
+      return std::make_pair(current, previous);
    }
 
    std::tuple<std::chrono::nanoseconds, std::chrono::nanoseconds, size_t> Market::get_bar_range() const {

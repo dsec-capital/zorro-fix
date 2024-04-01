@@ -6,6 +6,7 @@
 
 namespace common {
 
+
 	class Book {
 	public:
 		typedef std::chrono::nanoseconds timestamp_t;
@@ -14,11 +15,13 @@ namespace common {
 
 		void set_precision(uint32_t precision);
 
+		int32_t get_precision() const;
+
 		std::pair<double, double> best_bid() const;
 
 		std::pair<double, double> best_ask() const;
 
-		TopOfBook topOfBook(const std::string& symbol) const;
+		TopOfBook top(const std::string& symbol) const;
 
 		double spread() const;
 
@@ -28,6 +31,10 @@ namespace common {
 
 		void update_book(double p, double a, bool is_bid);
 
+		void set_timestamp(const std::chrono::nanoseconds& timestamp);
+
+		const std::chrono::nanoseconds& get_timestamp(const std::chrono::nanoseconds& t) const;
+
 		void clear_book();
 
 		bool is_crossing() const;
@@ -36,7 +43,7 @@ namespace common {
 
 		double unscale(uint32_t price) const;
 
-		std::string to_string(int levels, const std::string& pre) const;
+		std::string to_string(int levels=1, const std::string& pre="") const;
 
 	protected:
 		typedef std::map<uint32_t, double, std::function<bool(const uint32_t&, const uint32_t&)>> order_book_snapshot_t;
@@ -45,7 +52,7 @@ namespace common {
 		bool initialized{ false };
 		order_book_snapshot_t bids;
 		order_book_snapshot_t asks;
-		uint32_t precision{ 10 };
+		uint32_t precision{ TO_POINTS };
 	};
 
 }

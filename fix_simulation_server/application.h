@@ -27,24 +27,27 @@ class Application: public FIX::Application, public FIX::MessageCracker
 public:
 	Application(
 		std::map<std::string, Market>& market,
-		std::chrono::milliseconds marketUpdatePeriod,
+		std::chrono::milliseconds market_update_period,
 		FIX::Log *logger, 
 		std::mutex& mutex
-	) : m_logger(logger)
-      , m_orderMatcher(market)
-	  , m_marketUpdatePeriod(marketUpdatePeriod)
-	  , m_mutex(mutex)
+	) : logger(logger)
+     , order_matcher(market)
+	  , market_update_period(market_update_period)
+	  , mutex(mutex)
 	{}
 
-	void runMarketDataUpdate();
+	void run_market_data_update();
 
-	void startMarketDataUpdates();
+	void start_market_data_updates();
 
-	void stopMarketDataUpdates();
+	void stop_market_data_updates();
 
-	const OrderMatcher& orderMatcher();
+	const OrderMatcher& get_order_matcher();
 
 private:
+
+	// FIX Application overloads
+
 	void onCreate(const FIX::SessionID&);
 
 	void onLogon(const FIX::SessionID& sessionID);
@@ -63,28 +66,27 @@ private:
 		const FIX::Message& message, const FIX::SessionID& sessionID
 	) EXCEPT(FIX::FieldNotFound, FIX::IncorrectDataFormat, FIX::IncorrectTagValue, FIX::UnsupportedMessageType);
 
-	// MessageCracker overloads
 	void onMessage(const FIX44::NewOrderSingle&, const FIX::SessionID&);
 	void onMessage(const FIX44::OrderCancelRequest&, const FIX::SessionID&);
 	void onMessage(const FIX44::MarketDataRequest&, const FIX::SessionID&);
 
 	// Order functionality
 
-	void processOrder(const Order&);
+	void process_order(const Order&);
 
-	void processCancel(const std::string& id, const std::string& symbol, Order::Side);
+	void process_cancel(const std::string& id, const std::string& symbol, Order::Side);
 
-	void updateOrder(const Order&, char status);
+	void update_order(const Order&, char status);
 
-	void rejectOrder(const Order& order);
+	void reject_order(const Order& order);
 
-	void acceptOrder(const Order& order);
+	void accept_order(const Order& order);
 
-	void fillOrder(const Order& order);
+	void fill_order(const Order& order);
 
-	void cancelOrder(const Order& order);
+	void cancel_order(const Order& order);
 
-	void rejectOrder(
+	void reject_order(
 		const FIX::SenderCompID&, 
 		const FIX::TargetCompID&,
 		const FIX::ClOrdID& clOrdID, 
@@ -104,38 +106,36 @@ private:
 
 	FIX::OrdType convert(Order::Type);
 
+	void subscribe_market_data(const std::string& symbol, const std::string& senderCompID, const std::string& targetCompID);
 
-	void marketDataSubscribe(const std::string& symbol, const std::string& senderCompID, const std::string& targetCompID);
+	void unsubscribe_market_data(const std::string& symbol);
 
-	void marketDataUnsubscribe(const std::string& symbol);
+	bool subscribed_to_market_data(const std::string& symbol);
 
-	bool marketDataSubscribed(const std::string& symbol);
-
-	FIX::Message getSnapshotMessage(
+	FIX::Message get_snapshot_message(
 		const std::string& senderCompID,
 		const std::string& targetCompID,
 		const TopOfBook& top
 	);
 
-	std::optional<FIX::Message> getUpdateMessage(
+	std::optional<FIX::Message> get_update_message(
 		const std::string& senderCompID,
 		const std::string& targetCompID,
-		const TopOfBook& topOfBook,
-		const TopOfBook& topOfBookPrevious
+		const std::pair<TopOfBook, TopOfBook>& topOfBook
 	);
 
-	IDGenerator m_generator;
-	OrderMatcher m_orderMatcher;
-	std::chrono::milliseconds m_marketUpdatePeriod;
+	IDGenerator generator;
+	OrderMatcher order_matcher;
+	std::chrono::milliseconds market_update_period;
 
-	FIX::Log* m_logger;
+	FIX::Log* logger;
 
-	std::map<std::string, std::pair<std::string, std::string>> m_marketDataSubscriptions;
+	std::map<std::string, std::pair<std::string, std::string>> market_data_subscriptions;
 
-	std::mutex& m_mutex;
-	std::thread m_thread;
-	bool m_started{ false };
-	std::atomic_bool m_done{ false };
+	std::mutex& mutex;
+	std::thread thread;
+	bool started{ false };
+	std::atomic_bool done{ false };
 };
 
 #endif

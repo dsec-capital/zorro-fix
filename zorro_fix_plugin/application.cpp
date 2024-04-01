@@ -24,38 +24,22 @@ namespace zfix {
 	}
 
 	Application::Application(
-		const FIX::SessionSettings& sessionSettings,
-		BlockingTimeoutQueue<ExecReport>& execReportQueue
-	) : sessionSettings(sessionSettings)
-	  , execReportQueue(execReportQueue)
+		const FIX::SessionSettings& session_settings,
+		BlockingTimeoutQueue<ExecReport>& exec_report_queue
+	) : session_settings(session_settings)
+	  , exec_report_queue(exec_report_queue)
 	  , done(false)
-     , orderTracker("account")
-	{
-	
-	}
-
-	bool Application::hasBook(const std::string& symbol) {
-		std::unique_lock<std::mutex> mlock(mutex);
-		return books.contains(symbol);
-	}
-
-	TopOfBook Application::topOfBook(const std::string& symbol) {
-		std::unique_lock<std::mutex> mlock(mutex);
-		auto it = books.find(symbol);
-		if (it != books.end())
-			return it->second.topOfBook(symbol);
-		else
-			throw std::runtime_error(std::format("symbol {} not found in books", symbol));
-	}
+     , order_tracker("account")
+	{}
 
 	void Application::onCreate(const FIX::SessionID&) {}
 
 	void Application::onLogon(const FIX::SessionID& sessionID)
 	{
 		SPDLOG_INFO("Application::onLogon {}", sessionID.toString());
-		senderCompID = sessionSettings.get(sessionID).getString("SenderCompID");
-		targetCompID = sessionSettings.get(sessionID).getString("TargetCompID");
-		SPDLOG_INFO("senderCompID={}, targetCompID={}", senderCompID, targetCompID);
+		sender_comp_id = session_settings.get(sessionID).getString("SenderCompID");
+		target_comp_id = session_settings.get(sessionID).getString("TargetCompID");
+		SPDLOG_INFO("senderCompID={}, targetCompID={}", sender_comp_id, target_comp_id);
 	}
 
 	void Application::onLogout(const FIX::SessionID& sessionID)
@@ -131,18 +115,19 @@ namespace zfix {
 
 		message.get(noMDEntries);
 
+		FIX::Symbol symbol;
+		FIX::MDEntryType type;
+		FIX::MDEntryDate date;
+		FIX::MDEntryTime time;
+		FIX::MDEntrySize size;
+		FIX::MDEntryPx price;
+		FIX::MDUpdateAction action;
+
+		auto it = books.end();
+
 		for (int i = 1; i <= noMDEntries; ++i)
 		{
 			message.getGroup(i, noMDEntriesGroup);
-
-			FIX::Symbol symbol;
-			FIX::MDEntryType type;
-			FIX::MDEntryDate date;
-			FIX::MDEntryTime time;
-			FIX::MDEntrySize size;
-			FIX::MDEntryPx price;
-			FIX::MDUpdateAction action;
-
 			noMDEntriesGroup.get(symbol);
 			noMDEntriesGroup.get(type);
 			noMDEntriesGroup.get(date);
@@ -150,6 +135,20 @@ namespace zfix {
 			noMDEntriesGroup.get(size);
 			noMDEntriesGroup.get(price);
 			noMDEntriesGroup.get(action);
+
+			if (it == books.end() || it->first != symbol) {
+				it = books.find(symbol);
+				if (it == books.end()) {
+					SPDLOG_ERROR("MarketDataIncrementalRefresh: no book for {} probably not subscribed? msg={}", symbol.getString(), fix_string(message));
+				}
+				it->second.set_timestamp(get_current_system_clock());
+			}
+			else {
+				if (action == FIX::MDUpdateAction_DELETE) {
+					assert(size == 0);
+				}
+				it->second.update_book(price, size, type == FIX::MDEntryType_BID);
+			}
 		}
 	}
 
@@ -208,8 +207,8 @@ namespace zfix {
 			text.getString()
 		);
 
-	
-		execReportQueue.push(report);
+		order_tracker.process(report);
+		exec_report_queue.push(report);
 	}
 	
 	void Application::onMessage(const FIX44::OrderCancelReject&, const FIX::SessionID&) 
@@ -218,12 +217,12 @@ namespace zfix {
 	void Application::onMessage(const FIX44::BusinessMessageReject&, const FIX::SessionID&)
 	{}
 
-	FIX::Message Application::marketDataRequest(
+	FIX::Message Application::market_data_request(
 		const FIX::Symbol& symbol, 
 		const FIX::MarketDepth& markeDepth,
 		const FIX::SubscriptionRequestType& subscriptionRequestType
 	) {
-		FIX::MDReqID mdReqID(idGenerator.genID());
+		FIX::MDReqID mdReqID(id_generator.genID());
 		FIX44::MarketDataRequest request(mdReqID, subscriptionRequestType, markeDepth);
 		FIX44::MarketDataRequest::NoRelatedSym noRelatedSymGroup;
 		noRelatedSymGroup.set(symbol);
@@ -235,8 +234,8 @@ namespace zfix {
 		request.addGroup(noMDEntryTypesGroup);
 
 		auto& header = request.getHeader();
-		header.setField(FIX::SenderCompID(senderCompID));
-		header.setField(FIX::TargetCompID(targetCompID));
+		header.setField(FIX::SenderCompID(sender_comp_id));
+		header.setField(FIX::TargetCompID(target_comp_id));
 
 		SPDLOG_INFO("marketDataRequest: {}", fix_string(request));
 
@@ -245,7 +244,7 @@ namespace zfix {
 		return request;
 	}
 
-	FIX::Message Application::newOrderSingle(
+	FIX::Message Application::new_order_single(
 		const FIX::Symbol& symbol, 
 		const FIX::ClOrdID& clOrdId, 
 		const FIX::Side& side, 
@@ -273,8 +272,8 @@ namespace zfix {
 			order.set(stopPrice);
 
 		auto& header = order.getHeader();
-		header.setField(FIX::SenderCompID(senderCompID));
-		header.setField(FIX::TargetCompID(targetCompID));
+		header.setField(FIX::SenderCompID(sender_comp_id));
+		header.setField(FIX::TargetCompID(target_comp_id));
 
 		SPDLOG_INFO("newOrderSingle: {}" , fix_string(order));
 
@@ -283,7 +282,7 @@ namespace zfix {
 		return order;
 	}	
 
-	FIX::Message Application::orderCancelRequest(
+	FIX::Message Application::order_cancel_request(
 		const FIX::Symbol& symbol,
 		const FIX::OrigClOrdID& origClOrdID,
 		const FIX::ClOrdID& clOrdID,
@@ -300,8 +299,8 @@ namespace zfix {
 		request.set(orderQty);
 
 		auto& header = request.getHeader();
-		header.setField(FIX::SenderCompID(senderCompID));
-		header.setField(FIX::TargetCompID(targetCompID));
+		header.setField(FIX::SenderCompID(sender_comp_id));
+		header.setField(FIX::TargetCompID(target_comp_id));
 
 		SPDLOG_INFO("orderCancelRequest: {}", fix_string(request));
 
@@ -310,7 +309,7 @@ namespace zfix {
 		return request;
 	}
 
-	FIX::Message Application::cancelReplaceRequest(
+	FIX::Message Application::cancel_replace_request(
 		const FIX::Symbol& symbol,
 		const FIX::OrigClOrdID& origClOrdID,
 		const FIX::ClOrdID& clOrdID,
@@ -332,13 +331,29 @@ namespace zfix {
 		request.set(orderQty);
 
 		auto& header = request.getHeader();
-		header.setField(FIX::SenderCompID(senderCompID));
-		header.setField(FIX::TargetCompID(targetCompID));
+		header.setField(FIX::SenderCompID(sender_comp_id));
+		header.setField(FIX::TargetCompID(target_comp_id));
 
 		SPDLOG_INFO("orderCancelRequest: {}", fix_string(request));
 
 		FIX::Session::sendToTarget(request);
 
 		return request;
+	}
+
+	bool Application::has_book(const std::string& symbol) {
+		std::unique_lock<std::mutex> mlock(mutex);
+		return books.contains(symbol);
+	}
+
+	TopOfBook Application::top_of_book(const std::string& symbol) {
+		std::unique_lock<std::mutex> mlock(mutex);
+		auto it = books.find(symbol);
+		if (it != books.end()) {
+			return it->second.top(symbol);
+		}
+		else {
+			throw std::runtime_error(std::format("symbol {} not found in books", symbol));
+		}
 	}
 }

@@ -9,6 +9,9 @@
 
 namespace common {
 
+	const uint32_t TO_PIPS = 10000;
+	const uint32_t TO_POINTS = 10 * TO_PIPS;
+
 	class TopOfBook
 	{
 		friend std::ostream& operator<<(std::ostream&, const TopOfBook&);
@@ -41,13 +44,13 @@ namespace common {
 		}
 
 		std::string symbol{};
-		std::chrono::nanoseconds timestamp;
+		std::chrono::nanoseconds timestamp{ 0 };
 		double bid_price{ 0 };
 		double bid_volume{ 0 };
 		double ask_price{ 0 };
 		double ask_volume{ 0 };
 
-		std::string toString() const {
+		std::string to_string() const {
 			return "symbol=" + symbol + ", " 
 				"timestamp=" + common::to_string(timestamp) + ", " 
 				"bid_price=" + std::to_string(bid_price) + ", "
@@ -59,7 +62,7 @@ namespace common {
 
 	inline std::ostream& operator<<(std::ostream& ostream, const TopOfBook& top)
 	{
-		return ostream << top.toString();
+		return ostream << top.to_string();
 	}
 }
 

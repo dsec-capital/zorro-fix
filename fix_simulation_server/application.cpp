@@ -16,21 +16,26 @@
 #include "quickfix/fix44/MarketDataSnapshotFullRefresh.h"
 #include "quickfix/fix44/MarketDataIncrementalRefresh.h"
 
-void Application::runMarketDataUpdate() {
-	while (!m_done) {
-		std::this_thread::sleep_for(m_marketUpdatePeriod);
+std::string fix_string(const FIX::Message& msg) {
+	auto s = msg.toString();
+	std::replace(s.begin(), s.end(), '\x1', '|');
+	return s;
+}
+
+void Application::run_market_data_update() {
+	while (!done) {
+		std::this_thread::sleep_for(market_update_period);
 
 		auto now = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch());
 
-		for (auto& [symbol, market] : m_orderMatcher.markets) {
+		for (auto& [symbol, market] : order_matcher.markets) {
 			market.simulate_next();
-			auto it = m_marketDataSubscriptions.find(symbol);
-			if (it != m_marketDataSubscriptions.end()) {
-				auto message = getUpdateMessage(
+			auto it = market_data_subscriptions.find(symbol);
+			if (it != market_data_subscriptions.end()) {
+				auto message = get_update_message(
 					it->second.first, 
 					it->second.second, 
-					market.get_top_of_book(), 
-					market.get_previous_top_of_book()
+					market.get_top_of_book()
 				);
 				if (message.has_value()) {
 					FIX::Session::sendToTarget(message.value());
@@ -40,34 +45,34 @@ void Application::runMarketDataUpdate() {
 	}
 }
 
-void Application::startMarketDataUpdates() {
+void Application::start_market_data_updates() {
 	std::cout << "====> starting market data updates" << std::endl;
-	m_thread = std::thread(&Application::runMarketDataUpdate, this);
+	thread = std::thread(&Application::run_market_data_update, this);
 }
 
-void Application::stopMarketDataUpdates() {
+void Application::stop_market_data_updates() {
 	std::cout << "====> stopping market data updates" << std::endl;
-	if (!m_started)
+	if (!started)
 		return;
-	m_started = false;
-	m_done = true;
-	if (m_thread.joinable())
-		m_thread.join();
+	started = false;
+	done = true;
+	if (thread.joinable())
+		thread.join();
 }
 
-void Application::marketDataSubscribe(const std::string& symbol, const std::string& senderCompID, const std::string& targetCompID) {
-	m_marketDataSubscriptions.insert_or_assign(symbol, std::make_pair(senderCompID, targetCompID));
+void Application::subscribe_market_data(const std::string& symbol, const std::string& senderCompID, const std::string& targetCompID) {
+	market_data_subscriptions.insert_or_assign(symbol, std::make_pair(senderCompID, targetCompID));
 }
 
-void Application::marketDataUnsubscribe(const std::string& symbol) {
-	auto it = m_marketDataSubscriptions.find(symbol);
-	if (it != m_marketDataSubscriptions.end())
-		m_marketDataSubscriptions.erase(it);
+void Application::unsubscribe_market_data(const std::string& symbol) {
+	auto it = market_data_subscriptions.find(symbol);
+	if (it != market_data_subscriptions.end())
+		market_data_subscriptions.erase(it);
 }
 
-bool Application::marketDataSubscribed(const std::string& symbol) {
-	auto it = m_marketDataSubscriptions.find(symbol);
-	return it != m_marketDataSubscriptions.end();
+bool Application::subscribed_to_market_data(const std::string& symbol) {
+	auto it = market_data_subscriptions.find(symbol);
+	return it != market_data_subscriptions.end();
 }
 
 void Application::onCreate(const FIX::SessionID&)
@@ -126,7 +131,7 @@ void Application::onMessage(const FIX44::NewOrderSingle& message, const FIX::Ses
 		if (timeInForce == FIX::TimeInForce_GOOD_TILL_CANCEL || timeInForce == FIX::TimeInForce_DAY) {
 			Order order(clOrdID, symbol, senderCompID, targetCompID, convert(side), convert(ordType), price, (long)orderQty);
 
-			processOrder(order);
+			process_order(order);
 		}
 		else {
 			throw std::logic_error("Unsupported TIF, use Day or GTC");
@@ -134,7 +139,7 @@ void Application::onMessage(const FIX44::NewOrderSingle& message, const FIX::Ses
 	}
 	catch (std::exception& e)
 	{
-		rejectOrder(senderCompID, targetCompID, clOrdID, symbol, price, side, ordType, orderQty, e.what());
+		reject_order(senderCompID, targetCompID, clOrdID, symbol, price, side, ordType, orderQty, e.what());
 	}
 }
 
@@ -150,7 +155,7 @@ void Application::onMessage(const FIX44::OrderCancelRequest& message, const FIX:
 
 	try
 	{
-		processCancel(origClOrdID, symbol, convert(side));
+		process_cancel(origClOrdID, symbol, convert(side));
 	}
 	catch (std::exception&) {}
 }
@@ -181,24 +186,24 @@ void Application::onMessage(const FIX44::MarketDataRequest& message, const FIX::
 			message.getGroup(i, noRelatedSymGroup);
 			noRelatedSymGroup.get(symbol);
 
-			const auto& market = m_orderMatcher.get_market(symbol.getString())->second;
+			const auto& market = order_matcher.get_market(symbol.getString())->second;
 			
-			// flip to send back target->sender and sender->target
-			auto snapshot = getSnapshotMessage(
+			// flip to send back target->sender and sender->target 
+			auto snapshot = get_snapshot_message(
 				targetCompID.getValue(), 
 				senderCompID.getValue(), 
-				market.get_top_of_book()
+				market.get_top_of_book().first
 			);
 			FIX::Session::sendToTarget(snapshot);
 
 			if (subscriptionRequestType == FIX::SubscriptionRequestType_SNAPSHOT_AND_UPDATES) {
-				marketDataSubscribe(symbol.getValue(), targetCompID.getValue(), senderCompID.getValue());
+				subscribe_market_data(symbol.getValue(), targetCompID.getValue(), senderCompID.getValue());
 			}
 		}
 	} 
 }
 
-FIX::Message Application::getSnapshotMessage(
+FIX::Message Application::get_snapshot_message(
 	const std::string& senderCompID, 
 	const std::string& targetCompID, 
 	const TopOfBook& top
@@ -207,7 +212,7 @@ FIX::Message Application::getSnapshotMessage(
 
 	FIX44::MarketDataSnapshotFullRefresh message;
 	message.set(FIX::Symbol(top.symbol));
-	message.set(FIX::MDReqID(m_generator.genMarketDataID()));
+	message.set(FIX::MDReqID(generator.genMarketDataID()));
 
 	FIX44::MarketDataSnapshotFullRefresh::NoMDEntries group;
 
@@ -232,60 +237,106 @@ FIX::Message Application::getSnapshotMessage(
 	return message;
 }
 
-std::optional<FIX::Message> Application::getUpdateMessage(
+std::optional<FIX::Message> Application::get_update_message(
 	const std::string& senderCompID, 
 	const std::string& targetCompID, 
-	const TopOfBook& topOfBook,
-	const TopOfBook& topOfBookPrevious
+	const std::pair<TopOfBook, TopOfBook>& topOfBookChange
 ) {
-	if (topOfBook.bid_price == topOfBookPrevious.bid_price &&
-		topOfBook.bid_volume == topOfBookPrevious.bid_volume &&
-		topOfBook.ask_price == topOfBookPrevious.ask_price &&
-		topOfBook.ask_volume == topOfBookPrevious.ask_volume) {
-		return std::optional<FIX::Message>();
-	}
+	const auto& [current, previous] = topOfBookChange;
+	auto n = 0;
 
 	FIX::DateTime now = FIX::DateTime::nowUtc();
 
 	FIX44::MarketDataIncrementalRefresh message;
-	message.set(FIX::MDReqID(m_generator.genMarketDataID()));
+	message.set(FIX::MDReqID(generator.genMarketDataID()));
 
 	FIX44::MarketDataIncrementalRefresh::NoMDEntries group;
-	if (topOfBook.bid_price != topOfBookPrevious.bid_price || topOfBook.bid_volume != topOfBookPrevious.bid_volume) {
-		group.set(FIX::Symbol(topOfBook.symbol));
+	if (current.bid_price != previous.bid_price) {
+		group.set(FIX::Symbol(current.symbol));
 		group.set(FIX::MDEntryType(FIX::MDEntryType_BID));
-		group.set(FIX::MDEntryPx(topOfBook.bid_price));
-		group.set(FIX::MDEntrySize(topOfBook.bid_volume));
+		group.set(FIX::MDEntryPx(previous.bid_price));
+		group.set(FIX::MDEntrySize(0));
+		group.set(FIX::MDUpdateAction(FIX::MDUpdateAction_DELETE));
 		group.set(FIX::MDEntryDate(now));
 		group.set(FIX::MDEntryTime(now));
 		message.addGroup(group);
+		++n;
+
+		group.set(FIX::Symbol(current.symbol));
+		group.set(FIX::MDEntryType(FIX::MDEntryType_BID));
+		group.set(FIX::MDEntryPx(current.bid_price));
+		group.set(FIX::MDEntrySize(current.bid_volume));
+		group.set(FIX::MDUpdateAction(FIX::MDUpdateAction_NEW));
+		group.set(FIX::MDEntryDate(now));
+		group.set(FIX::MDEntryTime(now));
+		message.addGroup(group);
+		++n;
+	}
+	else if (current.bid_volume != previous.bid_volume) {
+		assert(current.bid_price == previous.bid_price);
+		group.set(FIX::Symbol(current.symbol));
+		group.set(FIX::MDEntryType(FIX::MDEntryType_BID));
+		group.set(FIX::MDEntryPx(current.bid_price));
+		group.set(FIX::MDEntrySize(current.bid_volume));
+		group.set(FIX::MDUpdateAction(FIX::MDUpdateAction_CHANGE));
+		group.set(FIX::MDEntryDate(now));
+		group.set(FIX::MDEntryTime(now));
+		message.addGroup(group);
+		++n;
 	}
 
-	if (topOfBook.ask_price != topOfBookPrevious.ask_price || topOfBook.ask_volume != topOfBookPrevious.ask_volume) {
+	if (current.ask_price != previous.ask_price) {
 		group.set(FIX::MDEntryType(FIX::MDEntryType_OFFER));
-		group.set(FIX::Symbol(topOfBook.symbol));
-		group.set(FIX::MDEntryPx(topOfBook.ask_price));
-		group.set(FIX::MDEntrySize(topOfBook.ask_volume));
+		group.set(FIX::Symbol(current.symbol));
+		group.set(FIX::MDEntryPx(previous.ask_price));
+		group.set(FIX::MDEntrySize(0));
+		group.set(FIX::MDUpdateAction(FIX::MDUpdateAction_DELETE));
 		group.set(FIX::MDEntryDate(now));
 		group.set(FIX::MDEntryTime(now));
 		message.addGroup(group);
+		++n;
+
+		group.set(FIX::Symbol(current.symbol));
+		group.set(FIX::MDEntryType(FIX::MDEntryType_OFFER));
+		group.set(FIX::MDEntryPx(current.ask_price));
+		group.set(FIX::MDEntrySize(current.ask_volume));
+		group.set(FIX::MDUpdateAction(FIX::MDUpdateAction_NEW));
+		group.set(FIX::MDEntryDate(now));
+		group.set(FIX::MDEntryTime(now));
+		message.addGroup(group);
+		++n;
+	} if (current.ask_volume != previous.ask_volume) {
+		assert(current.ask_price == previous.ask_price);
+		group.set(FIX::Symbol(current.symbol));
+		group.set(FIX::MDEntryType(FIX::MDEntryType_OFFER));
+		group.set(FIX::MDEntryPx(current.ask_price));
+		group.set(FIX::MDEntrySize(current.ask_volume));
+		group.set(FIX::MDUpdateAction(FIX::MDUpdateAction_CHANGE));
+		group.set(FIX::MDEntryDate(now));
+		group.set(FIX::MDEntryTime(now));
+		message.addGroup(group);
+		++n;
 	}
 
-	auto& header = message.getHeader();
-	header.setField(FIX::SenderCompID(senderCompID));
-	header.setField(FIX::TargetCompID(targetCompID));
-
-	return std::optional<FIX::Message>(message);
+	if (n == 0) {
+		return std::optional<FIX::Message>();
+	}
+	else {
+		auto& header = message.getHeader();
+		header.setField(FIX::SenderCompID(senderCompID));
+		header.setField(FIX::TargetCompID(targetCompID));
+		return std::optional<FIX::Message>(message);
+	}
 }
 
-void Application::updateOrder(const Order& order, char status)
+void Application::update_order(const Order& order, char status)
 {
 	FIX::TargetCompID targetCompID(order.get_owner());
 	FIX::SenderCompID senderCompID(order.get_target());
 
 	FIX44::ExecutionReport fixOrder(
 		FIX::OrderID(order.get_client_id()),
-		FIX::ExecID(m_generator.genExecutionID()),
+		FIX::ExecID(generator.genExecutionID()),
 		FIX::ExecType(status),
 		FIX::OrdStatus(status),
 		FIX::Side(convert(order.get_side())),
@@ -311,30 +362,30 @@ void Application::updateOrder(const Order& order, char status)
 	catch (FIX::SessionNotFound&) {}
 }
 
-void Application::rejectOrder(const Order& order)
+void Application::reject_order(const Order& order)
 {
-	updateOrder(order, FIX::OrdStatus_REJECTED);
+	update_order(order, FIX::OrdStatus_REJECTED);
 }
 
-void Application::acceptOrder(const Order& order)
+void Application::accept_order(const Order& order)
 {
-	updateOrder(order, FIX::OrdStatus_NEW);
+	update_order(order, FIX::OrdStatus_NEW);
 }
 
-void Application::fillOrder(const Order& order)
+void Application::fill_order(const Order& order)
 {
-	updateOrder(
+	update_order(
 		order,
 		order.isFilled() ? FIX::OrdStatus_FILLED : FIX::OrdStatus_PARTIALLY_FILLED
 	);
 }
 
-void Application::cancelOrder(const Order& order)
+void Application::cancel_order(const Order& order)
 {
-	updateOrder(order, FIX::OrdStatus_CANCELED);
+	update_order(order, FIX::OrdStatus_CANCELED);
 }
 
-void Application::rejectOrder(
+void Application::reject_order(
 	const FIX::SenderCompID& sender, 
 	const FIX::TargetCompID& target,
 	const FIX::ClOrdID& clOrdID, 
@@ -350,7 +401,7 @@ void Application::rejectOrder(
 
 	FIX44::ExecutionReport fixOrder(
 		FIX::OrderID(clOrdID.getValue()),
-		FIX::ExecID(m_generator.genExecutionID()),
+		FIX::ExecID(generator.genExecutionID()),
 		FIX::ExecType(FIX::ExecType_REJECTED),
 		FIX::OrdStatus(FIX::ExecType_REJECTED),
 		side, 
@@ -373,32 +424,32 @@ void Application::rejectOrder(
 	catch (FIX::SessionNotFound&) {}
 }
 
-void Application::processOrder(const Order& order)
+void Application::process_order(const Order& order)
 {
-	if (m_orderMatcher.insert(order))
+	if (order_matcher.insert(order))
 	{
-		acceptOrder(order);
+		accept_order(order);
 
 		std::queue<Order> orders;
-		m_orderMatcher.match(order.get_symbol(), orders);
+		order_matcher.match(order.get_symbol(), orders);
 
 		while (orders.size())
 		{
-			fillOrder(orders.front());
+			fill_order(orders.front());
 			orders.pop();
 		}
 	}
 	else
-		rejectOrder(order);
+		reject_order(order);
 }
 
-void Application::processCancel(const std::string& id,
+void Application::process_cancel(const std::string& id,
 	const std::string& symbol, Order::Side side)
 {
-	Order& order = m_orderMatcher.find(symbol, side, id);
+	Order& order = order_matcher.find(symbol, side, id);
 	order.cancel();
-	cancelOrder(order);
-	m_orderMatcher.erase(order);
+	cancel_order(order);
+	order_matcher.erase(order);
 }
 
 Order::Side Application::convert(const FIX::Side& side)
@@ -449,7 +500,7 @@ FIX::OrdType Application::convert(Order::Type type)
 	}
 }
 
-const OrderMatcher& Application::orderMatcher() {
-	return m_orderMatcher;
+const OrderMatcher& Application::get_order_matcher() {
+	return order_matcher;
 }
 

@@ -14,7 +14,7 @@ namespace common {
    */
    class WhiteNoise : public PriceSampler {
    protected:
-      std::normal_distribution<> noise{1.0, 0.0};
+      std::normal_distribution<> noise{0.0, 1.0};
       double millis_per_day{ 86400000.0 };
       double sigma;
 

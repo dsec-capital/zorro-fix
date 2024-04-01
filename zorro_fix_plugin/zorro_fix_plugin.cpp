@@ -211,9 +211,11 @@ namespace zfix {
 				);
 				spd_logger->set_level(spdlog::level::debug);
 				spdlog::set_default_logger(spd_logger);
+				spdlog::set_level(spdlog::level::debug);
 				spdlog::flush_every(std::chrono::seconds(2));
-				SPDLOG_INFO("Logging started, cwd={}", cwd);
+				SPDLOG_INFO("Logging started, level={}, cwd={}", (int)spd_logger->level(), cwd);
 				SPDLOG_DEBUG("Log level={}", spd_logger->level());
+				spdlog::debug("********");
 			}
 		}
 		catch (const spdlog::spdlog_ex& ex)
@@ -265,14 +267,14 @@ namespace zfix {
 				throw std::runtime_error("no FIX session");
 			}
 
-			auto& fixApp = fix_thread->fixApp();
+			auto& fix_app = fix_thread->fix_app();
 
 			// subscribe to Asset market data
 			if (!pPrice) {  
 				show(std::format("BrokerAsset: subscribing for symbol {}", Asset));
 
 				FIX::Symbol symbol(Asset);
-				fixApp.marketDataRequest(
+				fix_app.market_data_request(
 					symbol,
 					FIX::MarketDepth(1),
 					FIX::SubscriptionRequestType_SNAPSHOT_AND_UPDATES
@@ -290,7 +292,7 @@ namespace zfix {
 						throw std::runtime_error(std::format("failed to get snapshot in {}ms", ms));
 					}
 
-					auto success = fixApp.hasBook(symbol);
+					auto success = fix_app.has_book(symbol);
 					if (success) {
 						show(std::format("BrokerAsset: subscribed to symbol {}", Asset));
 						break;
@@ -312,9 +314,10 @@ namespace zfix {
 				return 1;
 			}
 			else {
-				TopOfBook top = fixApp.topOfBook(Asset);
+				TopOfBook top = fix_app.top_of_book(Asset);
 				if (pPrice) *pPrice = top.mid();
 				if (pSpread) *pSpread = top.spread();
+				show(std::format("BrokerAsset: top bid={} ask={} @ {}", top.bid_price, top.ask_price, common::to_string(top.timestamp)));
 				return 1;
 			}
 		}
@@ -401,47 +404,19 @@ namespace zfix {
 		auto limitPrice = FIX::Price(dLimit);
 		auto stopPrice = FIX::StopPx(dStopDist);
 
-		auto msg = fix_thread->fixApp().newOrderSingle(
+		auto msg = fix_thread->fix_app().new_order_single(
 			symbol, clOrdId, side, ordType, timeInForce, qty, limitPrice, stopPrice
 		);
 
-		show("BrokerBuy2: newOrderSingle " + msg.toString());
+		show(std::format("BrokerBuy2: NewOrderSingle {}", fix_string(msg)));
 
 		ExecReport report;
-		bool success = exec_report_queue.pop(report, std::chrono::seconds(4));
+		bool success = exec_report_queue.pop(report, std::chrono::milliseconds(500));
 		if (!success) {
 			show("BrokerBuy2 timeout while waiting for FIX exec report!");
 		}
 		else {
-			if (report.exec_type == FIX::ExecType_REJECTED) {
-				show("BrokerBuy2: exec report " + report.to_string());
-
-			}
-
-			if (report.exec_type == FIX::ExecType_PENDING_NEW) {
-
-			}
-
-			if (report.exec_type == FIX::ExecType_NEW) {
-
-			}
-
-			if (report.exec_type == FIX::ExecType_PARTIAL_FILL) {
-
-			}
-
-			if (report.exec_type == FIX::ExecType_FILL) {
-
-			}
-
-			if (report.exec_type == FIX::ExecType_PENDING_CANCEL) {
-
-			}
-
-			if (report.exec_type == FIX::ExecType_CANCELED) {
-
-			}
-
+			show(std::format("BrokerBuy2: ExecReport {}", report.to_string()));
 
 			bool fill = true;
 
@@ -464,19 +439,21 @@ namespace zfix {
 
 	DLLFUNC int BrokerTrade(int nTradeID, double* pOpen, double* pClose, double* pCost, double* pProfit) {
 		SPDLOG_DEBUG("BrokerTrade: {}", nTradeID);
+		show(std::format("BrokerTrade: nTradeID={}", nTradeID));
 
 		return 0;
 	}
 
 	DLLFUNC_C int BrokerSell2(int nTradeID, int nAmount, double Limit, double* pClose, double* pCost, double* pProfit, int* pFill) {
 		SPDLOG_DEBUG("BrokerSell2 nTradeID={} nAmount{} limit={}", nTradeID, nAmount, Limit);
+		show(std::format("BrokerSell2: nTradeID={}", nTradeID));
 
 		return 0;
 	}
 
 	// https://zorro-project.com/manual/en/brokercommand.htm
 	DLLFUNC double BrokerCommand(int command, DWORD dwParameter) {
-		show(std::format("BrokerCommand command={}", command));
+		show(std::format("BrokerCommand {}[{}]", broker_command_string(command), command));
 
 		switch (command)
 		{

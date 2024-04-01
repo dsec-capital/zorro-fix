@@ -28,25 +28,27 @@ namespace zfix
 {
 	using namespace common;
 
+	std::string fix_string(const FIX::Message& msg);
+
 	class Application: public FIX::Application, public FIX::MessageCracker
 	{
 	public:
 		Application(
-			const FIX::SessionSettings& sessionSettings,
-			BlockingTimeoutQueue<ExecReport>& execReportQueue
+			const FIX::SessionSettings& session_settings,
+			BlockingTimeoutQueue<ExecReport>& exec_report_queue
 		);
 
-		bool hasBook(const std::string& symbol);
+		bool has_book(const std::string& symbol);
 
-		TopOfBook topOfBook(const std::string& symbol);
+		TopOfBook top_of_book(const std::string& symbol);
 
-		FIX::Message marketDataRequest(
+		FIX::Message market_data_request(
 			const FIX::Symbol& symbol,
 			const FIX::MarketDepth& markeDepth,
 			const FIX::SubscriptionRequestType& subscriptionRequestType
 		);
 
-		FIX::Message newOrderSingle(
+		FIX::Message new_order_single(
 			const FIX::Symbol& symbol, 
 			const FIX::ClOrdID& clOrdId, 
 			const FIX::Side& side,
@@ -57,7 +59,7 @@ namespace zfix
 			const FIX::StopPx& stopPrice
 		) const;
 
-		FIX::Message orderCancelRequest(
+		FIX::Message order_cancel_request(
 			const FIX::Symbol& symbol,
 			const FIX::OrigClOrdID& origClOrdID,
 			const FIX::ClOrdID& clOrdId,
@@ -65,7 +67,7 @@ namespace zfix
 			const FIX::OrderQty& orderQty
 		) const;
 
-		FIX::Message cancelReplaceRequest(
+		FIX::Message cancel_replace_request(
 			const FIX::Symbol& symbol,
 			const FIX::OrigClOrdID& origClOrdID,
 			const FIX::ClOrdID& clOrdId,
@@ -76,17 +78,17 @@ namespace zfix
 		) const;
 
 	private:
-		FIX::SessionSettings sessionSettings;
-		BlockingTimeoutQueue<ExecReport>& execReportQueue;
-		std::shared_ptr<spdlog::logger> spdLogger;
-		std::deque<ExecReport> execReportStorageQueue;
-		std::string senderCompID;
-		std::string targetCompID;
+		FIX::SessionSettings session_settings;
+		BlockingTimeoutQueue<ExecReport>& exec_report_queue;
+		std::string sender_comp_id;
+		std::string target_comp_id;
 		std::atomic<bool> done;
-		IDGenerator idGenerator;
+		IDGenerator id_generator;
 		std::unordered_map<std::string, Book> books;
-		OrderTracker orderTracker;
+		OrderTracker order_tracker;
 		std::mutex mutex;
+
+		// FIX Application interface
 
 		void onCreate(const FIX::SessionID&);
 

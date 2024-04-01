@@ -31,10 +31,10 @@ namespace zfix {
 
 	class FixThread {
 		bool started;
-		std::string settingsCfgFile;
+		std::string settings_cfg_file;
 		FIX::SessionSettings settings;
-		FIX::FileStoreFactory storeFactory;
-		FIX::ScreenLogFactory logFactory;
+		FIX::FileStoreFactory store_factory;
+		FIX::ScreenLogFactory log_factory;
 		std::unique_ptr<FIX::Initiator> initiator;
 		std::unique_ptr<zfix::Application> application;
 		std::thread thread;
@@ -45,22 +45,22 @@ namespace zfix {
 
 	public:
 		FixThread(
-			const std::string& settingsCfgFile,
-			BlockingTimeoutQueue<ExecReport>& execReportQueue
+			const std::string& settings_cfg_file,
+			BlockingTimeoutQueue<ExecReport>& exec_report_queue
 		) :
 			started(false),
-			settingsCfgFile(settingsCfgFile),
-			settings(settingsCfgFile),
-			storeFactory(settings),
-			logFactory(settings)
+			settings_cfg_file(settings_cfg_file),
+			settings(settings_cfg_file),
+			store_factory(settings),
+			log_factory(settings)
 		{
 			application = std::unique_ptr<zfix::Application>(new Application(
 				settings, 
-				execReportQueue
+				exec_report_queue
 			)
 			);
 			initiator = std::unique_ptr<FIX::Initiator>(
-				new FIX::SocketInitiator(*application, storeFactory, settings, logFactory)
+				new FIX::SocketInitiator(*application, store_factory, settings, log_factory)
 			);
 		}
 
@@ -108,7 +108,7 @@ namespace zfix {
 			SPDLOG_INFO("FixThread: FIX initiator stopped - joined");
 		}
 
-		zfix::Application& fixApp() {
+		zfix::Application& fix_app() {
 			return *application;
 		}
 	};

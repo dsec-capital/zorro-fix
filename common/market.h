@@ -6,6 +6,7 @@
 #include <string>
 #include <functional>
 #include <mutex>
+#include <bitset>
 
 #include "nlohmann/json.h"
 
@@ -46,9 +47,7 @@ namespace common {
 
 		void simulate_next();
 
-		const TopOfBook& get_top_of_book() const;
-
-		const TopOfBook& get_previous_top_of_book() const;
+		std::pair<TopOfBook, TopOfBook> get_top_of_book() const;
 
 		void extend_bars(const std::chrono::nanoseconds& until_past);
 
@@ -73,6 +72,8 @@ namespace common {
 		BarBuilder bar_builder;
 		ReverseBarBuilder history_bar_builder;
 
+		TopOfBook current;
+		TopOfBook previous;
 		TopOfBook oldest;
 		std::map<std::chrono::nanoseconds, TopOfBook> top_of_books;
 		std::map<std::chrono::nanoseconds, Bar> bars;

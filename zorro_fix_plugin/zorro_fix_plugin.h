@@ -28,4 +28,60 @@ namespace zfix
 	DLLFUNC_C int BrokerTrade(int nTradeID, double* pOpen, double* pClose, double* pCost, double* pProfit);
 	DLLFUNC_C int BrokerSell2(int nTradeID, int nAmount, double Limit, double* pClose, double* pCost, double* pProfit, int* pFill);
 	DLLFUNC_C double BrokerCommand(int Command, DWORD dwParameter);
+
+	inline std::string broker_command_string(int command) {
+		switch (command)
+		{
+			case GET_COMPLIANCE:
+				return "GET_COMPLIANCE";
+			case GET_BROKERZONE:
+				return "GET_BROKERZONE";    
+			case GET_MAXTICKS:
+				return "GET_MAXTICKS";
+			case GET_MAXREQUESTS:
+				return "GET_MAXREQUESTS";
+			case GET_LOCK:
+				return "GET_LOCK";
+			case GET_POSITION: 
+				return "GET_POSITION";
+			case SET_ORDERTEXT: 
+				return "SET_ORDERTEXT";
+			case SET_SYMBOL: 
+				return "SET_SYMBOL";
+			case SET_MULTIPLIER: 
+				return "SET_MULTIPLIER";					
+			case SET_ORDERTYPE: 
+				return "SET_ORDERTYPE";
+			case GET_PRICETYPE:
+				return "GET_PRICETYPE";
+			case SET_PRICETYPE: 
+				return "SET_PRICETYPE";
+			case GET_VOLTYPE:
+				return "GET_VOLTYPE";
+			case SET_AMOUNT: 
+				return "SET_AMOUNT";
+			case SET_DIAGNOSTICS:
+				return "SET_DIAGNOSTICS";
+			case SET_HWND:
+				return "SET_HWND";
+			case GET_CALLBACK:
+				return "GET_CALLBACK";
+			case SET_CCY:
+				return "SET_CCY";
+			case GET_HEARTBEAT:
+				return "GET_HEARTBEAT";
+			case SET_LEVERAGE: 
+				return "SET_LEVERAGE";
+			case SET_LIMIT: 
+				return "SET_LIMIT";
+			case SET_FUNCTIONS:
+				return "SET_FUNCTIONS";
+			case GET_EXCHANGES:
+				return "GET_EXCHANGES";
+			case SET_EXCHANGES:
+				return "SET_EXCHANGES";
+			default:
+				return "Unknow broker command";
+		}
+	}
 }

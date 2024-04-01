@@ -118,7 +118,7 @@ int main(int argc, char** argv)
         FIX::SocketAcceptor acceptor(application, storeFactory, settings, logFactory);
 
         acceptor.start();
-        application.startMarketDataUpdates(); 
+        application.start_market_data_updates(); 
         rest_server.run();
 
         while (true)
@@ -127,16 +127,16 @@ int main(int argc, char** argv)
             std::cin >> value;
 
             if (value == "#symbols")
-                application.orderMatcher().display();
+                application.get_order_matcher().display();
             else if (value == "#quit")
                 break;
             else
-                application.orderMatcher().display(value);
+                application.get_order_matcher().display(value);
 
             std::cout << std::endl;
         }
 
-        application.stopMarketDataUpdates();
+        application.stop_market_data_updates();
         acceptor.stop();
 
         return 0; 

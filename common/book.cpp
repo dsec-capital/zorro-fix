@@ -11,11 +11,15 @@ namespace common {
     Book::Book()
         : bids([](const double& x, const double& y) -> bool { return x > y; })
         , asks([](const double& x, const double& y) -> bool { return x < y; })
-        , precision(10)
+        , precision(TO_POINTS)
     {}
 
     void Book::set_precision(uint32_t prec) {
         precision = prec;
+    }
+
+    int32_t Book::get_precision() const {
+       return precision;
     }
 
     uint32_t Book::scale(double price) const {
@@ -24,6 +28,14 @@ namespace common {
 
     double Book::unscale(uint32_t price) const {
         return price / double(precision);
+    }
+
+    void Book::set_timestamp(const std::chrono::nanoseconds& t) {
+       timestamp = t;
+    }
+
+    const std::chrono::nanoseconds& Book::get_timestamp(const std::chrono::nanoseconds& t) const {
+       return timestamp;
     }
 
     void Book::update_book(double p_unscaled, double a, bool is_bid) {
@@ -76,12 +88,12 @@ namespace common {
         return std::make_pair(unscale(asks.begin()->first), asks.begin()->second);
     }
 
-    TopOfBook Book::topOfBook(const std::string& symbol) const {
+    TopOfBook Book::top(const std::string& symbol) const {
         if (bids.empty() || asks.empty())
             throw std::runtime_error(std::format("empty book for symbol {}", symbol));
         return TopOfBook(
             symbol,
-            get_current_system_clock(),
+            timestamp,
             unscale(bids.begin()->first), 
             bids.begin()->second,
             unscale(asks.begin()->first), 
@@ -134,7 +146,7 @@ namespace common {
         for (auto l = 0; l < levels && itb != bids.end() && ita != asks.end(); ++l, ++itb, ++ita) {
             out += std::format(
                 "{} {} [{}] bid price {}|{}, ask price {}|{}\n",
-                pre, time_str, l, itb->first, itb->second, ita->first, ita->second);
+                pre, time_str, l, unscale(itb->first), itb->second, unscale(ita->first), ita->second);
         }
         return out;
     }
