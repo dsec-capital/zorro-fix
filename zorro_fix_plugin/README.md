@@ -15,7 +15,7 @@ Before starting `Zorro` the simulation server must be started:
 fix_simulation_server.exe session.cfg market_config.toml
 ```
 
-Then `Zorro` can be started. 
+Then `Zorro` can be started. The plugin name is `_FixPlugin`. 
 
 
 
@@ -33,7 +33,7 @@ For project `zorro_fix_plugin`:
 
 ```
 echo %ZorroInstallDir%
-copy /y "$(SolutionDir)$(Configuration)\zorrofixplugin.dll" "%ZorroInstallDir%\Plugin\AAFixPlugin.dll"
+copy /y "$(SolutionDir)$(Configuration)\zorrofixplugin.dll" "%ZorroInstallDir%\Plugin\_FixPlugin.dll"
 copy /y "$(ProjectDir)zorro_fix_client.cfg" "$(SolutionDir)$(Configuration)"
 copy /y "$(ProjectDir)zorro_fix_client.cfg" "%ZorroInstallDir%\Plugin"
 robocopy "$(SolutionDir)spec" "%ZorroInstallDir%\Plugin\spec"  /MIR
