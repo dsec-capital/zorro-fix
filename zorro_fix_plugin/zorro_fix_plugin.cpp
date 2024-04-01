@@ -91,17 +91,9 @@ namespace zfix {
 		return time32_to_string(ts, ms);
 	}
 
-	template<typename ... Args>
-	inline void showf(const char* format, Args... args) {
-		if (!BrokerError) return;
-		static char msg[4096];
-		sprintf_s(msg, format, std::forward<Args>(args)...);
-		BrokerError(msg);
-	}
-
 	void show(const std::string& msg) {
 		if (!BrokerError) return;
-		auto tmsg = "[" + now_str() + "] " + msg;
+		auto tmsg = "[" + now_str() + "] " + msg + "\n";
 		BrokerError(tmsg.c_str());
 	}
 
@@ -217,10 +209,11 @@ namespace zfix {
 					"standard_logger",
 					std::format("Log/zorro-fix-bridge_spdlog_{}.log", postfix)
 				);
+				spd_logger->set_level(spdlog::level::debug);
 				spdlog::set_default_logger(spd_logger);
 				spdlog::flush_every(std::chrono::seconds(2));
-				spdlog::set_level(spdlog::level::debug);
 				SPDLOG_INFO("Logging started, cwd={}", cwd);
+				SPDLOG_DEBUG("Log level={}", spd_logger->level());
 			}
 		}
 		catch (const spdlog::spdlog_ex& ex)
@@ -326,7 +319,7 @@ namespace zfix {
 			}
 		}
 		catch (const std::exception& e) {
-			show(std::format("BrokerAsset: Excetion {}", e.what()));
+			show(std::format("BrokerAsset: exception {}", e.what()));
 			return 0;
 		}
 		catch (...) {
@@ -483,7 +476,7 @@ namespace zfix {
 
 	// https://zorro-project.com/manual/en/brokercommand.htm
 	DLLFUNC double BrokerCommand(int command, DWORD dwParameter) {
-		show("BrokerCommand");
+		show(std::format("BrokerCommand command={}", command));
 
 		switch (command)
 		{

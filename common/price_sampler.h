@@ -63,31 +63,6 @@ namespace common {
         }
     };
 
-    inline void build_bars(
-      BarBuilder& builder,
-      const std::map<std::chrono::nanoseconds, TopOfBook> &history,
-      std::map<std::chrono::nanoseconds, Bar>& bars
-    ) {
-      if (history.empty()) {
-        return;
-      }
-
-      auto it = history.begin();
-      auto from = round_up(it->first, builder.get_bar_period());
-      while (it->first < from && it != history.end()) {
-        ++it;
-      }
-
-      if (it == history.end()) {
-        return;
-      }
-
-      while (it != history.end()) {
-        builder.add(it->first, it->second.mid());
-        ++it;
-      }
-    }
-
     std::shared_ptr<PriceSampler> price_sampler_factory(
         std::mt19937& generator,
         toml::table& tbl,

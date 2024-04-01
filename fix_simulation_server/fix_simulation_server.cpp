@@ -99,6 +99,7 @@ int main(int argc, char** argv)
                  bar_period,
                  history_age,
                  history_sample_period,
+                 false,
                  mutex
               );
            }
@@ -117,7 +118,7 @@ int main(int argc, char** argv)
         FIX::SocketAcceptor acceptor(application, storeFactory, settings, logFactory);
 
         acceptor.start();
-        application.startMarketDataUpdates();
+        application.startMarketDataUpdates(); 
         rest_server.run();
 
         while (true)
