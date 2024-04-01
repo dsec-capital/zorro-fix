@@ -102,9 +102,17 @@ namespace common {
 		std::unordered_map<std::string, OrderReport> history_orders_by_ord_id;
 
 	public:
+		typedef typename std::unordered_map<std::string, OrderReport>::const_iterator const_iterator;
+
 		OrderTracker(const std::string& account);
 
 		NetPosition& net_position(const std::string& symbol);
+
+		const_iterator get_pending_order(const std::string& cl_ord_id) const;
+
+		const_iterator get_open_order(const std::string& ord_id) const;
+
+		const_iterator get_history_order(const std::string& ord_id) const;
 
 		void process(const ExecReport& report);
 	};

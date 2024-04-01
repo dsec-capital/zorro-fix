@@ -46,7 +46,8 @@ namespace zfix {
 	public:
 		FixThread(
 			const std::string& settings_cfg_file,
-			BlockingTimeoutQueue<ExecReport>& exec_report_queue
+			BlockingTimeoutQueue<ExecReport>& exec_report_queue,
+			SpScQueue<TopOfBook>& top_of_book_queue
 		) :
 			started(false),
 			settings_cfg_file(settings_cfg_file),
@@ -56,9 +57,9 @@ namespace zfix {
 		{
 			application = std::unique_ptr<zfix::Application>(new Application(
 				settings, 
-				exec_report_queue
-			)
-			);
+				exec_report_queue,
+				top_of_book_queue
+			));
 			initiator = std::unique_ptr<FIX::Initiator>(
 				new FIX::SocketInitiator(*application, store_factory, settings, log_factory)
 			);

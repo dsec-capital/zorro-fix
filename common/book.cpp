@@ -142,10 +142,10 @@ namespace common {
         auto ita = asks.begin();
         auto time_str = common::to_string(timestamp);
         std::string out = "";
-        out += std::format("------------------------------- {} -------------------------------\n", spread());
+        out += std::format("------------------------------- {:.5f} -------------------------------\n", spread());
         for (auto l = 0; l < levels && itb != bids.end() && ita != asks.end(); ++l, ++itb, ++ita) {
             out += std::format(
-                "{} {} [{}] bid price {}|{}, ask price {}|{}\n",
+                "{} {} [{}] bid price {:.5f}|{}, ask price {:.5f}|{}\n",
                 pre, time_str, l, unscale(itb->first), itb->second, unscale(ita->first), ita->second);
         }
         return out;

@@ -35,7 +35,8 @@ namespace zfix
 	public:
 		Application(
 			const FIX::SessionSettings& session_settings,
-			BlockingTimeoutQueue<ExecReport>& exec_report_queue
+			BlockingTimeoutQueue<ExecReport>& exec_report_queue,
+			SpScQueue<TopOfBook>& top_of_book_queue
 		);
 
 		bool has_book(const std::string& symbol);
@@ -80,6 +81,7 @@ namespace zfix
 	private:
 		FIX::SessionSettings session_settings;
 		BlockingTimeoutQueue<ExecReport>& exec_report_queue;
+		SpScQueue<TopOfBook>& top_of_book_queue;
 		std::string sender_comp_id;
 		std::string target_comp_id;
 		std::atomic<bool> done;

@@ -9,9 +9,9 @@
 #include "quickfix/config.h"
 #include "quickfix/Session.h"
 
-#include "common/time_utils.h"
-
 #include "spdlog/spdlog.h"
+
+#include "common/time_utils.h"
 
 namespace zfix {
 
@@ -24,10 +24,12 @@ namespace zfix {
 	}
 
 	Application::Application(
-		const FIX::SessionSettings& session_settings,
-		BlockingTimeoutQueue<ExecReport>& exec_report_queue
+		 const FIX::SessionSettings& session_settings,
+		 BlockingTimeoutQueue<ExecReport>& exec_report_queue,
+		 SpScQueue<TopOfBook>& top_of_book_queue
 	) : session_settings(session_settings)
 	  , exec_report_queue(exec_report_queue)
+	  , top_of_book_queue(top_of_book_queue)
 	  , done(false)
      , order_tracker("account")
 	{}
@@ -85,6 +87,8 @@ namespace zfix {
 		message.get(symbol);
 		message.get(noMDEntries);
 
+		std::unique_lock<std::mutex> ul(mutex);
+
 		auto book = books.insert_or_assign(symbol, Book()).first;
 
 		for (int i = 1; i <= noMDEntries; ++i)
@@ -124,6 +128,8 @@ namespace zfix {
 		FIX::MDUpdateAction action;
 
 		auto it = books.end();
+
+		std::unique_lock<std::mutex> ul(mutex);
 
 		for (int i = 1; i <= noMDEntries; ++i)
 		{
@@ -342,12 +348,12 @@ namespace zfix {
 	}
 
 	bool Application::has_book(const std::string& symbol) {
-		std::unique_lock<std::mutex> mlock(mutex);
+		std::unique_lock<std::mutex> ul(mutex);
 		return books.contains(symbol);
 	}
 
 	TopOfBook Application::top_of_book(const std::string& symbol) {
-		std::unique_lock<std::mutex> mlock(mutex);
+		std::unique_lock<std::mutex> ul(mutex);
 		auto it = books.find(symbol);
 		if (it != books.end()) {
 			return it->second.top(symbol);

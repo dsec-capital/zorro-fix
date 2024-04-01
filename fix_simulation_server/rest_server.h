@@ -27,14 +27,14 @@ namespace fix_sim {
    public:
 
       RestServer(
-         const std::string& host,
-         int port,
-         std::map<std::string, Market>& markets,
-         std::mutex& mutex
+          const std::string& host,
+          int port,
+          std::map<std::string, Market>& markets,
+          std::mutex& mutex
       ) : host(host)
-         , port(port)
-         , markets(markets)
-         , mutex(mutex)
+        , port(port)
+        , markets(markets)
+        , mutex(mutex)
       {
          server.Get("/symbols", [this](const Request& req, Response& res) {
             std::string symbols;
@@ -46,7 +46,7 @@ namespace fix_sim {
 
          // for example http://localhost:8080/bars?symbol=EUR/USD&from=2024-03-30 12:00:00&to=2024-03-30 16:00:00
          server.Get("/bars", [this](const Request& req, Response& res) {
-            std::string msg = "/bar";
+            std::string msg = "====> /bar";
 
             std::string symbol = "nan";
             std::chrono::nanoseconds from{0};
@@ -70,7 +70,7 @@ namespace fix_sim {
             if (it != this->markets.end()) {
                auto [content, n] = it->second.get_bars_as_json(from, to);
                res.set_content(content.dump(), "application/json");
-               msg += std::format("response bars={}", n);
+               msg += std::format(" response bars={}", n);
             }
             else {
                json j;
@@ -84,7 +84,7 @@ namespace fix_sim {
          });
 
          server.Get("/bar_range", [this](const Request& req, Response& res) {
-            std::string msg = "/bar_range";
+            std::string msg = "====> /bar_range";
 
             std::string symbol = "nan";
             if (req.has_param("symbol")) {
@@ -127,7 +127,7 @@ namespace fix_sim {
          //server.stop();
          //thread.join();
 
-         std::cout << "rest server stated on " << host << ":" << port << std::endl;
+         std::cout << "====> rest server stated on " << host << ":" << port << std::endl;
       }
    };
 }

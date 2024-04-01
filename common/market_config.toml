@@ -11,11 +11,11 @@ spread = 0.006
 bid_volume = 1000
 ask_volume = 1000
 bar_period_seconds = 60
-history_age_hours = 24
+history_age_hours = 96
 history_sample_period_millis = 1000
 [symbols.market_simulator]
 	model = "white-noise"
-	sigma = 0.02
+	sigma = 0.05
 			
 [[symbols]]
 symbol = "AUD/USD"
@@ -25,8 +25,8 @@ spread = 0.002
 bid_volume = 500
 ask_volume = 500
 bar_period_seconds = 60
-history_age_hours = 24
+history_age_hours = 96
 history_sample_period_millis = 1000
 [symbols.market_simulator]
 	model = "white-noise"
-	sigma = 0.02
+	sigma = 0.05

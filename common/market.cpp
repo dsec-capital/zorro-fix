@@ -5,15 +5,15 @@
 #include "json.h"
 
 namespace common {
-
+    
    Market::Market(
-      const std::shared_ptr<PriceSampler>& price_sampler,
-      const TopOfBook& current,
-      const std::chrono::nanoseconds& bar_period,
-      const std::chrono::nanoseconds& history_age,
-      const std::chrono::nanoseconds& history_sample_period,
-      bool prune_bars,
-      std::mutex& mutex
+       const std::shared_ptr<PriceSampler>& price_sampler,
+       const TopOfBook& current,
+       const std::chrono::nanoseconds& bar_period,
+       const std::chrono::nanoseconds& history_age,
+       const std::chrono::nanoseconds& history_sample_period,
+       bool prune_bars,
+       std::mutex& mutex
    ) : symbol(price_sampler->get_symbol())
       , price_sampler(price_sampler)
       , bar_period(bar_period)
@@ -22,11 +22,11 @@ namespace common {
       , prune_bars(prune_bars)
       , mutex(mutex)
       , bar_builder(bar_period, [this](const std::chrono::nanoseconds& end, double o, double h, double l, double c) {
-            std::cout << std::format("[{}] new bar end={} open={:.4f} high={:.4f} low={:.4f} close={:.4f}\n", symbol, common::to_string(end), o, h, l, c);
+            std::cout << std::format("[{}] new bar end={} open={:.5f} high={:.5f} low={:.5f} close={:.5f}\n", symbol, common::to_string(end), o, h, l, c);
             this->bars.try_emplace(end, end, o, h, l, c);
          })
       , history_bar_builder(current.timestamp, bar_period, [this](const std::chrono::nanoseconds& end, double o, double h, double l, double c) {
-            //std::cout << std::format("[{}] hist bar end={} open={:.4f} high={:.4f} low={:.4f} close={:.4f}\n", symbol, common::to_string(end), o, h, l, c);
+            //std::cout << std::format("[{}] hist bar end={} open={:.5f} high={:.5f} low={:.5f} close={:.5f}\n", symbol, common::to_string(end), o, h, l, c);
             this->bars.try_emplace(end, end, o, h, l, c);
          })
       , current(current)

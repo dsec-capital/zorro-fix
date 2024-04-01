@@ -117,6 +117,18 @@ namespace common {
 		return it->second;
 	}
 
+	typename OrderTracker::const_iterator OrderTracker::get_pending_order(const std::string& cl_ord_id) const {
+		return pending_orders_by_cl_ord_id.find(cl_ord_id);
+	}
+
+	typename OrderTracker::const_iterator OrderTracker::get_open_order(const std::string& ord_id) const {
+		return open_orders_by_ord_id.find(ord_id);
+	}
+
+	typename OrderTracker::const_iterator OrderTracker::get_history_order(const std::string& ord_id) const {
+		return history_orders_by_ord_id.find(ord_id);
+	}
+
 	void OrderTracker::process(const ExecReport& report) {
 		if (report.exec_type == 'I') {
 			return;

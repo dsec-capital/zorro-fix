@@ -24,13 +24,13 @@ namespace common {
 
         void push(const T& item)
         {
-            std::unique_lock<std::mutex> mlock(mutex);
+            std::unique_lock<std::mutex> ul(mutex);
             queue.push(item);
         }
 
         bool pop(T& item)
         {
-            std::unique_lock<std::mutex> mlock(mutex);
+            std::unique_lock<std::mutex> ul(mutex);
             if (queue.empty()) {
                 return false;
             }
@@ -41,7 +41,7 @@ namespace common {
 
         bool pop_until_last(T& item)
         {
-            std::unique_lock<std::mutex> mlock(mutex);
+            std::unique_lock<std::mutex> ul(mutex);
             if (queue.empty()) {
                 return false;
             }
@@ -135,7 +135,7 @@ namespace common {
             pushed_cond.notify_all();
         }
 
-        template <class R, class P>
+        template<class R, class P>
         bool pop(T& item, const std::chrono::duration<R, P>& timeout)
         {
             std::unique_lock<std::mutex> ul(mutex);
@@ -147,6 +147,29 @@ namespace common {
             item = std::move(queue.front());
             queue.pop();
             return true;
+        }
+
+        bool pop(T& item)
+        {
+           std::unique_lock<std::mutex> ul(mutex);
+           if (queue.empty()) {
+              return false;
+           }
+           item = std::move(queue.front());
+           queue.pop();
+           return true;
+        }
+
+        template<class Op>
+        int pop_all(Op op) {
+           std::unique_lock<std::mutex> ul(mutex);
+           auto n = 0;
+           while (!queue.empty()) {
+              op(queue.front());
+              queue.pop();
+              ++n;
+           }
+           return n;
         }
 
     private:

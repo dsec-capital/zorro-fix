@@ -415,6 +415,7 @@ void Application::reject_order(
 	fixOrder.set(clOrdID);
 	fixOrder.set(ordType);
 	fixOrder.set(orderQty);
+	fixOrder.set(FIX::LastQty(0));
 	fixOrder.set(FIX::Text(message));
 
 	try
