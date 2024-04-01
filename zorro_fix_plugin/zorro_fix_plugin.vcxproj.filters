@@ -17,7 +17,6 @@
   <ItemGroup>
     <None Include="cpp.hint" />
     <None Include="zorro_fix_client.cfg" />
-    <None Include="README.md" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="framework.h">

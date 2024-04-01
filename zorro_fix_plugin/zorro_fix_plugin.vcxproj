@@ -174,7 +174,6 @@ robocopy "$(SolutionDir)spec" "%ZorroInstallDir%\Plugin\spec"  /MIR</Command>
   </ItemDefinitionGroup>
   <ItemGroup>
     <None Include="cpp.hint" />
-    <None Include="README.md" />
     <None Include="zorro_fix_client.cfg" />
   </ItemGroup>
   <ItemGroup>
