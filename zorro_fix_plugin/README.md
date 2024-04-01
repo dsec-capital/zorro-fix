@@ -15,6 +15,7 @@ Before starting `Zorro` the simulation server must be started:
 fix_simulation_server.exe session.cfg market_config.toml
 ```
 
+
 Then `Zorro` can be started. The plugin name is `_FixPlugin`. 
 
 
@@ -27,6 +28,8 @@ project configurations where the QuickFix libraries are expecrted to be found.
 
 
 ## Configuration of Post Build Steps in Visual Studio
+
+First make sure that the environment variable `ZorroInstallDir` is set and points to the `Zorro` install location. 
 
 Add the following to the post build steps.
 For project `zorro_fix_plugin`:
