@@ -89,8 +89,6 @@ namespace zfix {
 		message.get(symbol);
 		message.get(noMDEntries);
 
-		std::unique_lock<std::mutex> ul(mutex);
-
 		auto book = books.insert_or_assign(symbol, Book()).first;
 
 		for (int i = 1; i <= noMDEntries; ++i)
@@ -135,10 +133,6 @@ namespace zfix {
 
 		auto it = books.end();
 
-		std::unique_lock<std::mutex> ul(mutex); // TODO once all using queue the locking is not required and should be removed
-
-		bool updated = false;
-
 		for (int i = 1; i <= noMDEntries; ++i)
 		{
 			message.getGroup(i, noMDEntriesGroup);
@@ -157,6 +151,7 @@ namespace zfix {
 				it = books.find(symbol);
 				if (it == books.end()) {
 					spdlog::error("MarketDataIncrementalRefresh: no book for {} probably not subscribed? msg={}", symbol.getString(), fix_string(message));
+					continue;
 				}
 				it->second.set_timestamp(get_current_system_clock());
 			}
@@ -364,12 +359,10 @@ namespace zfix {
 	}
 
 	bool Application::has_book(const std::string& symbol) {
-		std::unique_lock<std::mutex> ul(mutex);
 		return books.contains(symbol);
 	}
 
 	TopOfBook Application::top_of_book(const std::string& symbol) {
-		std::unique_lock<std::mutex> ul(mutex);
 		auto it = books.find(symbol);
 		if (it != books.end()) {
 			return it->second.top(symbol);

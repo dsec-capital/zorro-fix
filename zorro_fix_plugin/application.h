@@ -39,12 +39,6 @@ namespace zfix
 			BlockingTimeoutQueue<TopOfBook>& top_of_book_queue
 		);
 
-		// better use top_of_book_queue
-
-		bool has_book(const std::string& symbol);
-
-		TopOfBook top_of_book(const std::string& symbol);
-
 		FIX::Message market_data_request(
 			const FIX::Symbol& symbol,
 			const FIX::MarketDepth& markeDepth,
@@ -90,7 +84,10 @@ namespace zfix
 		IDGenerator id_generator;
 		std::unordered_map<std::string, Book> books;
 		OrderTracker order_tracker;
-		std::mutex mutex;
+
+		// should not be used anymore, use the top_of_book_queue
+		bool has_book(const std::string& symbol);
+		TopOfBook top_of_book(const std::string& symbol);
 
 		// FIX Application interface
 
