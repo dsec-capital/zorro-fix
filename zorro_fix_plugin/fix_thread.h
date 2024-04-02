@@ -47,7 +47,7 @@ namespace zfix {
 		FixThread(
 			const std::string& settings_cfg_file,
 			BlockingTimeoutQueue<ExecReport>& exec_report_queue,
-			SpScQueue<TopOfBook>& top_of_book_queue
+			BlockingTimeoutQueue<TopOfBook>& top_of_book_queue
 		) :
 			started(false),
 			settings_cfg_file(settings_cfg_file),

@@ -15,23 +15,23 @@ namespace common {
        bool prune_bars,
        std::mutex& mutex
    ) : symbol(price_sampler->get_symbol())
-      , price_sampler(price_sampler)
-      , bar_period(bar_period)
-      , history_age(history_age)
-      , history_sample_period(history_sample_period)
-      , prune_bars(prune_bars)
-      , mutex(mutex)
-      , bar_builder(bar_period, [this](const std::chrono::nanoseconds& end, double o, double h, double l, double c) {
-            std::cout << std::format("[{}] new bar end={} open={:.5f} high={:.5f} low={:.5f} close={:.5f}\n", symbol, common::to_string(end), o, h, l, c);
-            this->bars.try_emplace(end, end, o, h, l, c);
-         })
-      , history_bar_builder(current.timestamp, bar_period, [this](const std::chrono::nanoseconds& end, double o, double h, double l, double c) {
-            //std::cout << std::format("[{}] hist bar end={} open={:.5f} high={:.5f} low={:.5f} close={:.5f}\n", symbol, common::to_string(end), o, h, l, c);
-            this->bars.try_emplace(end, end, o, h, l, c);
-         })
-      , current(current)
-      , previous(current)
-      , oldest(current)
+     , price_sampler(price_sampler)
+     , bar_period(bar_period)
+     , history_age(history_age)
+     , history_sample_period(history_sample_period)
+     , prune_bars(prune_bars)
+     , mutex(mutex)
+     , bar_builder(bar_period, [this](const std::chrono::nanoseconds& end, double o, double h, double l, double c) {
+           std::cout << std::format("[{}] new bar end={} open={:.5f} high={:.5f} low={:.5f} close={:.5f}\n", symbol, common::to_string(end), o, h, l, c);
+           this->bars.try_emplace(end, end, o, h, l, c);
+        })
+     , history_bar_builder(current.timestamp, bar_period, [this](const std::chrono::nanoseconds& end, double o, double h, double l, double c) {
+           //std::cout << std::format("[{}] hist bar end={} open={:.5f} high={:.5f} low={:.5f} close={:.5f}\n", symbol, common::to_string(end), o, h, l, c);
+           this->bars.try_emplace(end, end, o, h, l, c);
+        })
+     , current(current)
+     , previous(current)
+     , oldest(current)
    {
       auto now = current.timestamp;
       top_of_books.try_emplace(now, current);
@@ -41,7 +41,7 @@ namespace common {
    void Market::simulate_next() {
       auto now = get_current_system_clock();
 
-      std::unique_lock<std::mutex> ul(mutex);
+      std::lock_guard<std::mutex> ul(mutex);
 
       previous = current;
       current = price_sampler->sample(current, now);
@@ -78,7 +78,7 @@ namespace common {
 
    void Market::extend_bars(const std::chrono::nanoseconds& past) {
       auto until = round_down(past, bar_period);
-      std::cout << std::format("extend_bars from {} until {}", to_string(oldest.timestamp), to_string(until)) << std::endl;
+      std::cout << std::format("====> extend_bars from {} until {}", to_string(oldest.timestamp), to_string(until)) << std::endl;
       std::lock_guard<std::mutex> ul(mutex);
       auto t = oldest.timestamp;
       while (t > until) {
@@ -206,7 +206,6 @@ namespace common {
       for (iAsk = ask_orders.begin(); iAsk != ask_orders.end(); ++iAsk)
          std::cout << iAsk->second << std::endl;
    }
-
 }
 
 

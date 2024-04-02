@@ -108,11 +108,11 @@ namespace common {
 
 		NetPosition& net_position(const std::string& symbol);
 
-		const_iterator get_pending_order(const std::string& cl_ord_id) const;
+		std::pair<typename OrderTracker::const_iterator, bool> get_pending_order(const std::string& cl_ord_id) const;
 
-		const_iterator get_open_order(const std::string& ord_id) const;
+		std::pair<typename OrderTracker::const_iterator, bool> get_open_order(const std::string& ord_id) const;
 
-		const_iterator get_history_order(const std::string& ord_id) const;
+		std::pair<typename OrderTracker::const_iterator, bool> get_history_order(const std::string& ord_id) const;
 
 		void process(const ExecReport& report);
 	};

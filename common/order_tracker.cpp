@@ -117,16 +117,19 @@ namespace common {
 		return it->second;
 	}
 
-	typename OrderTracker::const_iterator OrderTracker::get_pending_order(const std::string& cl_ord_id) const {
-		return pending_orders_by_cl_ord_id.find(cl_ord_id);
+	std::pair<typename OrderTracker::const_iterator, bool> OrderTracker::get_pending_order(const std::string& cl_ord_id) const {
+		auto it = pending_orders_by_cl_ord_id.find(cl_ord_id);
+		return std::make_pair(it, it != pending_orders_by_cl_ord_id.end());
 	}
 
-	typename OrderTracker::const_iterator OrderTracker::get_open_order(const std::string& ord_id) const {
-		return open_orders_by_ord_id.find(ord_id);
+	std::pair<typename OrderTracker::const_iterator, bool> OrderTracker::get_open_order(const std::string& ord_id) const {
+		auto it = open_orders_by_ord_id.find(ord_id);
+		return std::make_pair(it, it != open_orders_by_ord_id.end());
 	}
 
-	typename OrderTracker::const_iterator OrderTracker::get_history_order(const std::string& ord_id) const {
-		return history_orders_by_ord_id.find(ord_id);
+	std::pair<typename OrderTracker::const_iterator, bool> OrderTracker::get_history_order(const std::string& ord_id) const {
+		auto it = history_orders_by_ord_id.find(ord_id);
+		return std::make_pair(it, it != history_orders_by_ord_id.end());
 	}
 
 	void OrderTracker::process(const ExecReport& report) {

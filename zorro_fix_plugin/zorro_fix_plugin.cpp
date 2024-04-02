@@ -41,15 +41,34 @@ namespace zfix {
 	std::chrono::milliseconds fix_blocking_queue_waiting_time = 500ms;
 	std::string settings_cfg_file = "Plugin/zorro_fix_client.cfg";
 
-	int internalOrderId = 1000;
+	int internal_order_id = 1000;
 	auto time_in_force = FIX::TimeInForce_GOOD_TILL_CANCEL;
 
-	
 	std::shared_ptr<spdlog::logger> spd_logger = nullptr;
 	std::unique_ptr<zfix::FixThread> fix_thread = nullptr;
 	BlockingTimeoutQueue<ExecReport> exec_report_queue;
-	SpScQueue<TopOfBook> top_of_book_queue; // not yet used
+	BlockingTimeoutQueue<TopOfBook> top_of_book_queue;  
+	std::unordered_map<int, std::string> order_id_by_internal_order_id;
 	OrderTracker order_tracker("account");
+	std::unordered_map<std::string, TopOfBook> top_of_books;
+
+	int pop_exec_reports() {
+		auto n = exec_report_queue.pop_all(
+			[](const ExecReport& report) { 
+				order_tracker.process(report); 
+			}
+		);
+		return n;
+	}
+
+	int pop_top_of_books() {
+		auto n = top_of_book_queue.pop_all(
+			[](const TopOfBook& top) { 
+				top_of_books.insert(std::make_pair(top.symbol, top)); 
+			}
+		);
+		return n;
+	}
 
 	enum ExchangeStatus {
 		Unavailable = 0,
@@ -234,11 +253,12 @@ namespace zfix {
 
 		const auto time = get_current_system_clock();
 		show(std::format("BrokerTime {}", common::to_string(time)));
-		
-		auto n = exec_report_queue.pop_all([](const ExecReport& report) { order_tracker.process(report); });
+
+		auto n = pop_exec_reports();
 		show(std::format("BrokerTime {} exec reports processed", n));
 
-		// TODO eventually pull here from the top of book queue
+		auto m = pop_top_of_books();
+		show(std::format("BrokerTime {} top of book processed", m));
 
 		return ExchangeStatus::Open;
 	}
@@ -291,37 +311,45 @@ namespace zfix {
 
 				show(std::format("BrokerAsset: subscription request sent for symbol {}", Asset));
 
-				// we do a busy polling to wait for the market data snapshot arriving
-				auto count = 0;
-				auto start = std::chrono::system_clock::now();
-				while (true) {
-					if (count >= max_snaphsot_waiting_iterations) {
-						auto now = std::chrono::system_clock::now();
-						auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count();
-						throw std::runtime_error(std::format("failed to get snapshot in {}ms", ms));
-					}
-
-					auto success = fix_app.has_book(symbol);
-					if (success) {
-						show(std::format("BrokerAsset: subscribed to symbol {}", Asset));
-						break;
-					}
-
-					++count;
-					std::this_thread::sleep_for(100ms);
-
-					show(std::format("BrokerAsset: waiting for {} count={}", Asset, count));
+				TopOfBook top;
+				auto timeout = 2000;
+				bool success = top_of_book_queue.pop(top, std::chrono::milliseconds(timeout));
+				if (!success) {
+					throw std::runtime_error(std::format("failed to get snapshot in {}ms", timeout));
+				}
+				else {
+					show(std::format("BrokerAsset: subscription request obtained symbol {}", Asset));
+					return 1;
 				}
 
-				show(std::format("BrokerAsset: subscription request obtained symbol {}", Asset));
-
-				return 1;
+				// version with polling
+				//auto count = 0;
+				//auto start = std::chrono::system_clock::now();
+				//while (true) {
+				//	if (count >= max_snaphsot_waiting_iterations) {
+				//		auto now = std::chrono::system_clock::now();
+				//		auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count();
+				//		throw std::runtime_error(std::format("failed to get snapshot in {}ms", ms));
+				//	}
+				//	auto success = fix_app.has_book(symbol);
+				//	if (success) {
+				//		show(std::format("BrokerAsset: subscribed to symbol {}", Asset));
+				//		break;
+				//	}
+				//	++count;
+				//	std::this_thread::sleep_for(100ms);
+				//	show(std::format("BrokerAsset: waiting for {} count={}", Asset, count));
+				//}
 			}
 			else {
-				TopOfBook top = fix_app.top_of_book(Asset);
-				if (price) *price = top.mid();
-				if (spread) *spread = top.spread();
-				show(std::format("BrokerAsset: top bid={:.5f} ask={:.5f} @ {}", top.bid_price, top.ask_price, common::to_string(top.timestamp)));
+				pop_top_of_books();
+				auto it = top_of_books.find(Asset);
+				if (it != top_of_books.end()) {
+					const auto& top = it->second;
+					if (price) *price = top.mid();
+					if (spread) *spread = top.spread();
+					show(std::format("BrokerAsset: top bid={:.5f} ask={:.5f} @ {}", top.bid_price, top.ask_price, common::to_string(top.timestamp)));
+				}
 				return 1;
 			}
 		}
@@ -406,7 +434,8 @@ namespace zfix {
 		else
 			ord_type = FIX::OrdType_MARKET;
 
-		auto cl_ord_id = FIX::ClOrdID(std::to_string(internalOrderId));
+		++internal_order_id;
+		auto cl_ord_id = FIX::ClOrdID(std::to_string(internal_order_id));
 		auto side = amount > 0 ? FIX::Side(FIX::Side_BUY) : FIX::Side(FIX::Side_SELL);
 		auto qty = FIX::OrderQty(std::abs(amount));
 		auto limit_price = FIX::Price(limit);
@@ -423,43 +452,76 @@ namespace zfix {
 
 		if (!success) {
 			show("BrokerBuy2 timeout while waiting for FIX exec report!");
+			return 0;
 		}
 		else {
-
 			if (report.exec_type == FIX::ExecType_REJECTED) {
 				show(std::format("BrokerBuy2: rejected {}", report.to_string()));
+				return 0;
+			}
+			else if (report.cl_ord_id == cl_ord_id.getString()) {
+				order_id_by_internal_order_id.emplace(internal_order_id, report.order_id); // TODO remove the mappings at some point
+				order_tracker.process(report);
+
+				if (report.ord_status == FIX::OrdStatus_FILLED || report.ord_status == FIX::OrdStatus_PARTIALLY_FILLED) {
+					if (av_fill_price) {
+						*av_fill_price = report.avg_px;
+					}
+					if (fill_qty) {
+						*fill_qty = (int)report.cum_qty;  // assuming lot size
+					}
+				}
+
+				show(std::format("BrokerBuy2: processed {}", report.to_string()));
+
+				return internal_order_id;
 			}
 			else {
-				show(std::format("BrokerBuy2: {}", report.to_string()));
+				show(std::format("BrokerBuy2: report {} does belong to cl {}", report.to_string(), cl_ord_id.getString()));
+				return 0;
+
+				// TODO what should be done in this rare case?
+				// example: two orders at almost same time, 
+				// exec report of the second order arrives first 
+
 			}
+		}		
+	}
 
-			order_tracker.process(report);
+	DLLFUNC int BrokerTrade(int trade_id, double* open, double* close, double* cost, double* profit) {
+		spdlog::debug("BrokerTrade: {}", trade_id);
+		show(std::format("BrokerTrade: trade_id={}", trade_id));
 
-			if (report.ord_status == FIX::OrdStatus_FILLED || report.ord_status == FIX::OrdStatus_PARTIALLY_FILLED) {
-				if (av_fill_price) {
-					*av_fill_price = report.avg_px;
+		// pop all the exec reports and markeet data from the queue
+		pop_top_of_books();
+		pop_exec_reports();
+
+		auto it = order_id_by_internal_order_id.find(trade_id);
+		if (it != order_id_by_internal_order_id.end()) {
+			auto [oit, success] = order_tracker.get_open_order(it->second);
+			if (success) {
+				if (open) {
+					*open = oit->second.avg_px;
 				}
-				if (fill_qty) {
-					*fill_qty = (int)report.cum_qty;  // assuming lot size
+				if (profit) {
+					auto pit = top_of_books.find(oit->second.symbol);
+					if (pit != top_of_books.end()) {
+						*profit = oit->second.side == FIX::Side_BUY 
+							? (pit->second.ask_price - oit->second.avg_px) * oit->second.cum_qty
+							: (oit->second.avg_px - pit->second.bid_price) * oit->second.cum_qty;
+						*cost = 0; // TODO
+					}
 				}
+				return (int)oit->second.cum_qty;
 			}
-
-			return internalOrderId;
 		}
-			
-		return 0;
-	}
-
-	DLLFUNC int BrokerTrade(int nTradeID, double* pOpen, double* pClose, double* pCost, double* pProfit) {
-		spdlog::debug("BrokerTrade: {}", nTradeID);
-		show(std::format("BrokerTrade: nTradeID={}", nTradeID));
 
 		return 0;
 	}
 
-	DLLFUNC_C int BrokerSell2(int nTradeID, int nAmount, double Limit, double* pClose, double* pCost, double* pProfit, int* pFill) {
-		spdlog::debug("BrokerSell2 nTradeID={} nAmount{} limit={}", nTradeID, nAmount, Limit);
-		show(std::format("BrokerSell2: nTradeID={}", nTradeID));
+	DLLFUNC_C int BrokerSell2(int trade_id, int amount, double limit, double* close, double* cost, double* profit, int* fill) {
+		spdlog::debug("BrokerSell2 nTradeID={} nAmount{} limit={}", trade_id, amount, limit);
+		show(std::format("BrokerSell2: trade_id={}", trade_id));
 
 		return 0;
 	}

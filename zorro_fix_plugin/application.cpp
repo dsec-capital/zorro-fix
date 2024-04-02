@@ -26,7 +26,7 @@ namespace zfix {
 	Application::Application(
 		 const FIX::SessionSettings& session_settings,
 		 BlockingTimeoutQueue<ExecReport>& exec_report_queue,
-		 SpScQueue<TopOfBook>& top_of_book_queue
+		 BlockingTimeoutQueue<TopOfBook>& top_of_book_queue
 	) : session_settings(session_settings)
 	  , exec_report_queue(exec_report_queue)
 	  , top_of_book_queue(top_of_book_queue)
@@ -38,15 +38,17 @@ namespace zfix {
 
 	void Application::onLogon(const FIX::SessionID& sessionID)
 	{
-		SPDLOG_INFO("Application::onLogon {}", sessionID.toString());
 		sender_comp_id = session_settings.get(sessionID).getString("SenderCompID");
 		target_comp_id = session_settings.get(sessionID).getString("TargetCompID");
-		SPDLOG_INFO("senderCompID={}, targetCompID={}", sender_comp_id, target_comp_id);
+		spdlog::debug(
+			"Application::onLogon sessionID={}, senderCompID={}, targetCompID={}", 
+			sessionID.toString(), sender_comp_id, target_comp_id
+		);
 	}
 
 	void Application::onLogout(const FIX::SessionID& sessionID)
 	{
-		SPDLOG_INFO("Application::onLogout {}", sessionID.toString());
+		spdlog::debug("Application::onLogout {}", sessionID.toString());
 	}
 
 	void Application::fromAdmin(
@@ -60,7 +62,7 @@ namespace zfix {
 	void Application::fromApp(const FIX::Message& message, const FIX::SessionID& sessionID)
 		EXCEPT(FIX::FieldNotFound, FIX::IncorrectDataFormat, FIX::IncorrectTagValue, FIX::UnsupportedMessageType)
 	{
-		SPDLOG_INFO("IN fromApp: {}", fix_string(message));
+		spdlog::debug("IN fromApp: {}", fix_string(message));
 		crack(message, sessionID);
 	}
 
@@ -75,7 +77,7 @@ namespace zfix {
 		}
 		catch (FIX::FieldNotFound&) {}
 
-		SPDLOG_INFO("OUT toApp: {}", fix_string(message));
+		spdlog::debug("OUT toApp: {}", fix_string(message));
 	}
 
 	void Application::onMessage(const FIX44::MarketDataSnapshotFullRefresh& message, const FIX::SessionID&)
@@ -110,6 +112,10 @@ namespace zfix {
 			auto is_bid = type == FIX::MDEntryType_BID;
 			book->second.update_book(price, size, is_bid);
 		}
+
+		if (noMDEntries > 0) {
+			top_of_book_queue.push(book->second.top(book->first)); // publish snapshot related top of book
+		}
 	}
 
 	void Application::onMessage(const FIX44::MarketDataIncrementalRefresh& message, const FIX::SessionID&)
@@ -129,7 +135,9 @@ namespace zfix {
 
 		auto it = books.end();
 
-		std::unique_lock<std::mutex> ul(mutex);
+		std::unique_lock<std::mutex> ul(mutex); // TODO once all using queue the locking is not required and should be removed
+
+		bool updated = false;
 
 		for (int i = 1; i <= noMDEntries; ++i)
 		{
@@ -143,9 +151,12 @@ namespace zfix {
 			noMDEntriesGroup.get(action);
 
 			if (it == books.end() || it->first != symbol) {
+				if (it->first != symbol) {
+					top_of_book_queue.push(it->second.top(it->first)); // publish this one before next in case a new symbol starts
+				}
 				it = books.find(symbol);
 				if (it == books.end()) {
-					SPDLOG_ERROR("MarketDataIncrementalRefresh: no book for {} probably not subscribed? msg={}", symbol.getString(), fix_string(message));
+					spdlog::error("MarketDataIncrementalRefresh: no book for {} probably not subscribed? msg={}", symbol.getString(), fix_string(message));
 				}
 				it->second.set_timestamp(get_current_system_clock());
 			}
@@ -155,6 +166,10 @@ namespace zfix {
 				}
 				it->second.update_book(price, size, type == FIX::MDEntryType_BID);
 			}
+		}
+
+		if (it != books.end()) {
+			top_of_book_queue.push(it->second.top(it->first)); // publish if only one or last
 		}
 	}
 
@@ -213,7 +228,8 @@ namespace zfix {
 			text.getString()
 		);
 
-		order_tracker.process(report);
+		order_tracker.process(report); // we update a local tracker too, which is actually not needed
+
 		exec_report_queue.push(report);
 	}
 	
@@ -243,7 +259,7 @@ namespace zfix {
 		header.setField(FIX::SenderCompID(sender_comp_id));
 		header.setField(FIX::TargetCompID(target_comp_id));
 
-		SPDLOG_INFO("marketDataRequest: {}", fix_string(request));
+		spdlog::debug("marketDataRequest: {}", fix_string(request));
 
 		FIX::Session::sendToTarget(request);
 
@@ -281,7 +297,7 @@ namespace zfix {
 		header.setField(FIX::SenderCompID(sender_comp_id));
 		header.setField(FIX::TargetCompID(target_comp_id));
 
-		SPDLOG_INFO("newOrderSingle: {}" , fix_string(order));
+		spdlog::debug("newOrderSingle: {}" , fix_string(order));
 
 		FIX::Session::sendToTarget(order);
 
@@ -308,7 +324,7 @@ namespace zfix {
 		header.setField(FIX::SenderCompID(sender_comp_id));
 		header.setField(FIX::TargetCompID(target_comp_id));
 
-		SPDLOG_INFO("orderCancelRequest: {}", fix_string(request));
+		spdlog::debug("orderCancelRequest: {}", fix_string(request));
 
 		FIX::Session::sendToTarget(request);
 
@@ -340,7 +356,7 @@ namespace zfix {
 		header.setField(FIX::SenderCompID(sender_comp_id));
 		header.setField(FIX::TargetCompID(target_comp_id));
 
-		SPDLOG_INFO("orderCancelRequest: {}", fix_string(request));
+		spdlog::debug("orderCancelRequest: {}", fix_string(request));
 
 		FIX::Session::sendToTarget(request);
 
