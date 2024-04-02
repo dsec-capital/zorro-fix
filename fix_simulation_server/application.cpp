@@ -327,9 +327,9 @@ std::optional<FIX::Message> Application::get_update_message(
 		header.setField(FIX::TargetCompID(targetCompID));
 		return std::optional<FIX::Message>(message);
 	}
-}
+} 
 
-void Application::update_order(const Order& order, char status)
+void Application::update_order(const Order& order, char status, const std::string& text)
 {
 	FIX::TargetCompID targetCompID(order.get_owner());
 	FIX::SenderCompID senderCompID(order.get_target());
@@ -348,12 +348,15 @@ void Application::update_order(const Order& order, char status)
 	fixOrder.set(FIX::Symbol(order.get_symbol())); 
 	fixOrder.set(FIX::ClOrdID(order.get_client_id()));
 	fixOrder.set(FIX::OrderQty(order.get_quantity()));
-		
-	if (status == FIX::OrdStatus_FILLED || status == FIX::OrdStatus_PARTIALLY_FILLED)
-	{
+	fixOrder.set(FIX::OrdType(order.get_type() == Order::Type::limit ? FIX::OrdType_LIMIT : FIX::OrdType_MARKET));
+	if (order.get_type() == Order::Type::limit) {
+		fixOrder.set(FIX::Price(order.get_price()));
+	}
+	if (status == FIX::OrdStatus_FILLED || status == FIX::OrdStatus_PARTIALLY_FILLED || status == FIX::OrdStatus_NEW) {
 		fixOrder.set(FIX::LastQty(order.get_last_executed_quantity()));
 		fixOrder.set(FIX::LastPx(order.get_last_executed_price()));
 	}
+	fixOrder.set(FIX::Text(text));
 
 	try
 	{
@@ -364,25 +367,26 @@ void Application::update_order(const Order& order, char status)
 
 void Application::reject_order(const Order& order)
 {
-	update_order(order, FIX::OrdStatus_REJECTED);
+	update_order(order, FIX::OrdStatus_REJECTED, "");
 }
 
 void Application::accept_order(const Order& order)
 {
-	update_order(order, FIX::OrdStatus_NEW);
+	update_order(order, FIX::OrdStatus_NEW, "");
 }
 
 void Application::fill_order(const Order& order)
 {
 	update_order(
 		order,
-		order.isFilled() ? FIX::OrdStatus_FILLED : FIX::OrdStatus_PARTIALLY_FILLED
-	);
+		order.isFilled() ? FIX::OrdStatus_FILLED : FIX::OrdStatus_PARTIALLY_FILLED,
+		""
+	); 
 }
 
 void Application::cancel_order(const Order& order)
 {
-	update_order(order, FIX::OrdStatus_CANCELED);
+	update_order(order, FIX::OrdStatus_CANCELED, "");
 }
 
 void Application::reject_order(

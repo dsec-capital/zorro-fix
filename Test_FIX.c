@@ -17,7 +17,7 @@ function run() {
 	asset("EUR/USD");
 
 	BarPeriod = 1;
-	LookBack = 1440;
+	LookBack = 60;
 
 	Capital = 10000;
 

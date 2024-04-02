@@ -31,7 +31,7 @@ namespace common {
 		const std::string& get_owner() const;
 		const std::string& get_target() const;
 		Side get_side() const;
-		Type getType() const;
+		Type get_type() const;
 		double get_price() const;
 		long get_quantity() const;
 

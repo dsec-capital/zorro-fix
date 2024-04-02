@@ -39,7 +39,7 @@ namespace common {
 
 		Order::Side Order::get_side() const { return side; }
 
-		Order::Type Order::getType() const { return type; }
+		Order::Type Order::get_type() const { return type; }
 
 		double Order::get_price() const { return price; }
 
