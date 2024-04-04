@@ -1,6 +1,7 @@
 # Zorro FIX Plugin
 
-This project provides a [Zorro](https://zorro-project.com/) plugin for FIX. 
+This project provides a [Zorro](https://zorro-project.com/) plugin for 
+[FIX (version 4.4)](https://www.fixtrading.org/). 
 
 The project is work in progress. More testing is required. Also only a limited set of the
 standard FIX functionality is implemented:
@@ -15,8 +16,15 @@ standard FIX functionality is implemented:
     - OrderCancelReplaceRequest
     - ExecReport (in) 
 
-Edge cases and errors and rejects are handled in a rudimentary manner. 
+The project heavily relies on the [QuickFix](https://quickfixengine.org) open source library.
+Performance-wise it is not as fast as commercial FIX implementations but provides a straightforward
+API and application framework to develop FIX based server and client applications. 
+Some of the core building blocks, for example of the FIX server, are inspired from their examples. 
 
+Neigher the FIX client plugin nor the FIX server are complete. Edge cases and errors and rejects are 
+currently only handled in a rudimentary manner. 
+
+Contributions and feedback is very welcome. 
 
 
 ## Quick Start Tutorial
@@ -32,19 +40,34 @@ Before starting `Zorro` the simulation server must be started:
 fix_simulation_server.exe session.cfg market_config.toml
 ```
 
+The FIX session configuration `session.cfg` is the first argument. The second argument is the
+market configuration `market_config.toml`. These files are copied to the build directories 
+with a post build event. 
 
 ### Zorro Plugin
 
 Start `Zorro` as usual and check if there is a plugin with the name `_FixPlugin`. 
 This can be used with the `Test_FIX.c` trading script. 
 
+The FIX session configuration for the plugin must be in `zorro_fix_client.cfg`. It
+will be copied to the `Zorro` plugin directory `%ZorroInstallDir%\Plugin` with a post build event.
+
+
+## Online Resources
+
+In order to parse a FIX message string there are several online parsers like 
+
+  - [Esprow](https://www.esprow.com/fixtools/parser.php)
 
 
 ## Building QuickFix
 
-QuickFix can be built from source directly with Visual Studio 2022. The debug and release QuickFix libraries should be 
-copied into `third-parties\quickfix\x86-Debug` respectively `third-parties\quickfix\x86-Release`. Check also the 
-project configurations where the QuickFix libraries are expecrted to be found. 
+[QuickFix](https://github.com/quickfix/quickfix/) can be built from source directly with Visual Studio 2022. 
+
+The debug and release QuickFix libraries should be copied into `third-parties\quickfix\x86-Debug` respectively 
+`third-parties\quickfix\x86-Release`. 
+
+Check also the project configurations where the QuickFix libraries are expecrted to be found. 
 
 
 ## Configuration of Post Build Steps in Visual Studio
