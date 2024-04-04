@@ -5,18 +5,17 @@ This project provides a [Zorro](https://zorro-project.com/) plugin for FIX.
 The project is work in progress. More testing is required. Also only a limited set of the
 standard FIX functionality is implemented:
 
-    - Subscribe to (simulated) market data
-		- MarketDataRequest (out)
-		- MarketDataSnapshotFullRefresh (in)
-		- MarketDataIncrementalRefresh (in)
-	- Order execution
-		- NewOrderSingle
-		- OrderCancelRequest
-		- OrderCancelReplaceRequest
-		- ExecReport (in) 
+  - Subscribe to (simulated) market data
+    - MarketDataRequest (out)
+	- MarketDataSnapshotFullRefresh (in)
+	- MarketDataIncrementalRefresh (in)
+  - Order execution
+    - NewOrderSingle
+    - OrderCancelRequest
+    - OrderCancelReplaceRequest
+    - ExecReport (in) 
 
 Edge cases and errors and rejects are handled in a rudimentary manner. 
-
 
 
 
@@ -78,6 +77,13 @@ copy /y "$(ProjectDir)market_config.toml" "$(SolutionDir)$(Configuration)"
 
 ## Build Issues
 
-There is a build issue with spdlog on Windows reported on (GitHub)[https://github.com/gabime/spdlog/issues/3042].
+There is a build issue with spdlog on Windows reported on [GitHub](https://github.com/gabime/spdlog/issues/3042).
+It is addressed by adding 
+
+```
+#define _SILENCE_ALL_MS_EXT_DEPRECATION_WARNINGS
+``` 
+
+to the `pch.h` files where needed.
 
 
