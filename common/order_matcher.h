@@ -29,11 +29,11 @@ namespace common {
 
 		bool match(std::queue<Order>&);
 
-		bid_map_t bid_map(std::function<double(const Order&)> f) const;
+		bid_map_t bid_map(const std::function<double(const Order&)> &f) const;
 
-		ask_map_t ask_map(std::function<double(const Order&)> f) const;
+		ask_map_t ask_map(const std::function<double(const Order&)> &f) const;
 
-		void book_levels(std::function<double(const Order&)> f, level_vector_t& levels) const;
+		void book_levels(const std::function<double(const Order&)> &f, level_vector_t& levels) const;
 
 		void display() const;
 

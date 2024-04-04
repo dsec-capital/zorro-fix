@@ -98,7 +98,7 @@ namespace common {
       ask.execute(price, quantity);
    }
 
-   typename OrderMatcher::bid_map_t OrderMatcher::bid_map(std::function<double(const Order&)> f) const {
+   typename OrderMatcher::bid_map_t OrderMatcher::bid_map(const std::function<double(const Order&)>& f) const {
        bid_map_t bids;
        for (auto it = bid_orders.begin(); it != bid_orders.end(); ++it) {
            bids[it->first] += f(it->second);
@@ -106,7 +106,7 @@ namespace common {
        return bids;
    }
 
-   typename OrderMatcher::ask_map_t OrderMatcher::ask_map(std::function<double(const Order&)> f) const {
+   typename OrderMatcher::ask_map_t OrderMatcher::ask_map(const std::function<double(const Order&)>& f) const {
        ask_map_t asks;
        for (auto it = ask_orders.begin(); it != ask_orders.end(); ++it) {
            asks[it->first] += f(it->second);
@@ -114,7 +114,7 @@ namespace common {
        return asks;
    }
 
-   void OrderMatcher::book_levels(std::function<double(const Order&)> f, typename OrderMatcher::level_vector_t& levels) const {
+   void OrderMatcher::book_levels(const std::function<double(const Order&)>& f, typename OrderMatcher::level_vector_t& levels) const {
        bid_map_t bids = bid_map(f);
        ask_map_t asks = ask_map(f);
        levels.clear();

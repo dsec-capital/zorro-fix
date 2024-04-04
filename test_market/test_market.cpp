@@ -11,6 +11,13 @@ using namespace common;
 
 static int cl_ord_id = 0; 
 
+template<typename Op>
+void print(const OrderMatcher& matcher, Op op) {
+	OrderMatcher::level_vector_t levels;
+	matcher.book_levels(op, levels);
+	std::cout << to_string(levels) << std::endl;
+}
+
 Order create_order(
 	Order::Side side, double price, long quantity=100, Order::Type type=Order::Type::limit,
 	const std::string& owner="owner", const std::string& target="target") {
@@ -21,6 +28,10 @@ Order create_order(
 int main()
 {
     std::mutex mutex;
+
+	auto by_quantity = [](const Order& o) {return o.get_quantity(); };
+	auto by_open_quantity = [](const Order& o) {return o.get_open_quantity(); };
+	auto by_last_exec_quantity = [](const Order& o) {return o.get_last_executed_quantity(); };
 
     auto matcher = OrderMatcher(mutex);
 
@@ -33,12 +44,18 @@ int main()
 	matcher.insert(o2);
 	matcher.insert(o3);
 	matcher.insert(o4);
+	print(matcher, by_quantity);
 
-	OrderMatcher::level_vector_t levels;
-	matcher.book_levels([](const Order& o) {return o.get_quantity(); }, levels);
-	std::cout << to_string(levels);
+	auto ob = create_order(Order::Side::buy, 101, 20);
+	matcher.insert(ob);
+	print(matcher, by_quantity);
 
-	matcher.display();
+	std::queue<Order> q;
+	matcher.match(q);
+	print(matcher, by_last_exec_quantity);
+	print(matcher, by_open_quantity);
+
+	//matcher.display();
 
     std::cout << "done" << std::endl;
 }
