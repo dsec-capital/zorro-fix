@@ -64,7 +64,7 @@ namespace zfix
 			const FIX::OrderQty& orderQty
 		) const;
 
-		FIX::Message cancel_replace_request(
+		FIX::Message order_cancel_replace_request(
 			const FIX::Symbol& symbol,
 			const FIX::OrigClOrdID& origClOrdID,
 			const FIX::ClOrdID& clOrdId,

@@ -32,6 +32,17 @@ namespace zfix {
 	using namespace common;
 	using namespace std::chrono_literals;
 
+	enum ExchangeStatus {
+		Unavailable = 0,
+		Closed = 1,
+		Open = 2
+	};
+
+	enum BrokerLoginStatus {
+		LoggedOut = 0,
+		LoggedIn = 1
+	};
+
 	// http://localhost:8080/bars?symbol=AUD/USD
 	std::string rest_host = "http://localhost";
 	int rest_port = 8080;
@@ -41,6 +52,7 @@ namespace zfix {
 	std::chrono::milliseconds fix_blocking_queue_waiting_time = 500ms;
 	std::string settings_cfg_file = "Plugin/zorro_fix_client.cfg";
 
+	int client_order_id = 0;
 	int internal_order_id = 1000;
 	auto time_in_force = FIX::TimeInForce_GOOD_TILL_CANCEL;
 
@@ -70,11 +82,20 @@ namespace zfix {
 		return n;
 	}
 
-	enum ExchangeStatus {
-		Unavailable = 0,
-		Closed = 1,
-		Open = 2
-	};
+	int get_position_size(const std::string& symbol) {
+		auto np = order_tracker.net_position(symbol);
+		return (int)np.qty;
+	}
+
+	std::string next_client_order_id() {
+		++client_order_id;
+		return std::format("cl_ord_id_{}", client_order_id);
+	}
+
+	int next_internal_order_id() {
+		++internal_order_id;
+		return internal_order_id;
+	}
 
 	// From Zorro documentation:
 	//		If not stated otherwise, all dates and times reflect the time stamp of the Close price at the end of the bar. 
@@ -195,22 +216,22 @@ namespace zfix {
 				show("BrokerLogin: FIX service starting...");
 				fix_thread->start();
 				show("BrokerLogin: FIX service running");
-				return 1; // logged in status
+				return BrokerLoginStatus::LoggedIn;  
 			}
 			else {
 				show("BrokerLogin: FIX service stopping...");
 				fix_thread->cancel();
 				show("BrokerLogin: FIX service stopped");
-				return 0; // logged out status
+				return BrokerLoginStatus::LoggedOut; 
 			}
 		}
 		catch (std::exception& e) {
 			show(std::format("BrokerLogin: exception creating/starting FIX service {}", e.what()));
-			return 0;
+			return BrokerLoginStatus::LoggedOut;
 		}
 		catch (...) {
 			show("BrokerLogin: unknown exception");
-			return 0;
+			return BrokerLoginStatus::LoggedOut;
 		}
 	}
 
@@ -322,24 +343,24 @@ namespace zfix {
 					return 1;
 				}
 
-				// version with polling
-				//auto count = 0;
-				//auto start = std::chrono::system_clock::now();
-				//while (true) {
-				//	if (count >= max_snaphsot_waiting_iterations) {
-				//		auto now = std::chrono::system_clock::now();
-				//		auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count();
-				//		throw std::runtime_error(std::format("failed to get snapshot in {}ms", ms));
-				//	}
-				//	auto success = fix_app.has_book(symbol);
-				//	if (success) {
-				//		show(std::format("BrokerAsset: subscribed to symbol {}", Asset));
-				//		break;
-				//	}
-				//	++count;
-				//	std::this_thread::sleep_for(100ms);
-				//	show(std::format("BrokerAsset: waiting for {} count={}", Asset, count));
-				//}
+				// version with polling - to be removed
+				// auto count = 0;
+				// auto start = std::chrono::system_clock::now();
+				// while (true) {
+				// 	if (count >= max_snaphsot_waiting_iterations) {
+				// 		auto now = std::chrono::system_clock::now();
+				// 		auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count();
+				// 		throw std::runtime_error(std::format("failed to get snapshot in {}ms", ms));
+				// 	}
+				// 	auto success = fix_app.has_book(symbol);
+				// 	if (success) {
+				// 		show(std::format("BrokerAsset: subscribed to symbol {}", Asset));
+				// 		break;
+				// 	}
+				// 	++count;
+				// 	std::this_thread::sleep_for(100ms);
+				// 	show(std::format("BrokerAsset: waiting for {} count={}", Asset, count));
+				// }
 			}
 			else {
 				pop_top_of_books();
@@ -434,8 +455,7 @@ namespace zfix {
 		else
 			ord_type = FIX::OrdType_MARKET;
 
-		++internal_order_id;
-		auto cl_ord_id = FIX::ClOrdID(std::to_string(internal_order_id));
+		auto cl_ord_id = FIX::ClOrdID(next_client_order_id());
 		auto side = amount > 0 ? FIX::Side(FIX::Side_BUY) : FIX::Side(FIX::Side_SELL);
 		auto qty = FIX::OrderQty(std::abs(amount));
 		auto limit_price = FIX::Price(limit);
@@ -460,7 +480,8 @@ namespace zfix {
 				return 0;
 			}
 			else if (report.cl_ord_id == cl_ord_id.getString()) {
-				order_id_by_internal_order_id.emplace(internal_order_id, report.order_id); // TODO remove the mappings at some point
+				auto i_ord_id = next_internal_order_id();
+				order_id_by_internal_order_id.emplace(i_ord_id, report.order_id); // TODO remove the mappings at some point
 				order_tracker.process(report);
 
 				if (report.ord_status == FIX::OrdStatus_FILLED || report.ord_status == FIX::OrdStatus_PARTIALLY_FILLED) {
@@ -474,7 +495,7 @@ namespace zfix {
 
 				show(std::format("BrokerBuy2: processed {}", report.to_string()));
 
-				return internal_order_id;
+				return i_ord_id;
 			}
 			else {
 				show(std::format("BrokerBuy2: report {} does belong to cl {}", report.to_string(), cl_ord_id.getString()));
@@ -492,7 +513,7 @@ namespace zfix {
 		spdlog::debug("BrokerTrade: {}", trade_id);
 		show(std::format("BrokerTrade: trade_id={}", trade_id));
 
-		// pop all the exec reports and markeet data from the queue
+		// pop all the exec reports and markeet data from the queue to have up to date information
 		pop_top_of_books();
 		pop_exec_reports();
 
@@ -523,11 +544,84 @@ namespace zfix {
 		spdlog::debug("BrokerSell2 nTradeID={} nAmount{} limit={}", trade_id, amount, limit);
 		show(std::format("BrokerSell2: trade_id={}", trade_id));
 
+		auto it = order_id_by_internal_order_id.find(trade_id);
+		if (it != order_id_by_internal_order_id.end()) {
+			auto [oit, success] = order_tracker.get_open_order(it->second);
+			if (success) {
+				auto& order = oit->second;
+
+				if (order.ord_status == FIX::OrdStatus_FILLED) {
+					double close_price;
+					int close_fill;
+					int signed_qty = (int)(order.side == FIX::Side_BUY ? -order.cum_qty : order.cum_qty);
+					auto trade_id_close = BrokerBuy2(
+						const_cast<char*>(order.symbol.c_str()), 
+						signed_qty, 0, limit, &close_price, &close_fill
+					);
+
+					if (trade_id_close) {
+						auto cit = order_id_by_internal_order_id.find(trade_id_close);
+						if (cit != order_id_by_internal_order_id.end()) {
+							auto [coit, success] = order_tracker.get_open_order(cit->second);
+							auto& close_order = coit->second;
+							if (close) {
+								*close = close_order.avg_px;
+							}
+							if (fill) {
+								*fill = (int)close_order.cum_qty;
+							}
+							if (profit) {
+								*profit = (close_order.avg_px - order.avg_px) * close_order.cum_qty;
+							}
+						}
+						trade_id;
+					}
+					return 0;
+				}
+				else {
+					auto symbol = FIX::Symbol(order.symbol);
+					auto orig_cl_ord_id = FIX::OrigClOrdID(order.cl_ord_id);
+					auto cl_ord_id = FIX::ClOrdID(next_client_order_id());
+					auto side = FIX::Side(order.side);
+					auto ord_type = FIX::OrdType(order.ord_type);
+
+					if (std::abs(amount) >= order.order_qty) {
+						show(std::format("BrokerSell2: cancel working order"));
+
+						auto msg = fix_thread->fix_app().order_cancel_request(
+							symbol, orig_cl_ord_id, cl_ord_id, side, FIX::OrderQty(order.leaves_qty)
+						);
+						return trade_id;
+					}
+					else {
+						int leaves_qty = (int)order.leaves_qty;
+						auto target_qty = leaves_qty - std::abs(amount);
+
+						show(std::format(
+							"BrokerSell2: cancel/replace working order from leaves_qty={} to target_qty={}",
+							leaves_qty, target_qty
+						));
+
+						auto new_qty = max(target_qty, 0);
+						auto msg = fix_thread->fix_app().order_cancel_replace_request(
+							symbol, orig_cl_ord_id, cl_ord_id, side, ord_type, 
+							FIX::OrderQty(new_qty), FIX::Price(order.price)
+						);
+
+						return trade_id;
+					}
+				}
+			}
+		}
+		else {
+			show(std::format("BrokerSell2: mapping not found for trade_id={} ", trade_id));
+		}
+
 		return 0;
 	}
 
 	// https://zorro-project.com/manual/en/brokercommand.htm
-	DLLFUNC double BrokerCommand(int command, DWORD dwParameter) {
+	DLLFUNC double BrokerCommand(int command, DWORD dw_parameter) {
 		show(std::format("BrokerCommand {}[{}]", broker_command_string(command), command));
 
 		switch (command)
@@ -548,28 +642,27 @@ namespace zfix {
 			return 1;
 
 		case GET_POSITION: {
-
-			return 0;
+			return get_position_size((const char*)dw_parameter);
 			break;
 		}
 
 		case SET_ORDERTEXT: {
-			return dwParameter;
+			return dw_parameter;
 		}
 
 		case SET_SYMBOL: {
-			auto s_asset = (char*)dwParameter;
+			auto s_asset = (char*)dw_parameter;
 			return 1;
 		}
 
 		case SET_MULTIPLIER: {
-			auto s_multiplier = (int)dwParameter;
+			auto s_multiplier = (int)dw_parameter;
 			return 1;
 		}
 
 		// return 0 for not supported							
 		case SET_ORDERTYPE: {
-			switch ((int)dwParameter) {
+			switch ((int)dw_parameter) {
 			case 0:
 				return 0; 
 			case ORDERTYPE_IOC:
@@ -589,36 +682,36 @@ namespace zfix {
 			}
 
 			// additional stop order 
-			if ((int)dwParameter >= 8) {
+			if ((int)dw_parameter >= 8) {
 				return 0; 
 			}
 
-			spdlog::debug("SET_ORDERTYPE: {}", (int)dwParameter);
-			return (int)dwParameter;
+			spdlog::debug("SET_ORDERTYPE: {}", (int)dw_parameter);
+			return (int)dw_parameter;
 		}
 
 		case GET_PRICETYPE:
 			return 0;
 
 		case SET_PRICETYPE: {
-			auto s_priceType = (int)dwParameter;
+			auto s_priceType = (int)dw_parameter;
 			spdlog::debug("SET_PRICETYPE: {}", s_priceType);
-			return dwParameter;
+			return dw_parameter;
 		}
 
 		case GET_VOLTYPE:
 			return 0;
 
 		case SET_AMOUNT: {
-			auto s_amount = *(double*)dwParameter;
+			auto s_amount = *(double*)dw_parameter;
 			spdlog::debug("SET_AMOUNT: {}", s_amount);
 			break;
 		}
 
 		case SET_DIAGNOSTICS: {
-			if ((int)dwParameter == 1 || (int)dwParameter == 0) {
-				spdlog::set_level((int)dwParameter ? spdlog::level::debug : spdlog::level::info);
-				return dwParameter;
+			if ((int)dw_parameter == 1 || (int)dw_parameter == 0) {
+				spdlog::set_level((int)dw_parameter ? spdlog::level::debug : spdlog::level::info);
+				return dw_parameter;
 			}
 			break;
 		}
@@ -632,22 +725,22 @@ namespace zfix {
 			return 500;
 
 		case SET_LEVERAGE: {
-			spdlog::debug("BrokerCommand: SET_LEVERAGE param={}", (int)dwParameter);
+			spdlog::debug("BrokerCommand: SET_LEVERAGE param={}", (int)dw_parameter);
 			break;
 		}
 
 		case SET_LIMIT: {
-			auto limit = *(double*)dwParameter;
+			auto limit = *(double*)dw_parameter;
 			spdlog::debug("BrokerCommand: SET_LIMIT param={}", limit);
 			break;
 		}
 
 		case SET_FUNCTIONS:
-			spdlog::debug("BrokerCommand: SET_FUNCTIONS param={}", (int)dwParameter);
+			spdlog::debug("BrokerCommand: SET_FUNCTIONS param={}", (int)dw_parameter);
 			break;
 
 		default:
-			spdlog::debug("BrokerCommand: unhandled command {} param={}", command, dwParameter);
+			spdlog::debug("BrokerCommand: unhandled command {} param={}", command, dw_parameter);
 			break;
 		}
 

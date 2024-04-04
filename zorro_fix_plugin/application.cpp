@@ -326,7 +326,7 @@ namespace zfix {
 		return request;
 	}
 
-	FIX::Message Application::cancel_replace_request(
+	FIX::Message Application::order_cancel_replace_request(
 		const FIX::Symbol& symbol,
 		const FIX::OrigClOrdID& origClOrdID,
 		const FIX::ClOrdID& clOrdID,
