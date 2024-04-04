@@ -2,8 +2,8 @@
 #define APPLICATION_H
 
 #include "common/order.h"
+#include "common/markets.h"
 #include "common/id_generator.h"
-#include "common/order_matcher.h"
 
 #include <queue>
 #include <iostream>
@@ -26,10 +26,10 @@ class Application: public FIX::Application, public FIX::MessageCracker
 {
 public:
 	Application(
-		std::map<std::string, Market>& market,
-		std::chrono::milliseconds market_update_period,
-		FIX::Log *logger, 
-		std::mutex& mutex
+		 std::map<std::string, Market>& market,
+		 std::chrono::milliseconds market_update_period,
+		 FIX::Log *logger, 
+		 std::mutex& mutex
 	) : logger(logger)
      , order_matcher(market)
 	  , market_update_period(market_update_period)
@@ -42,7 +42,7 @@ public:
 
 	void stop_market_data_updates();
 
-	const OrderMatcher& get_order_matcher();
+	const Markets& get_order_matcher();
 
 private:
 
@@ -125,7 +125,7 @@ private:
 	);
 
 	IDGenerator generator;
-	OrderMatcher order_matcher;
+	Markets order_matcher;
 	std::chrono::milliseconds market_update_period;
 
 	FIX::Log* logger;

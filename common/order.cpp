@@ -55,9 +55,9 @@ namespace common {
 
 		long Order::get_last_executed_quantity() const { return last_executed_quantity; }
 
-		bool Order::isFilled() const { return quantity == executed_quantity; }
+		bool Order::is_filled() const { return quantity == executed_quantity; }
 
-		bool Order::isClosed() const { return open_quantity == 0; }
+		bool Order::is_closed() const { return open_quantity == 0; }
 
 		void Order::execute(double price, long quantity)
 		{

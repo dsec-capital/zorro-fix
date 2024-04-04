@@ -1,9 +1,7 @@
 #ifndef MARKET_DATA_H
 #define MARKET_DATA_H
 
-#include <string>
-#include <iomanip>
-#include <ostream>
+#include "pch.h"
 
 #include "time_utils.h"
 
@@ -11,6 +9,13 @@ namespace common {
 
 	const uint32_t TO_PIPS = 10000;
 	const uint32_t TO_POINTS = 10 * TO_PIPS;
+
+	struct BookLevel {
+		double bid_price{ NAN };
+		double bid_volume{0};
+		double ask_price{ NAN };
+		double ask_volume{0};
+	};
 
 	class TopOfBook
 	{

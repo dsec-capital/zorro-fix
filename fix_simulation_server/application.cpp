@@ -379,7 +379,7 @@ void Application::fill_order(const Order& order)
 {
 	update_order(
 		order,
-		order.isFilled() ? FIX::OrdStatus_FILLED : FIX::OrdStatus_PARTIALLY_FILLED,
+		order.is_filled() ? FIX::OrdStatus_FILLED : FIX::OrdStatus_PARTIALLY_FILLED,
 		""
 	); 
 }
@@ -505,7 +505,7 @@ FIX::OrdType Application::convert(Order::Type type)
 	}
 }
 
-const OrderMatcher& Application::get_order_matcher() {
+const Markets& Application::get_order_matcher() {
 	return order_matcher;
 }
 

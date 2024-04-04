@@ -14,16 +14,16 @@
 using namespace common;
 
 
-class OrderMatcher {
+class Markets {
 public:
-	typedef std::map<std::string, Market> Markets;
+	typedef std::map<std::string, Market> market_map_t;
 
-	OrderMatcher(Markets& markets, FIX::Log* logger)
+	Markets(market_map_t& markets, FIX::Log* logger)
 		: m_markets(markets)
 		, m_logger(logger)
 	{}
 
-	Markets::iterator getMarket(const std::string& symbol) {
+	market_map_t::iterator getMarket(const std::string& symbol) {
 		auto it = m_markets.find(symbol);
 		if (it == m_markets.end()) {
 			throw std::runtime_error(std::format("no market defined for symbol {}", symbol));
@@ -39,28 +39,28 @@ public:
 
 	void erase(const Order& order)
 	{
-		Markets::iterator i = m_markets.find(order.getSymbol());
+		market_map_t::iterator i = m_markets.find(order.getSymbol());
 		if (i == m_markets.end()) return;
 		i->second.erase(order);
 	}
 
 	Order& find(std::string symbol, Order::Side side, std::string id)
 	{
-		Markets::iterator i = m_markets.find(symbol);
+		market_map_t::iterator i = m_markets.find(symbol);
 		if (i == m_markets.end()) throw std::exception();
 		return i->second.find(side, id);
 	}
 
 	bool match(std::string symbol, std::queue<Order>& orders)
 	{
-		Markets::iterator i = m_markets.find(symbol);
+		market_map_t::iterator i = m_markets.find(symbol);
 		if (i == m_markets.end()) return false;
 		return i->second.match(orders);
 	}
 
 	bool match(std::queue<Order>& orders)
 	{
-		Markets::iterator i;
+		market_map_t::iterator i;
 		for (i = m_markets.begin(); i != m_markets.end(); ++i)
 			i->second.match(orders);
 		return orders.size() != 0;
@@ -68,7 +68,7 @@ public:
 
 	void display(std::string symbol) const
 	{
-		Markets::const_iterator i = m_markets.find(symbol);
+		market_map_t::const_iterator i = m_markets.find(symbol);
 		if (i == m_markets.end()) return;
 		i->second.display();
 	}
@@ -78,12 +78,12 @@ public:
 		std::cout << "SYMBOLS:" << std::endl;
 		std::cout << "--------" << std::endl;
 
-		Markets::const_iterator i;
+		market_map_t::const_iterator i;
 		for (i = m_markets.begin(); i != m_markets.end(); ++i)
 			std::cout << i->first << std::endl;
 	}
 
-	Markets& m_markets;
+	market_map_t& m_markets;
 	FIX::Log* m_logger;
 
 };

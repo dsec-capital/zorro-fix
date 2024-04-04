@@ -1,89 +1,58 @@
-#ifndef ORDERMATCHER_H
-#define ORDERMATCHER_H
+#ifndef ORDER_MATCHER_H
+#define ORDER_MATCHER_H
 
-#include <map>
-#include <iostream>
-#include <random>
-#include <thread>
-#include <chrono>
+#include "pch.h"
 
-#include "market.h"
+#include "order.h"
+#include "market_data.h"
 
 namespace common {
 
-	class OrderMatcher {
+	class OrderMatcher
+	{
 	public:
-		typedef std::map<std::string, Market> Markets;
+		typedef std::map<double, double, std::greater<double>> bid_map_t;
+		typedef std::map<double, double, std::less<double>> ask_map_t;
+		typedef std::vector<BookLevel> level_vector_t;
 
-		OrderMatcher(
-			Markets& markets
-		)
-			: markets(markets)
-		{}
+		explicit OrderMatcher(std::mutex& mutex);
 
-		Markets::iterator get_market(const std::string& symbol) {
-			auto it = markets.find(symbol);
-			if (it == markets.end()) {
-				throw std::runtime_error(std::format("no market defined for symbol {}", symbol));
-			}
-			return it;
-		}
+		OrderMatcher(const OrderMatcher&) = delete;
 
-		bool insert(const Order& order)
-		{
-			auto it = get_market(order.get_symbol());
-			return it->second.insert(order);
-		}
+		OrderMatcher& operator= (const OrderMatcher&) = delete;
 
-		void erase(const Order& order)
-		{
-			Markets::iterator i = markets.find(order.get_symbol());
-			if (i == markets.end()) return;
-			i->second.erase(order);
-		}
+		bool insert(const Order& order);
 
-		Order& find(std::string symbol, Order::Side side, std::string id)
-		{
-			Markets::iterator i = markets.find(symbol);
-			if (i == markets.end()) throw std::exception();
-			return i->second.find(side, id);
-		}
+		void erase(const Order& order);
 
-		bool match(std::string symbol, std::queue<Order>& orders)
-		{
-			Markets::iterator i = markets.find(symbol);
-			if (i == markets.end()) return false;
-			return i->second.match(orders);
-		}
+		Order& find(Order::Side side, std::string id);
 
-		bool match(std::queue<Order>& orders)
-		{
-			Markets::iterator i;
-			for (i = markets.begin(); i != markets.end(); ++i)
-				i->second.match(orders);
-			return orders.size() != 0;
-		}
+		bool match(std::queue<Order>&);
 
-		void display(std::string symbol) const
-		{
-			Markets::const_iterator i = markets.find(symbol);
-			if (i == markets.end()) return;
-			i->second.display();
-		}
+		bid_map_t bid_map(std::function<double(const Order&)> f) const;
 
-		void display() const
-		{
-			std::cout << "SYMBOLS:" << std::endl;
-			std::cout << "--------" << std::endl;
+		ask_map_t ask_map(std::function<double(const Order&)> f) const;
 
-			Markets::const_iterator i;
-			for (i = markets.begin(); i != markets.end(); ++i)
-				std::cout << i->first << std::endl;
-		}
+		void book_levels(std::function<double(const Order&)> f, level_vector_t& levels) const;
 
-		Markets& markets;
+		void display() const;
+
+	private:
+		// note: insertion order is only maintained for elements with  
+		// identical keys, which properly implements price time priority 
+		typedef std::multimap<double, Order, std::greater<double>> bid_order_map_t;
+		typedef std::multimap<double, Order, std::less<double>> ask_order_map_t;
+
+		void match(Order& bid, Order& ask);
+
+		std::mutex& mutex;
+
+		std::queue<Order> order_updates;
+		bid_order_map_t bid_orders;
+		ask_order_map_t ask_orders;
 	};
 
+	std::string to_string(const typename OrderMatcher::level_vector_t& levels);
 }
 
 #endif

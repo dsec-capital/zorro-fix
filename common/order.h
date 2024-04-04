@@ -41,8 +41,8 @@ namespace common {
 		double get_last_executed_price() const;
 		long get_last_executed_quantity() const;
 
-		bool isFilled() const;
-		bool isClosed() const;
+		bool is_filled() const;
+		bool is_closed() const;
 
 		void execute(double price, long quantity);
 

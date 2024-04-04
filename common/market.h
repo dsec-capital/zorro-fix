@@ -6,11 +6,12 @@
 #include <string>
 #include <functional>
 #include <mutex>
-#include <bitset>
+#include <chrono>
 
 #include "nlohmann/json.h"
 
 #include "order.h"
+#include "order_matcher.h"
 #include "market_data.h"
 #include "price_sampler.h"
 #include "bar_builder.h"
@@ -18,7 +19,7 @@
 
 namespace common {
 
-	class Market
+	class Market : public OrderMatcher
 	{
 	public:
 		explicit Market(
@@ -35,32 +36,17 @@ namespace common {
 
 		Market& operator= (const Market&) = delete;
 
-		bool insert(const Order& order);
-
-		void erase(const Order& order);
-
-		Order& find(Order::Side side, std::string id);
-
-		bool match(std::queue<Order>&);
-
-		void display() const;
-
 		void simulate_next();
 
 		std::pair<TopOfBook, TopOfBook> get_top_of_book() const;
 
-		void extend_bars(const std::chrono::nanoseconds& until_past);
+		void extend_bar_history(const std::chrono::nanoseconds& until_past);
 
 		std::tuple<std::chrono::nanoseconds, std::chrono::nanoseconds, size_t> get_bar_range() const;
 
 		std::pair<nlohmann::json, int> get_bars_as_json(const std::chrono::nanoseconds& from, const std::chrono::nanoseconds& to);
 
 	private:
-		typedef std::multimap<double, Order, std::greater<double>> BidOrders;
-		typedef std::multimap<double, Order, std::less<double>> AskOrders;
-
-		void match(Order& bid, Order& ask);
-
 		std::string symbol;
 		std::shared_ptr<PriceSampler> price_sampler;
 		std::chrono::nanoseconds bar_period;
@@ -77,10 +63,6 @@ namespace common {
 		TopOfBook oldest;
 		std::map<std::chrono::nanoseconds, TopOfBook> top_of_books;
 		std::map<std::chrono::nanoseconds, Bar> bars;
-
-		std::queue<Order> order_updates;
-		BidOrders bid_orders;
-		AskOrders ask_orders;
 	};
 
 }
