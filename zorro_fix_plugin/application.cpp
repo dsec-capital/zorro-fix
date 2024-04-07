@@ -24,9 +24,9 @@ namespace zfix {
 	}
 
 	Application::Application(
-		 const FIX::SessionSettings& session_settings,
-		 BlockingTimeoutQueue<ExecReport>& exec_report_queue,
-		 BlockingTimeoutQueue<TopOfBook>& top_of_book_queue
+		const FIX::SessionSettings& session_settings,
+		BlockingTimeoutQueue<ExecReport>& exec_report_queue,
+		BlockingTimeoutQueue<TopOfBook>& top_of_book_queue
 	) : session_settings(session_settings)
 	  , exec_report_queue(exec_report_queue)
 	  , top_of_book_queue(top_of_book_queue)

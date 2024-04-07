@@ -30,13 +30,10 @@ void Application::run_market_data_update() {
 
 		for (auto& [symbol, market] : order_matcher.markets) {
 			market.simulate_next();
+			auto top = market.get_top_of_book();
 			auto it = market_data_subscriptions.find(symbol);
 			if (it != market_data_subscriptions.end()) {
-				auto message = get_update_message(
-					it->second.first, 
-					it->second.second, 
-					market.get_top_of_book()
-				);
+				auto message = get_update_message(it->second.first, it->second.second, top);
 				if (message.has_value()) {
 					FIX::Session::sendToTarget(message.value());
 				}
@@ -377,11 +374,8 @@ void Application::accept_order(const Order& order)
 
 void Application::fill_order(const Order& order)
 {
-	update_order(
-		order,
-		order.is_filled() ? FIX::OrdStatus_FILLED : FIX::OrdStatus_PARTIALLY_FILLED,
-		""
-	); 
+	auto status = order.is_filled() ? FIX::OrdStatus_FILLED : FIX::OrdStatus_PARTIALLY_FILLED;
+	update_order(order, status, ""); 
 }
 
 void Application::cancel_order(const Order& order)
@@ -431,21 +425,26 @@ void Application::reject_order(
 
 void Application::process_order(const Order& order)
 {
-	if (order_matcher.insert(order))
-	{
-		accept_order(order);
+	std::queue<Order> orders;
+	auto [inserted_order_ptr, error, num_matches] = order_matcher.insert(order, orders);
 
-		std::queue<Order> orders;
-		order_matcher.match(order.get_symbol(), orders);
-
-		while (orders.size())
-		{
-			fill_order(orders.front());
-			orders.pop();
-		}
-	}
-	else
+	if (error) {
+		assert(orders.empty());
 		reject_order(order);
+		return;
+	} 
+
+	// we have a new or partial fill 
+	if (inserted_order_ptr != nullptr) {
+		accept_order(order);
+	}
+
+	// handle the partial fills and full fills here
+	while (orders.size())
+	{
+		fill_order(orders.front());
+		orders.pop();
+	}
 }
 
 void Application::process_cancel(const std::string& id,

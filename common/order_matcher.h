@@ -21,7 +21,7 @@ namespace common {
 
 		OrderMatcher& operator= (const OrderMatcher&) = delete;
 
-		int insert(const Order& order, std::queue<Order>& orders);
+		std::tuple<const Order*, bool, int> insert(const Order& order, std::queue<Order>& orders);
 
 		int match(Order& order, std::queue<Order>&);
 
@@ -48,10 +48,6 @@ namespace common {
 		// identical keys, which properly implements price time priority 
 		typedef std::multimap<double, Order, std::greater<double>> bid_order_map_t;
 		typedef std::multimap<double, Order, std::less<double>> ask_order_map_t;
-
-		bool match(std::queue<Order>&);
-
-		void match(Order& bid, Order& ask);
 
 		std::mutex& mutex;
 

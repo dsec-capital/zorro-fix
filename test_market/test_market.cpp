@@ -10,7 +10,7 @@
 
 using namespace common;
 
-#define SYMBOL "APPL"
+constexpr auto SYMBOL = "APPL";
 
 static int cl_ord_id = 0; 
 
@@ -125,7 +125,8 @@ void test_quoting() {
 
 		auto m = 0;
 		for (auto& o : new_orders) {
-			m += matcher.insert(o, order_q);
+			auto [op, error, dm] = matcher.insert(o, order_q);
+			m += dm;
 		}
 
 		// should not have any matches

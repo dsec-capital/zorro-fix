@@ -173,6 +173,7 @@
     <ClCompile Include="book.cpp" />
     <ClCompile Include="exec_report.cpp" />
     <ClCompile Include="market.cpp" />
+    <ClCompile Include="markets.cpp" />
     <ClCompile Include="order.cpp" />
     <ClCompile Include="order_matcher.cpp" />
     <ClCompile Include="order_tracker.cpp" />

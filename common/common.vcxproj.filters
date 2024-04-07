@@ -98,6 +98,9 @@
     <ClCompile Include="order_matcher.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="markets.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="market_config.toml" />
