@@ -113,6 +113,11 @@ namespace common {
            );;
            OrderMatcher::insert(ask_order, orders);
        }
+
+       std::cout << std::format("update_quotes {} by_open_quantity", symbol) << std::endl;
+       print_levels(*this, OrderMatcher::by_open_quantity);
+       std::cout << std::format("update_quotes {} by_last_exec_quantity", symbol) << std::endl;
+       print_levels(*this, OrderMatcher::by_last_exec_quantity);
    }
 
    std::pair<TopOfBook, TopOfBook> Market::get_top_of_book() const {

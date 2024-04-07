@@ -57,6 +57,13 @@ namespace common {
 	};
 
 	std::string to_string(const typename OrderMatcher::level_vector_t& levels);
+
+	template<typename Op>
+	inline void print_levels(const OrderMatcher& matcher, Op op) {
+		OrderMatcher::level_vector_t levels;
+		matcher.book_levels(op, levels);
+		std::cout << to_string(levels) << std::endl;
+	}
 }
 
 #endif

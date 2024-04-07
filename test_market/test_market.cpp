@@ -20,13 +20,6 @@ auto by_quantity = [](const Order& o) {return o.get_quantity(); };
 auto by_open_quantity = [](const Order& o) {return o.get_open_quantity(); };
 auto by_last_exec_quantity = [](const Order& o) {return o.get_last_executed_quantity(); };
 
-template<typename Op>
-void print_levels(const OrderMatcher& matcher, Op op) {
-	OrderMatcher::level_vector_t levels;
-	matcher.book_levels(op, levels);
-	std::cout << to_string(levels) << std::endl;
-}
-
 Order create_order(
 	Order::Side side, 
 	double price, 
