@@ -16,15 +16,15 @@ standard FIX functionality is implemented:
     - OrderCancelReplaceRequest
     - ExecReport (in) 
 
-The project heavily relies on the [QuickFix](https://quickfixengine.org) open source library.
+The project depends on the [QuickFix](https://quickfixengine.org) open source library.
 Performance-wise it is not as fast as commercial FIX implementations but provides a straightforward
 API and application framework to develop FIX based server and client applications. 
-Some of the core building blocks, for example of the FIX server, are inspired from their examples. 
+Some of the core building blocks and `fix_sumulation_server` are inspired from their examples. 
 
-Neigher the FIX client plugin nor the FIX server are complete. Edge cases and errors and rejects are 
+Neither the FIX client plugin nor the FIX server are complete. Edge cases and errors and rejects are 
 currently only handled in a rudimentary manner. 
 
-Contributions and feedback is very welcome. 
+Contributions and feedback are very welcome. 
 
 
 ## Quick Start Tutorial
@@ -49,13 +49,13 @@ with a post build event.
 Start `Zorro` as usual and check if there is a plugin with the name `_FixPlugin`. 
 This can be used with the `Test_FIX.c` trading script. 
 
-The FIX session configuration for the plugin must be in `zorro_fix_client.cfg`. It
+The FIX session configuration for the plugin is specified in `zorro_fix_client.cfg`. The file
 will be copied to the `Zorro` plugin directory `%ZorroInstallDir%\Plugin` with a post build event.
 
 
 ## Online Resources
 
-In order to parse a FIX message string there are several online parsers like 
+In order to parse a FIX message string there are several online parsers such as 
 
   - [Esprow](https://www.esprow.com/fixtools/parser.php)
 
