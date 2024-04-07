@@ -31,7 +31,7 @@ public:
 		 FIX::Log *logger, 
 		 std::mutex& mutex
 	) : logger(logger)
-     , order_matcher(market)
+     , markets(market)
 	  , market_update_period(market_update_period)
 	  , mutex(mutex)
 	{}
@@ -125,7 +125,7 @@ private:
 	);
 
 	IDGenerator generator;
-	Markets order_matcher;
+	Markets markets;
 	std::chrono::milliseconds market_update_period;
 
 	FIX::Log* logger;

@@ -33,6 +33,28 @@ namespace common {
      , current(current)
      , previous(current)
      , oldest(current)
+     , quoting(false)
+     , cl_ord_id(1)
+     , bid_order(
+         quoting_cl_ord_id(),
+         symbol, 
+         OWNER_MARKET_SIMULATOR, 
+         "", 
+         Order::Side::buy, 
+         Order::Type::limit, 
+         current.bid_price, 
+         (long)current.bid_volume
+       )
+     , ask_order(
+         quoting_cl_ord_id(),
+         symbol,
+         OWNER_MARKET_SIMULATOR,
+         "",
+         Order::Side::sell,
+         Order::Type::limit,
+         current.ask_price,
+         (long)current.ask_volume
+     )
    {
       auto now = current.timestamp;
       top_of_books.try_emplace(now, current);
@@ -60,6 +82,37 @@ namespace common {
             bars.erase(bars.begin());
          }
       }
+   }
+
+   void Market::update_quotes(const TopOfBook& current, const TopOfBook& previous, std::queue<Order>& orders) {
+       if (previous.bid_price != current.bid_price) {
+           OrderMatcher::erase(bid_order);
+           bid_order = Order(
+               quoting_cl_ord_id(),
+               symbol,
+               OWNER_MARKET_SIMULATOR,
+               "",
+               Order::Side::buy,
+               Order::Type::limit,
+               current.bid_price,
+               (long)current.bid_volume
+           );
+           OrderMatcher::insert(bid_order, orders);  
+       }
+       if (previous.ask_price != current.ask_price) {
+           OrderMatcher::erase(ask_order);
+           ask_order = Order(
+               quoting_cl_ord_id(),
+               symbol,
+               OWNER_MARKET_SIMULATOR,
+               "",
+               Order::Side::sell,
+               Order::Type::limit,
+               current.ask_price,
+               (long)current.ask_volume
+           );;
+           OrderMatcher::insert(ask_order, orders);
+       }
    }
 
    std::pair<TopOfBook, TopOfBook> Market::get_top_of_book() const {
@@ -96,6 +149,10 @@ namespace common {
       }
       std::lock_guard<std::mutex> ul(mutex);
       return to_json(from, to, bars);
+   }
+
+   std::string Market::quoting_cl_ord_id() {
+       return std::format("cl_ord_id_{}", ++cl_ord_id);
    }
 }
 
