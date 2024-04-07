@@ -66,6 +66,10 @@ namespace common {
 		long last_executed_quantity;
 	};
 
+	std::string to_string(const Order::Side& side);
+
+	std::string to_string(const Order::Type& type);
+
 	std::ostream& operator<<(std::ostream&, const Order&);
 }
 

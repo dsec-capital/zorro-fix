@@ -60,51 +60,54 @@ int main(int argc, char** argv)
            auto sym_tbl = *symbol.as_table();
            auto symbol = sym_tbl["symbol"].value<std::string>().value();
            auto tick_size = sym_tbl["tick_size"].value<double>().value();
+           auto tick_scale = sym_tbl["tick_scale"].value<double>().value();
            auto price = sym_tbl["price"].value<double>().value();
            auto spread = sym_tbl["spread"].value<double>().value();
            auto bid_volume = sym_tbl["bid_volume"].value<double>().value();
            auto ask_volume = sym_tbl["ask_volume"].value<double>().value();
            auto bar_period = std::chrono::duration_cast<std::chrono::nanoseconds>(
-              std::chrono::seconds(sym_tbl["bar_period_seconds"].value<int>().value())
+               std::chrono::seconds(sym_tbl["bar_period_seconds"].value<int>().value())
            );
            auto history_age = std::chrono::duration_cast<std::chrono::nanoseconds>(
-              std::chrono::hours(sym_tbl["history_age_hours"].value<int>().value())
+               std::chrono::hours(sym_tbl["history_age_hours"].value<int>().value())
            );
            auto history_sample_period = std::chrono::milliseconds(
-              sym_tbl["history_sample_period_millis"].value<int>().value()
+               sym_tbl["history_sample_period_millis"].value<int>().value()
            );
 
            auto top = TopOfBook(
-              symbol, 
-              get_current_system_clock(), 
-              price - spread/2,
-              bid_volume,
-              price + spread/2,
-              ask_volume
+               symbol, 
+               get_current_system_clock(), 
+               price - spread/2,
+               bid_volume,
+               price + spread/2,
+               ask_volume
            );
            auto mkd_sim_tbl = *sym_tbl["market_simulator"].as_table();
            auto sampler = price_sampler_factory(
-              generator,
-              mkd_sim_tbl,
-              symbol,
-              price,
-              spread,
-              tick_size
+               generator,
+               mkd_sim_tbl,
+               symbol,
+               price,
+               spread,
+               tick_size,
+               tick_scale,
+               1
            );
            if (sampler != nullptr) {
               markets.try_emplace(
-                 symbol,
-                 sampler,
-                 top,
-                 bar_period,
-                 history_age,
-                 history_sample_period,
-                 false,
-                 mutex
+                  symbol,
+                  sampler,
+                  top,
+                  bar_period,
+                  history_age,
+                  history_sample_period,
+                  false,
+                  mutex
               );
            }
            else {
-              throw std::runtime_error("unknown price sampler type");
+               throw std::runtime_error("unknown price sampler type");
            }
         }
 

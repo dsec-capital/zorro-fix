@@ -21,19 +21,25 @@ namespace common {
 
 		OrderMatcher& operator= (const OrderMatcher&) = delete;
 
-		bool insert(const Order& order);
+		int insert(const Order& order, std::queue<Order>& orders);
+
+		int match(Order& order, std::queue<Order>&);
 
 		void erase(const Order& order);
 
 		Order& find(Order::Side side, std::string id);
-
-		bool match(std::queue<Order>&);
 
 		bid_map_t bid_map(const std::function<double(const Order&)> &f) const;
 
 		ask_map_t ask_map(const std::function<double(const Order&)> &f) const;
 
 		void book_levels(const std::function<double(const Order&)> &f, level_vector_t& levels) const;
+
+		static int by_quantity(const Order& o);
+		
+		static int by_open_quantity(const Order& o);
+
+		static int by_last_exec_quantity(const Order& o);
 
 		void display() const;
 
@@ -42,6 +48,8 @@ namespace common {
 		// identical keys, which properly implements price time priority 
 		typedef std::multimap<double, Order, std::greater<double>> bid_order_map_t;
 		typedef std::multimap<double, Order, std::less<double>> ask_order_map_t;
+
+		bool match(std::queue<Order>&);
 
 		void match(Order& bid, Order& ask);
 

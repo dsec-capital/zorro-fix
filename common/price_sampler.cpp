@@ -13,6 +13,7 @@ namespace common {
         double price,
         double spread,
         double tick_size,
+        double tick_scale,
         int initial_dir 
     ) {
 		auto model = tbl["model"].value<std::string>();
@@ -39,9 +40,10 @@ namespace common {
         else if (model == "white-noise") {
            auto sigma = tbl["sigma"].value<double>();
            auto sampler = std::make_shared<WhiteNoise>(
-              symbol,
-              generator,
-              sigma.value()
+               symbol,
+               generator,
+               sigma.value(),
+               tick_scale 
            );
            return sampler;
         }

@@ -31,8 +31,10 @@ namespace common {
 
 		bool insert(const Order& order)
 		{
+			// TODO 
+			std::queue<Order> order_q;
 			auto it = get_market(order.get_symbol());
-			return it->second.insert(order);
+			return it->second.insert(order, order_q);
 		}
 
 		void erase(const Order& order)
@@ -53,14 +55,15 @@ namespace common {
 		{
 			market_map_t::iterator i = markets.find(symbol);
 			if (i == markets.end()) return false;
-			return i->second.match(orders);
+			//return i->second.match(orders);
+			return false; // TODO
 		}
 
 		bool match(std::queue<Order>& orders)
 		{
 			market_map_t::iterator i;
-			for (i = markets.begin(); i != markets.end(); ++i)
-				i->second.match(orders);
+			//for (i = markets.begin(); i != markets.end(); ++i)
+			//	i->second.match(orders);
 			return orders.size() != 0;
 		}
 

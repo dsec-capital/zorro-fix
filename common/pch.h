@@ -15,6 +15,7 @@
 #include <memory>
 #include <chrono>
 #include <functional>
+#include <algorithm>
 #include <string>
 #include <string_view>
 #include <iomanip>

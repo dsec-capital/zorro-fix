@@ -6,13 +6,30 @@ namespace common {
 
    OrderMatcher::OrderMatcher(std::mutex& mutex) : mutex(mutex) {}
 
-   bool OrderMatcher::insert(const Order& order)
+   int OrderMatcher::insert(const Order& order_in, std::queue<Order>& orders)
    {
-      if (order.get_side() == Order::buy)
-         bid_orders.insert(bid_order_map_t::value_type(order.get_price(), order));
-      else
-         ask_orders.insert(ask_order_map_t::value_type(order.get_price(), order));
-      return true;
+       auto num = 0;
+       auto order = order_in;
+       const auto& price = order.get_price();
+       if (order.get_side() == Order::buy) {
+           auto it = ask_orders.begin();
+           if (it != ask_orders.end() && price >= it->second.get_price()) {
+               num += match(order, orders);
+           }
+           if (!order.is_closed()) {
+               bid_orders.insert(std::make_pair(price, order));
+           }
+       }
+       else {
+           auto it = bid_orders.begin();
+           if (it != bid_orders.end() && price <= it->second.get_price()) {
+               num += match(order, orders);
+           }
+           if (!order.is_closed()) {
+               ask_orders.insert(std::make_pair(price, order));
+           }
+       }
+      return num;
    }
 
    void OrderMatcher::erase(const Order& order)
@@ -20,51 +37,63 @@ namespace common {
       std::string id = order.get_client_id();
       if (order.get_side() == Order::buy)
       {
-         bid_order_map_t::iterator i;
-         for (i = bid_orders.begin(); i != bid_orders.end(); ++i)
-            if (i->second.get_client_id() == id)
-            {
-               bid_orders.erase(i);
-               return;
-            }
+          for (auto it = bid_orders.begin(); it != bid_orders.end(); ++it) {
+              if (it->second.get_client_id() == id) {
+                  bid_orders.erase(it);
+                  return;
+              }
+          }
       }
       else if (order.get_side() == Order::sell)
       {
-         ask_order_map_t::iterator i;
-         for (i = ask_orders.begin(); i != ask_orders.end(); ++i)
-            if (i->second.get_client_id() == id)
-            {
-               ask_orders.erase(i);
-               return;
-            }
+          for (auto it = ask_orders.begin(); it != ask_orders.end(); ++it) {
+              if (it->second.get_client_id() == id) {
+                  ask_orders.erase(it);
+                  return;
+              }
+          }
       }
    }
 
-   bool OrderMatcher::match(std::queue<Order>& orders)
+   int OrderMatcher::match(Order& order, std::queue<Order>& orders)
    {
-      while (true)
-      {
-         if (!bid_orders.size() || !ask_orders.size())
-            return orders.size() != 0;
-
-         bid_order_map_t::iterator iBid = bid_orders.begin();
-         ask_order_map_t::iterator iAsk = ask_orders.begin();
-
-         if (iBid->second.get_price() >= iAsk->second.get_price())
-         {
-            Order& bid = iBid->second;
-            Order& ask = iAsk->second;
-
-            match(bid, ask);
-            orders.push(bid);
-            orders.push(ask);
-
-            if (bid.is_closed()) bid_orders.erase(iBid);
-            if (ask.is_closed()) ask_orders.erase(iAsk);
-         }
-         else
-            return orders.size() != 0;
-      }
+       auto num = 0;
+       const auto& price = order.get_price();
+       if (order.get_side() == Order::Side::buy) {
+           auto it = ask_orders.begin();
+           while (it != ask_orders.end() && it->second.get_price() <= price) {
+               auto& ask = it->second;
+               const auto& exec_price = ask.get_price();
+               long quantity = std::min(ask.get_open_quantity(), order.get_open_quantity());
+               ask.execute(exec_price, quantity);
+               order.execute(exec_price, quantity);
+               orders.push(ask);
+               orders.push(order);
+               ++num;
+               if (ask.is_closed())
+                   it = ask_orders.erase(it);
+               else
+                   ++it;
+           }
+       }
+       else {
+           auto it = bid_orders.begin();
+           while (it != bid_orders.end() && it->second.get_price() >= price) {
+               auto& bid = it->second;
+               const auto& exec_price = bid.get_price();
+               long quantity = std::min(bid.get_open_quantity(), order.get_open_quantity());
+               bid.execute(exec_price, quantity);
+               order.execute(exec_price, quantity);
+               orders.push(bid);
+               orders.push(order);
+               ++num;
+               if (bid.is_closed())
+                   it = bid_orders.erase(it);
+               else
+                   ++it;
+           }
+       }
+       return num;
    }
 
    Order& OrderMatcher::find(Order::Side side, std::string id)
@@ -84,16 +113,39 @@ namespace common {
       throw std::exception();
    }
 
+   // incorrect
+   bool OrderMatcher::match(std::queue<Order>& orders)
+   {
+       while (true)
+       {
+           if (!bid_orders.size() || !ask_orders.size())
+               return orders.size() != 0;
+
+           auto bit = bid_orders.begin();
+           auto ait = ask_orders.begin();
+
+           if (bit->second.get_price() >= ait->second.get_price())
+           {
+               Order& bid = bit->second;
+               Order& ask = ait->second;
+
+               match(bid, ask);
+               orders.push(bid);
+               orders.push(ask);
+
+               if (bid.is_closed()) bid_orders.erase(bit);
+               if (ask.is_closed()) ask_orders.erase(ait);
+           }
+           else
+               return orders.size() != 0;
+       }
+   }
+
+   // incorrect
    void OrderMatcher::match(Order& bid, Order& ask)
    {
       double price = ask.get_price();
-      long quantity = 0;
-
-      if (bid.get_open_quantity() > ask.get_open_quantity())
-         quantity = ask.get_open_quantity();
-      else
-         quantity = bid.get_open_quantity();
-
+      long quantity = std::min(ask.get_open_quantity(), bid.get_open_quantity());
       bid.execute(price, quantity);
       ask.execute(price, quantity);
    }
@@ -160,6 +212,18 @@ namespace common {
           std::cout << ait->second << std::endl;
       }
    }  
+
+   int OrderMatcher::by_quantity(const Order& o) {
+       return o.get_quantity();
+   };
+
+   int OrderMatcher::by_open_quantity(const Order& o) {
+       return o.get_open_quantity();
+   };
+
+   int OrderMatcher::by_last_exec_quantity(const Order& o) {
+       return o.get_last_executed_quantity();
+   };
 
    std::string to_string(const typename OrderMatcher::level_vector_t& levels) {
        std::string str;

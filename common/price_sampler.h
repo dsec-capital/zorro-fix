@@ -70,6 +70,7 @@ namespace common {
         double price,
         double spread,
         double tick_size,
+        double tick_scale,
         int initial_dir = 1
     );
 }
