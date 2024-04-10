@@ -39,6 +39,8 @@ namespace zfix
 			BlockingTimeoutQueue<TopOfBook>& top_of_book_queue
 		);
 
+		bool is_logged_in() const;
+
 		FIX::Message market_data_request(
 			const FIX::Symbol& symbol,
 			const FIX::MarketDepth& markeDepth,
@@ -81,6 +83,7 @@ namespace zfix
 		std::string sender_comp_id;
 		std::string target_comp_id;
 		std::atomic<bool> done;
+		std::atomic<bool> logged_in;
 		IDGenerator id_generator;
 		std::unordered_map<std::string, Book> books;
 		OrderTracker order_tracker;

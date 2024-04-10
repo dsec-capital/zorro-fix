@@ -147,12 +147,12 @@ namespace common {
     }
 
     std::pair<nlohmann::json, int> Market::get_bars_as_json(const std::chrono::nanoseconds& from, const std::chrono::nanoseconds& to) {
-        std::lock_guard<std::mutex> ul(mutex);
         auto [bars_from, bars_to, num_bars] = get_bar_range();
         if (bars_from > from) {
             extend_bar_history(from);
         }
-        return to_json(from, to, bars);
+        std::lock_guard<std::mutex> ul(mutex);
+        return to_json(from, to, bars); 
     }
 
     std::string Market::quoting_cl_ord_id() {

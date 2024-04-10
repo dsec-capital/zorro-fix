@@ -23,9 +23,9 @@
 
 // Days between midnight 1899-12-30 and midnight 1970-01-01 is 25569
 #define DAYS_BETWEEN_1899_12_30_1979_01_01	25569.0
-#define SECONDS_PER_DAY								86400.0
-#define MILLIS_PER_DAY                       86400000.0 
-#define MICROS_PER_DAY                       86400000000.0 
+#define SECONDS_PER_DAY						86400.0
+#define MILLIS_PER_DAY                      86400000.0 
+#define MICROS_PER_DAY                      86400000000.0 
 
 namespace zfix {
 
@@ -159,8 +159,8 @@ namespace zfix {
 		}
 		else {
 			show(std::format(
-				"get_historical_bars error: Asset={} from={} to={} status={}", 
-				Asset, from_str, to_str, res->status
+				"get_historical_bars error: status={} Asset={} from={} to={} body={}", 
+				res->status, Asset, from_str, to_str, res->body
 			));
 		}
 
@@ -186,8 +186,8 @@ namespace zfix {
 		}
 		else {
 			show(std::format(
-				"get_historical_bar_range error: Asset={} status={} body={}", 
-				Asset, res->status, res->body
+				"get_historical_bar_range error: status={} Asset={} body={}", 
+				res->status, Asset, res->body
 			));
 		}
 
@@ -216,21 +216,42 @@ namespace zfix {
 				show("BrokerLogin: FIX service starting...");
 				fix_thread->start();
 				show("BrokerLogin: FIX service running");
-				return BrokerLoginStatus::LoggedIn;  
+				spdlog::debug("BrokerLogin: FIX service running");
+
+				auto count = 0;
+				auto start = std::chrono::system_clock::now();
+				auto logged_in = fix_thread->fix_app().is_logged_in();
+				while (!logged_in && count < 50) {
+					std::this_thread::sleep_for(100ms);
+					logged_in = fix_thread->fix_app().is_logged_in();
+				}
+				auto dt = std::chrono::system_clock::now() - start;
+				auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(dt).count();
+				if (logged_in) {
+					show(std::format("BrokerLogin: FIX login after {}ms", ms));
+					spdlog::debug("BrokerLogin: FIX login after {}ms", ms);
+					return BrokerLoginStatus::LoggedIn;
+				}
+				else {
+					throw std::runtime_error(std::format("login timeout after {}ms", ms));
+				}
 			}
 			else {
 				show("BrokerLogin: FIX service stopping...");
 				fix_thread->cancel();
 				show("BrokerLogin: FIX service stopped");
+				spdlog::debug("BrokerLogin: FIX service stopped");
 				return BrokerLoginStatus::LoggedOut; 
 			}
 		}
 		catch (std::exception& e) {
 			show(std::format("BrokerLogin: exception creating/starting FIX service {}", e.what()));
+			spdlog::debug("BrokerLogin: exception creating/starting FIX service {}", e.what());
 			return BrokerLoginStatus::LoggedOut;
 		}
 		catch (...) {
 			show("BrokerLogin: unknown exception");
+			spdlog::debug("BrokerLogin: unknown exception");
 			return BrokerLoginStatus::LoggedOut;
 		}
 	}
@@ -241,7 +262,7 @@ namespace zfix {
 		(FARPROC&)BrokerProgress = fpProgress;
 
 		std::string cwd = std::filesystem::current_path().string();
-		show(std::format("BrokerOpen: FIX plugin opened in {}", cwd)); 
+		show(std::format("BrokerOpen: FIX plugin opened in {}", cwd));
 
 		try
 		{

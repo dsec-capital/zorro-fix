@@ -31,13 +31,19 @@ namespace zfix {
 	  , exec_report_queue(exec_report_queue)
 	  , top_of_book_queue(top_of_book_queue)
 	  , done(false)
+	  , logged_in(false)
      , order_tracker("account")
 	{}
+
+	bool Application::is_logged_in() const {
+		return logged_in;
+	}
 
 	void Application::onCreate(const FIX::SessionID&) {}
 
 	void Application::onLogon(const FIX::SessionID& sessionID)
 	{
+		logged_in = true;
 		sender_comp_id = session_settings.get(sessionID).getString("SenderCompID");
 		target_comp_id = session_settings.get(sessionID).getString("TargetCompID");
 		spdlog::debug(
@@ -48,6 +54,7 @@ namespace zfix {
 
 	void Application::onLogout(const FIX::SessionID& sessionID)
 	{
+		logged_in = false;
 		spdlog::debug("Application::onLogout {}", sessionID.toString());
 	}
 

@@ -70,7 +70,7 @@ namespace fix_sim {
             if (it != this->markets.end()) {
                auto [content, n] = it->second.get_bars_as_json(from, to);
                res.set_content(content.dump(), "application/json");
-               msg += std::format(" response bars={}", n);
+               msg += std::format(", response bars={}", n);
             }
             else {
                json j;
@@ -102,7 +102,7 @@ namespace fix_sim {
                j["num_bars"] = num_bars;
                auto body = j.dump();
                res.set_content(body, "application/json");
-               msg += std::format("response={}", body);
+               msg += std::format(", response={}", body);
             }
             else {
                json j;
