@@ -39,14 +39,17 @@ namespace common {
 
       virtual TopOfBook sample(const TopOfBook& current, const std::chrono::nanoseconds& t1) {
          auto dur = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - current.timestamp).count();
-         double dt = (double)std::abs(dur) / millis_per_day;
-         auto mid = current.mid() + std::sqrt(dt) * sigma * noise(gen);
+         auto dt = (double)std::abs(dur) / millis_per_day;
+         auto dm = std::sqrt(dt) * sigma * noise(gen);
+         auto half_s = current.spread() / 2;
+         auto mid = current.mid() + dm - half_s > 0 ? current.mid() + dm : current.mid() - dm + half_s;
+         //std::cout << "mid =" << mid << std::endl;
          return TopOfBook(
              symbol,
              t1,
-             round_to_tick(mid - current.spread() / 2),
+             round_to_tick(mid - half_s),
              current.bid_volume,
-             round_to_tick(mid + current.spread() / 2),
+             round_to_tick(mid + half_s),
              current.ask_volume
          );
       }

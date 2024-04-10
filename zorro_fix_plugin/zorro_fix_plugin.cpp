@@ -64,6 +64,12 @@ namespace zfix {
 	OrderTracker order_tracker("account");
 	std::unordered_map<std::string, TopOfBook> top_of_books;
 
+	void show(const std::string& msg) {
+		if (!BrokerError) return;
+		auto tmsg = "[" + now_str() + "] " + msg + "\n";
+		BrokerError(tmsg.c_str());
+	}
+
 	int pop_exec_reports() {
 		auto n = exec_report_queue.pop_all(
 			[](const ExecReport& report) { 
@@ -132,12 +138,6 @@ namespace zfix {
 		auto ts = convert_time(date);
 		auto ms = millis ? (long)(date * 1000) % 1000 : 0;
 		return time32_to_string(ts, ms);
-	}
-
-	void show(const std::string& msg) {
-		if (!BrokerError) return;
-		auto tmsg = "[" + now_str() + "] " + msg + "\n";
-		BrokerError(tmsg.c_str());
 	}
 
 	// get historical data - note time is in UTC

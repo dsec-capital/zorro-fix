@@ -52,17 +52,21 @@ namespace zfix {
 	}
 
 	void Application::fromAdmin(
-		const FIX::Message&, const FIX::SessionID&
+		const FIX::Message& message, const FIX::SessionID& sessionID
 	) EXCEPT(FIX::FieldNotFound, FIX::IncorrectDataFormat, FIX::IncorrectTagValue, FIX::RejectLogon)
-	{}
+	{
+		spdlog::debug("Application::fromAdmin IN <{}> {}", sessionID.toString(), fix_string(message));
+	}
 
-	void Application::toAdmin(FIX::Message&, const FIX::SessionID&) 
-	{}
+	void Application::toAdmin(FIX::Message& message, const FIX::SessionID& sessionID) 
+	{
+		spdlog::debug("Application::toAdmin OUT <{}> {}", sessionID.toString(), fix_string(message));
+	}
 
 	void Application::fromApp(const FIX::Message& message, const FIX::SessionID& sessionID)
 		EXCEPT(FIX::FieldNotFound, FIX::IncorrectDataFormat, FIX::IncorrectTagValue, FIX::UnsupportedMessageType)
 	{
-		spdlog::debug("IN fromApp: {}", fix_string(message));
+		spdlog::debug("Application::fromApp IN <{}> {}", sessionID.toString(), fix_string(message));
 		crack(message, sessionID);
 	}
 
@@ -77,7 +81,7 @@ namespace zfix {
 		}
 		catch (FIX::FieldNotFound&) {}
 
-		spdlog::debug("OUT toApp: {}", fix_string(message));
+		spdlog::debug("Application::toApp OUT <{}> {}", sessionID.toString(), fix_string(message));
 	}
 
 	void Application::onMessage(const FIX44::MarketDataSnapshotFullRefresh& message, const FIX::SessionID&)
@@ -144,23 +148,28 @@ namespace zfix {
 			noMDEntriesGroup.get(price);
 			noMDEntriesGroup.get(action);
 
-			if (it == books.end() || it->first != symbol) {
-				if (it->first != symbol) {
-					top_of_book_queue.push(it->second.top(it->first)); // publish this one before next in case a new symbol starts
-				}
+			// publish this one before next in case a new symbol starts
+			if (it != books.end() && it->first != symbol) {
+				top_of_book_queue.push(it->second.top(it->first));
+				it = books.end();
+			}
+
+			// get new book either if first one or if switched symbol 
+			if (it == books.end()) {
 				it = books.find(symbol);
 				if (it == books.end()) {
 					spdlog::error("MarketDataIncrementalRefresh: no book for {} probably not subscribed? msg={}", symbol.getString(), fix_string(message));
 					continue;
 				}
 				it->second.set_timestamp(get_current_system_clock());
+			} 
+
+			assert(it != books.end());
+			
+			if (action == FIX::MDUpdateAction_DELETE) {
+				assert(size == 0);
 			}
-			else {
-				if (action == FIX::MDUpdateAction_DELETE) {
-					assert(size == 0);
-				}
-				it->second.update_book(price, size, type == FIX::MDEntryType_BID);
-			}
+			it->second.update_book(price, size, type == FIX::MDEntryType_BID);			
 		}
 
 		if (it != books.end()) {

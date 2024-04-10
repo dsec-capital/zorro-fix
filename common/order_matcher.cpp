@@ -196,7 +196,7 @@ namespace common {
        std::string str;
        for (auto it = levels.begin(); it != levels.end(); ++it) {
            str += std::format(
-               "[{:10.1f}] {:>8.1f} | {:<8.1f} [{:10.1f}]",
+               "[{:10.2f}] {:>8.5f} | {:<8.5f} [{:10.2f}]",
                it->bid_volume, it->bid_price, it->ask_price, it->ask_volume
            ) + "\n";
        }

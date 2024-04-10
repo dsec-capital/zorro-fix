@@ -41,6 +41,7 @@ namespace zfix {
 
 		void run() {
 			initiator->start();
+			spdlog::debug("FixThread: FIX initiator started");
 		}
 
 	public:
@@ -63,6 +64,7 @@ namespace zfix {
 			initiator = std::unique_ptr<FIX::Initiator>(
 				new FIX::SocketInitiator(*application, store_factory, settings, log_factory)
 			);
+			spdlog::debug("FixThread: FIX application and FIX initiator created");
 		}
 
 #ifdef HAVE_SSL
@@ -96,6 +98,7 @@ namespace zfix {
 		void start() {
 			started = true;
 			thread = std::thread(&FixThread::run, this);
+			spdlog::debug("FixThread: FIX application thread started");
 		}
 
 		void cancel() {
@@ -103,10 +106,10 @@ namespace zfix {
 				return;
 			started = false;
 			initiator->stop(true);
-			SPDLOG_INFO("FixThread: FIX initiator and application stopped - going to join");
+			spdlog::debug("FixThread: FIX initiator and application stopped - going to join");
 			if (thread.joinable())
 				thread.join();
-			SPDLOG_INFO("FixThread: FIX initiator stopped - joined");
+			spdlog::debug("FixThread: FIX initiator stopped - joined");
 		}
 
 		zfix::Application& fix_app() {
