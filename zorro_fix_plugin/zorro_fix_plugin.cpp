@@ -422,10 +422,10 @@ namespace zfix {
 			for (auto it = bars.rbegin(); it != bars.rend() && count <= nTicks; ++it) {
 				const auto& bar = it->second;
 				auto time = convert_time_chrono(bar.end);
-				spdlog::debug(
-					"[{}] {} : open={:.5f} high={:.5f} low={:.5f} close={:.5f}", 
-					count, zorro_date_to_string(time), bar.open, bar.high, bar.low, bar.close
-				);
+				//spdlog::debug(
+				//	"[{}] {} : open={:.5f} high={:.5f} low={:.5f} close={:.5f}", 
+				//	count, zorro_date_to_string(time), bar.open, bar.high, bar.low, bar.close
+				//);
 				ticks->fOpen = (float)bar.open;
 				ticks->fClose = (float)bar.close;
 				ticks->fHigh = (float)bar.high;
