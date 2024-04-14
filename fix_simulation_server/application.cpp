@@ -378,7 +378,12 @@ void Application::update_order(const Order& order, char status, const std::strin
 	if (order.get_type() == Order::Type::limit) {
 		fixOrder.set(FIX::Price(order.get_price()));
 	}
-	if (status == FIX::OrdStatus_FILLED || status == FIX::OrdStatus_PARTIALLY_FILLED || status == FIX::OrdStatus_NEW) {
+	if (status == FIX::OrdStatus_FILLED || 
+		status == FIX::OrdStatus_PARTIALLY_FILLED || 
+		status == FIX::OrdStatus_NEW || 
+		status == FIX::OrdStatus_REPLACED ||
+		status == FIX::OrdStatus_CANCELED)
+	{
 		fixOrder.set(FIX::LastQty(order.get_last_executed_quantity()));
 		fixOrder.set(FIX::LastPx(order.get_last_executed_price()));
 	}

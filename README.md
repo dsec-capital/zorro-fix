@@ -26,6 +26,20 @@ currently only handled in a rudimentary manner.
 
 Contributions and feedback are very welcome. 
 
+## TODO
+
+Some tasks on the roadmap:
+
+  - [fix_sumulation_server]: cancel automatically market data subscription on logout and test multiple connects from `zorro_fix_plugin`.
+  - [fix_sumulation_server]: better working order status log in command line
+  - [fix_sumulation_server]: account functionality to support `BrokerAccount` 
+  - [zorro_fix_plugin]: implement function `BrokerAccount` 
+  - [zorro_fix_plugin]: better log output when cancelling orders in `BrokerBuy2`
+  - [zorro_fix_plugin]: a lot of testing
+
+Currenbtly the market simulators only handle top of book. Eventually we want a fully simulated book, e.g. based in the `Fodra-Pham` model 
+or any other reasonable order book simulation model. 
+
 
 ## Quick Start Tutorial
 

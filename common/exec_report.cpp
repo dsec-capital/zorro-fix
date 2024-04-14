@@ -50,6 +50,7 @@ namespace common {
 			"exec_id=" + exec_id + ", "
 			"exec_type=" + std::to_string(exec_type) + ", "
 			"ord_type=" + std::to_string(ord_type) + ", "
+			"ord_status=" + std::to_string(ord_status) + ", "
 			"side=" + std::to_string(side) + ", "
 			"price=" + std::to_string(price) + ", "
 			"avg_px=" + std::to_string(avg_px) + ", "
