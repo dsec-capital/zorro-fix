@@ -9,6 +9,7 @@
 #include <iostream>
 #include <thread>
 #include <mutex>
+#include <limits>
 
 #include "quickfix/Application.h"
 #include "quickfix/MessageCracker.h"

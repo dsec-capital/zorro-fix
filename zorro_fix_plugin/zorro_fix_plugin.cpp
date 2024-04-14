@@ -294,13 +294,13 @@ namespace zfix {
 		}
 
 		const auto time = get_current_system_clock();
-		show(std::format("BrokerTime {}", common::to_string(time)));
+		//show(std::format("BrokerTime {}", common::to_string(time)));
 
 		auto n = pop_exec_reports();
-		show(std::format("BrokerTime {} exec reports processed", n));
+		//show(std::format("BrokerTime {} exec reports processed", n));
 
 		auto m = pop_top_of_books();
-		show(std::format("BrokerTime {} top of book processed", m));
+		//show(std::format("BrokerTime {} top of book processed", m));
 
 		return ExchangeStatus::Open;
 	}
@@ -322,8 +322,8 @@ namespace zfix {
 	 * BrokerAsset
 	 * 
 	 * Returns
-	 *	 - 1 when the asset is available and the returned data is valid
-	 *  - 0 otherwise. 
+	 *	 1 when the asset is available and the returned data is valid
+	 *   0 otherwise. 
 	 * 
 	 * An asset that returns 0 after subscription will trigger Error 053, and its trading will be disabled.
 	 * 
@@ -363,25 +363,6 @@ namespace zfix {
 					show(std::format("BrokerAsset: subscription request obtained symbol {}", Asset));
 					return 1;
 				}
-
-				// version with polling - to be removed
-				// auto count = 0;
-				// auto start = std::chrono::system_clock::now();
-				// while (true) {
-				// 	if (count >= max_snaphsot_waiting_iterations) {
-				// 		auto now = std::chrono::system_clock::now();
-				// 		auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count();
-				// 		throw std::runtime_error(std::format("failed to get snapshot in {}ms", ms));
-				// 	}
-				// 	auto success = fix_app.has_book(symbol);
-				// 	if (success) {
-				// 		show(std::format("BrokerAsset: subscribed to symbol {}", Asset));
-				// 		break;
-				// 	}
-				// 	++count;
-				// 	std::this_thread::sleep_for(100ms);
-				// 	show(std::format("BrokerAsset: waiting for {} count={}", Asset, count));
-				// }
 			}
 			else {
 				pop_top_of_books();

@@ -131,8 +131,18 @@ void Application::onMessage(const FIX44::NewOrderSingle& message, const FIX::Ses
 	message.get(symbol);
 	message.get(side);
 	message.get(ordType);
-	if (ordType == FIX::OrdType_LIMIT)
+	if (ordType == FIX::OrdType_LIMIT) {
 		message.get(price);
+	}
+	else if (ordType == FIX::OrdType_MARKET) {
+		ordType = FIX::OrdType_LIMIT;
+		double aggressive_price = side == FIX::Side_BUY ? (std::numeric_limits<double>::max)() : 0.0;
+		price = FIX::Price(aggressive_price);
+		std::cout << std::format(
+			"converging market order {} to limit order with maximally aggressive price", 
+			FIX::Side_BUY ? "buy" : "sell"
+		) << std::endl;
+	}
 	message.get(orderQty);
 	message.getFieldIfSet(timeInForce);
 
@@ -496,7 +506,9 @@ Order::Type Application::convert(const FIX::OrdType& ordType)
 	{
 		case FIX::OrdType_LIMIT: 
 			return Order::limit;
-		default: 
+		case FIX::OrdType_MARKET:
+			return Order::market;
+		default:
 			throw std::logic_error("Unsupported Order Type, use limit");
 	}
 }
@@ -520,6 +532,8 @@ FIX::OrdType Application::convert(Order::Type type)
 	{
 		case Order::limit: 
 			return FIX::OrdType(FIX::OrdType_LIMIT);
+		case Order::market:
+			return FIX::OrdType(FIX::OrdType_MARKET);
 		default: 
 			throw std::logic_error("Unsupported Order Type, use limit");
 	}
