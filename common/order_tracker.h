@@ -115,6 +115,8 @@ namespace common {
 		std::pair<typename OrderTracker::const_iterator, bool> get_history_order(const std::string& ord_id) const;
 
 		void process(const ExecReport& report);
+
+		std::string to_string() const;
 	};
 
 }

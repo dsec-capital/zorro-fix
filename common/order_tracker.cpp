@@ -50,7 +50,8 @@ namespace common {
 		return "symbol=" + symbol + ", "
 			"cl_ord_id=" + cl_ord_id + ", "
 			"order_id=" + order_id + ", "
-			"ordType=" + std::to_string(ord_type) + ", "
+			"ord_status=" + std::to_string(ord_status) + ", "
+			"ord_type=" + std::to_string(ord_type) + ", "
 			"side=" + std::to_string(side) + ", "
 			"price=" + std::to_string(price) + ", "
 			"avg_px=" + std::to_string(avg_px) + ", "
@@ -182,6 +183,25 @@ namespace common {
 				break;
 			}
 		}
+	}
+
+	std::string OrderTracker::to_string() const {
+		std::string rows;
+		rows += "OrderTracker[\n";
+		rows += "pending orders:\n";
+		for (auto& [cl_ord_id, order] : pending_orders_by_cl_ord_id) {
+			rows += std::format("  {} : {}\n", cl_ord_id, order.to_string());
+		}
+		rows += "open orders:\n";
+		for (auto& [ord_id, order] : open_orders_by_ord_id) {
+			rows += std::format("  {} : {}\n", ord_id, order.to_string());
+		}
+		rows += "positions:\n";
+		for (auto& [symbol, pos] : position_by_symbol) {
+			rows += std::format("  {} : {}\n", symbol, pos.to_string());
+		}
+		rows += "]";
+		return rows;
 	}
 }
 

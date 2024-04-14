@@ -43,6 +43,8 @@ namespace zfix {
 		LoggedIn = 1
 	};
 
+	bool log_history_bars = false;
+
 	// http://localhost:8080/bars?symbol=AUD/USD
 	std::string rest_host = "http://localhost";
 	int rest_port = 8080;
@@ -302,6 +304,8 @@ namespace zfix {
 		auto m = pop_top_of_books();
 		//show(std::format("BrokerTime {} top of book processed", m));
 
+		show(order_tracker.to_string());
+
 		return ExchangeStatus::Open;
 	}
 
@@ -403,10 +407,12 @@ namespace zfix {
 			for (auto it = bars.rbegin(); it != bars.rend() && count <= nTicks; ++it) {
 				const auto& bar = it->second;
 				auto time = convert_time_chrono(bar.end);
-				//spdlog::debug(
-				//	"[{}] {} : open={:.5f} high={:.5f} low={:.5f} close={:.5f}", 
-				//	count, zorro_date_to_string(time), bar.open, bar.high, bar.low, bar.close
-				//);
+				if (log_history_bars) {
+					spdlog::debug(
+						"[{}] {} : open={:.5f} high={:.5f} low={:.5f} close={:.5f}", 
+						count, zorro_date_to_string(time), bar.open, bar.high, bar.low, bar.close
+					);
+				}
 				ticks->fOpen = (float)bar.open;
 				ticks->fClose = (float)bar.close;
 				ticks->fHigh = (float)bar.high;
@@ -467,6 +473,7 @@ namespace zfix {
 			symbol, cl_ord_id, side, ord_type, time_in_force, qty, limit_price, stop_price
 		);
 
+		spdlog::debug("BrokerBuy2: NewOrderSingle {}", fix_string(msg));
 		show(std::format("BrokerBuy2: NewOrderSingle {}", fix_string(msg)));
 
 		ExecReport report;
@@ -478,6 +485,7 @@ namespace zfix {
 		}
 		else {
 			if (report.exec_type == FIX::ExecType_REJECTED) {
+				spdlog::debug("BrokerBuy2: rejected {}", report.to_string());
 				show(std::format("BrokerBuy2: rejected {}", report.to_string()));
 				return 0;
 			}
@@ -495,11 +503,13 @@ namespace zfix {
 					}
 				}
 
-				show(std::format("BrokerBuy2: processed {}", report.to_string()));
+				spdlog::debug("BrokerBuy2: processed {} \n{}", report.to_string(), order_tracker.to_string());
+				show(std::format("BrokerBuy2: processed {} \n{}", report.to_string(), order_tracker.to_string()));
 
 				return i_ord_id;
 			}
 			else {
+				spdlog::debug("BrokerBuy2: report {} does belong to cl {}", report.to_string(), cl_ord_id.getString());
 				show(std::format("BrokerBuy2: report {} does belong to cl {}", report.to_string(), cl_ord_id.getString()));
 				return 0;
 
@@ -549,6 +559,10 @@ namespace zfix {
 		auto it = order_id_by_internal_order_id.find(trade_id);
 		if (it != order_id_by_internal_order_id.end()) {
 			auto [oit, success] = order_tracker.get_open_order(it->second);
+
+			spdlog::debug("BrokerSell2: found open order={}", oit->second.to_string());
+			show(std::format("BrokerSell2: found open order={}", oit->second.to_string()));
+
 			if (success) {
 				auto& order = oit->second;
 
@@ -556,6 +570,10 @@ namespace zfix {
 					double close_price;
 					int close_fill;
 					int signed_qty = (int)(order.side == FIX::Side_BUY ? -order.cum_qty : order.cum_qty);
+
+					spdlog::debug("BrokerSell2: closing filled order with trade in opposite direction signed_qty={}, limit={}", signed_qty, limit);
+					show(std::format("BrokerSell2: closing filled order with trade in opposite direction signed_qty={}, limit={}", signed_qty, limit));
+
 					auto trade_id_close = BrokerBuy2(
 						const_cast<char*>(order.symbol.c_str()), 
 						signed_qty, 0, limit, &close_price, &close_fill
@@ -588,6 +606,7 @@ namespace zfix {
 					auto ord_type = FIX::OrdType(order.ord_type);
 
 					if (std::abs(amount) >= order.order_qty) {
+						spdlog::debug(std::format("BrokerSell2: cancel working order"));
 						show(std::format("BrokerSell2: cancel working order"));
 
 						auto msg = fix_thread->fix_app().order_cancel_request(
@@ -599,6 +618,10 @@ namespace zfix {
 						int leaves_qty = (int)order.leaves_qty;
 						auto target_qty = leaves_qty - std::abs(amount);
 
+						spdlog::debug(
+							"BrokerSell2: cancel/replace working order from leaves_qty={} to target_qty={}",
+							leaves_qty, target_qty
+						);
 						show(std::format(
 							"BrokerSell2: cancel/replace working order from leaves_qty={} to target_qty={}",
 							leaves_qty, target_qty

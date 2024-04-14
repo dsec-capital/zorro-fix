@@ -65,6 +65,8 @@ namespace common {
 			((quantity * price) + (avg_executed_price * executed_quantity))
 			/ (quantity + executed_quantity);
 
+		std::cout << std::format("***** price={} quantity={} avg_executed_price={} denom={}", price, quantity, avg_executed_price, quantity + executed_quantity);
+		
 		open_quantity -= quantity;
 		executed_quantity += quantity;
 		last_executed_price = price;
