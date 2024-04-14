@@ -583,10 +583,8 @@ namespace zfix {
 					spdlog::debug("BrokerSell2: closing filled order with trade in opposite direction signed_qty={}, limit={}", signed_qty, limit);
 					show(std::format("BrokerSell2: closing filled order with trade in opposite direction signed_qty={}, limit={}", signed_qty, limit));
 
-					auto trade_id_close = BrokerBuy2(
-						const_cast<char*>(order.symbol.c_str()), 
-						signed_qty, 0, limit, &close_price, &close_fill
-					);
+					auto asset = const_cast<char*>(order.symbol.c_str());
+					auto trade_id_close = BrokerBuy2(asset, signed_qty, 0, limit, &close_price, &close_fill);
 
 					if (trade_id_close) {
 						auto cit = order_id_by_internal_order_id.find(trade_id_close);
@@ -621,6 +619,8 @@ namespace zfix {
 						auto msg = fix_thread->fix_app().order_cancel_request(
 							symbol, orig_cl_ord_id, cl_ord_id, side, FIX::OrderQty(order.leaves_qty)
 						);
+
+						// TODO here we should wait for a response 
 						return trade_id;
 					}
 					else {
