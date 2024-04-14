@@ -569,11 +569,11 @@ namespace zfix {
 		if (it != order_id_by_internal_order_id.end()) {
 			auto [oit, success] = order_tracker.get_open_order(it->second);
 
-			spdlog::debug("BrokerSell2: found open order={}", oit->second.to_string());
-			show(std::format("BrokerSell2: found open order={}", oit->second.to_string()));
-
 			if (success) {
 				auto& order = oit->second;
+
+				spdlog::debug("BrokerSell2: found open order={}", order.to_string());
+				show(std::format("BrokerSell2: found open order={}", order.to_string()));
 
 				if (order.ord_status == FIX::OrdStatus_FILLED) {
 					double close_price;

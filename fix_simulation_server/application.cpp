@@ -102,10 +102,13 @@ void Application::onLogout(const FIX::SessionID& sessionID)
 		"====> removing market data subscriptions for senderCompID = {} targetCompID = {}", 
 		senderCompID, targetCompID
 	);
-	for (; it != market_data_subscriptions.end(); ++it) {
+	while(it != market_data_subscriptions.end()) {
 		if (senderCompID == it->second.first && targetCompID == it->second.second) {
 			spdlog::info("removing subscription for symbol={}", it->first);
 			it = market_data_subscriptions.erase(it);
+		}
+		else {
+			++it;
 		}
 	} 
 }
