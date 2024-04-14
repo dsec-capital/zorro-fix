@@ -152,9 +152,11 @@
   <ItemGroup>
     <ClCompile Include="application.cpp" />
     <ClCompile Include="fix_simulation_server.cpp" />
+    <ClCompile Include="pch.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="application.h" />
+    <ClInclude Include="pch.h" />
     <ClInclude Include="rest_server.h" />
   </ItemGroup>
   <ItemGroup>

@@ -31,7 +31,6 @@ Contributions and feedback are very welcome.
 Some tasks on the roadmap:
 
   - [fix_sumulation_server]: cancel automatically market data subscription on logout and test multiple connects from `zorro_fix_plugin`.
-  - [fix_sumulation_server]: better working order status log in command line
   - [fix_sumulation_server]: account functionality to support `BrokerAccount` 
   - [zorro_fix_plugin]: implement function `BrokerAccount` 
   - [zorro_fix_plugin]: better log output when cancelling orders in `BrokerBuy2`

@@ -2,6 +2,8 @@
 #pragma warning( disable : 4503 4355 4786 )
 #endif
 
+#include "spdlog/spdlog.h"
+
 #include "application.h"
 
 #include "common/market.h"
@@ -56,12 +58,12 @@ void Application::run_market_data_update() {
 }
 
 void Application::start_market_data_updates() {
-	std::cout << "====> starting market data updates" << std::endl;
+	spdlog::info("====> starting market data updates");
 	thread = std::thread(&Application::run_market_data_update, this);
 }
 
 void Application::stop_market_data_updates() {
-	std::cout << "====> stopping market data updates" << std::endl;
+	spdlog::info("====> stopping market data updates");
 	if (!started)
 		return;
 	started = false;
@@ -92,7 +94,21 @@ void Application::onLogon(const FIX::SessionID& sessionID)
 {}
 
 void Application::onLogout(const FIX::SessionID& sessionID) 
-{}
+{
+	auto senderCompID = sessionID.getSenderCompID().getString();
+	auto targetCompID = sessionID.getTargetCompID().getString();
+	auto it = market_data_subscriptions.begin();
+	spdlog::info(
+		"====> removing market data subscriptions for senderCompID = {} targetCompID = {}", 
+		senderCompID, targetCompID
+	);
+	for (; it != market_data_subscriptions.end(); ++it) {
+		if (senderCompID == it->second.first && targetCompID == it->second.second) {
+			spdlog::info("removing subscription for symbol={}", it->first);
+			it = market_data_subscriptions.erase(it);
+		}
+	} 
+}
 
 void Application::toAdmin(FIX::Message&, const FIX::SessionID&)
 {}
@@ -138,10 +154,10 @@ void Application::onMessage(const FIX44::NewOrderSingle& message, const FIX::Ses
 		ordType = FIX::OrdType_LIMIT;
 		double aggressive_price = side == FIX::Side_BUY ? (std::numeric_limits<double>::max)() : 0.0;
 		price = FIX::Price(aggressive_price);
-		std::cout << std::format(
+		spdlog::info(
 			"converging market order {} to limit order with maximally aggressive price", 
 			FIX::Side_BUY ? "buy" : "sell"
-		) << std::endl;
+		);
 	}
 	message.get(orderQty);
 	message.getFieldIfSet(timeInForce);
@@ -161,6 +177,8 @@ void Application::onMessage(const FIX44::NewOrderSingle& message, const FIX::Ses
 	{
 		reject_order(senderCompID, targetCompID, clOrdID, symbol, price, side, ordType, orderQty, e.what());
 	}
+	
+	spdlog::info(markets.get_market(symbol.getString())->second.to_string());
 }
 
 void Application::onMessage(const FIX44::OrderCancelRequest& message, const FIX::SessionID&)
@@ -394,6 +412,8 @@ void Application::update_order(const Order& order, char status, const std::strin
 		FIX::Session::sendToTarget(fixOrder, senderCompID, targetCompID);
 	}
 	catch (FIX::SessionNotFound&) {}
+
+	spdlog::info(markets.get_market(order.get_symbol())->second.to_string());
 }
 
 void Application::reject_order(const Order& order)
@@ -544,7 +564,7 @@ FIX::OrdType Application::convert(Order::Type type)
 	}
 }
 
-const Markets& Application::get_order_matcher() {
+const Markets& Application::get_markets() {
 	return markets;
 }
 

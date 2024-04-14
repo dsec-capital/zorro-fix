@@ -188,17 +188,17 @@ namespace common {
 	std::string OrderTracker::to_string() const {
 		std::string rows;
 		rows += "OrderTracker[\n";
-		rows += "pending orders:\n";
+		rows += "  pending orders:\n";
 		for (auto& [cl_ord_id, order] : pending_orders_by_cl_ord_id) {
-			rows += std::format("  {} : {}\n", cl_ord_id, order.to_string());
+			rows += std::format("    {} : {}\n", cl_ord_id, order.to_string());
 		}
-		rows += "open orders:\n";
+		rows += "  open orders:\n";
 		for (auto& [ord_id, order] : open_orders_by_ord_id) {
-			rows += std::format("  {} : {}\n", ord_id, order.to_string());
+			rows += std::format("    {} : {}\n", ord_id, order.to_string());
 		}
-		rows += "positions:\n";
+		rows += "  positions:\n";
 		for (auto& [symbol, pos] : position_by_symbol) {
-			rows += std::format("  {} : {}\n", symbol, pos.to_string());
+			rows += std::format("    {} : {}\n", symbol, pos.to_string());
 		}
 		rows += "]";
 		return rows;

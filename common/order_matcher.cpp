@@ -165,20 +165,32 @@ namespace common {
 
    void OrderMatcher::display() const
    {
-      std::cout << "BIDS:" << std::endl;
-      std::cout << "-----" << std::endl << std::endl;
-      for (auto bit = bid_orders.begin(); bit != bid_orders.end(); ++bit) {
-          std::cout << bit->second << std::endl;
-      }
-
-      std::cout << std::endl << std::endl;
-
-      std::cout << "ASKS:" << std::endl;
-      std::cout << "-----" << std::endl << std::endl;
-      for (auto ait = ask_orders.begin(); ait != ask_orders.end(); ++ait) {
-          std::cout << ait->second << std::endl;
-      }
+      std::cout << to_string() << std::endl;
    }  
+
+   std::string OrderMatcher::to_string() const {
+        std::string rows;
+        rows += "OrderMatcher[\n";
+        for (auto ait = ask_orders.begin(); ait != ask_orders.end(); ++ait) {
+            const auto& o = ait->second;
+            auto side = o.get_side() == Order::Side::buy ? "bid" : "ask";   
+            rows += std::format(
+                "symbol={}, owner={}, price={:8.5f}, side={}, quantity={}, open_quantity={}, executed_quantity={}, avg_executed_price=={:8.5f}, last_executed_price=={:8.5f}, last_executed_quantity={}\n", 
+                o.get_symbol(), o.get_owner(), o.get_price(), side, o.get_quantity(), o.get_open_quantity(), o.get_executed_quantity(), o.get_avg_executed_price(), o.get_last_executed_price(), o.get_last_executed_quantity()
+            );
+        }
+        rows += "------------------------------------\n";
+        for (auto bit = bid_orders.begin(); bit != bid_orders.end(); ++bit) {
+            const auto& o = bit->second;
+            auto side = o.get_side() == Order::Side::buy ? "bid" : "ask";
+            rows += std::format(
+                "symbol={}, owner={}, price={:8.5f}, side={}, quantity={}, open_quantity={}, executed_quantity={}, avg_executed_price=={:8.5f}, last_executed_price=={:8.5f}, last_executed_quantity={}\n",
+                o.get_symbol(), o.get_owner(), o.get_price(), side, o.get_quantity(), o.get_open_quantity(), o.get_executed_quantity(), o.get_avg_executed_price(), o.get_last_executed_price(), o.get_last_executed_quantity()
+            );
+        }
+        rows += "]";
+        return rows;
+   }
 
    int OrderMatcher::by_quantity(const Order& o) {
        return o.get_quantity();

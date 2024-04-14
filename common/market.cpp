@@ -1,8 +1,10 @@
 #include "pch.h"
 
+#include "spdlog/spdlog.h"
+
 #include "market.h"
-#include "time_utils.h"
 #include "json.h"
+#include "time_utils.h"
 
 namespace common {
 
@@ -23,11 +25,11 @@ namespace common {
         , prune_bars(prune_bars)
         , mutex(mutex)
         , bar_builder(bar_period, [this](const std::chrono::nanoseconds& end, double o, double h, double l, double c) {
-                std::cout << std::format("[{}] new bar end={} open={:.5f} high={:.5f} low={:.5f} close={:.5f}\n", symbol, common::to_string(end), o, h, l, c);
+                spdlog::info("[{}] new bar end={} open={:.5f} high={:.5f} low={:.5f} close={:.5f}\n", symbol, common::to_string(end), o, h, l, c);
                 this->bars.try_emplace(end, end, o, h, l, c);
             })
         , history_bar_builder(current.timestamp, bar_period, [this](const std::chrono::nanoseconds& end, double o, double h, double l, double c) {
-                // std::cout << std::format("[{}] hist bar end={} open={:.5f} high={:.5f} low={:.5f} close={:.5f}\n", symbol, common::to_string(end), o, h, l, c);
+                spdlog::debug("[{}] hist bar end={} open={:.5f} high={:.5f} low={:.5f} close={:.5f}\n", symbol, common::to_string(end), o, h, l, c);
                 this->bars.try_emplace(end, end, o, h, l, c);
             })
         , current(current)
@@ -113,10 +115,10 @@ namespace common {
             OrderMatcher::insert(ask_order, orders);
         }
 
-        //std::cout << std::format("update_quotes {} by_open_quantity", symbol) << std::endl;
-        //print_levels(*this, OrderMatcher::by_open_quantity);
-        //std::cout << std::format("update_quotes {} by_last_exec_quantity", symbol) << std::endl;
-        //print_levels(*this, OrderMatcher::by_last_exec_quantity);
+        spdlog::debug("update_quotes {} by_open_quantity", symbol);
+        spdlog::debug(common::to_string(*this, OrderMatcher::by_open_quantity));
+        spdlog::debug("update_quotes {} by_last_exec_quantity", symbol);
+        spdlog::debug(common::to_string(*this, OrderMatcher::by_last_exec_quantity));
     }
 
     std::pair<TopOfBook, TopOfBook> Market::get_top_of_book() const {
@@ -137,7 +139,7 @@ namespace common {
     void Market::extend_bar_history(const std::chrono::nanoseconds& past) {
         std::lock_guard<std::mutex> ul(mutex);
         auto until = round_down(past, bar_period);
-        std::cout << std::format("====> extend_bar_history from {} until {}", to_string(oldest.timestamp), to_string(until)) << std::endl;
+        spdlog::info("====> extend_bar_history from {} until {}", common::to_string(oldest.timestamp), common::to_string(until));
         auto t = oldest.timestamp;
         while (t > until) {
             t = t - history_sample_period;

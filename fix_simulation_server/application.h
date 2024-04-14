@@ -1,15 +1,11 @@
 #ifndef APPLICATION_H
 #define APPLICATION_H
 
+#include "pch.h"
+
 #include "common/order.h"
 #include "common/markets.h"
 #include "common/id_generator.h"
-
-#include <queue>
-#include <iostream>
-#include <thread>
-#include <mutex>
-#include <limits>
 
 #include "quickfix/Application.h"
 #include "quickfix/MessageCracker.h"
@@ -43,7 +39,7 @@ public:
 
 	void stop_market_data_updates();
 
-	const Markets& get_order_matcher();
+	const Markets& get_markets();
 
 private:
 

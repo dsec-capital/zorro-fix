@@ -2,6 +2,8 @@
 #pragma warning( disable : 4503 4355 4786 )
 #endif
 
+#include "pch.h"
+
 #include "quickfix/config.h"
 #include "quickfix/Log.h"
 #include "quickfix/FileStore.h"
@@ -15,11 +17,9 @@
 #include "application.h"
 #include "rest_server.h"
 
-#include <string>
-#include <iostream>
-#include <fstream>
-#include <chrono>
-#include <toml++/toml.hpp>
+#include "toml++/toml.hpp"
+#include "spdlog/spdlog.h"
+#include "spdlog/sinks/basic_file_sink.h"
 
 using namespace std::chrono_literals;
 using namespace fix_sim;
@@ -54,6 +54,9 @@ int main(int argc, char** argv)
         auto market_update_period = std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::milliseconds(cfg["market_update_period_millis"].value<int>().value())
         );
+
+        spdlog::set_level(spdlog::level::info);
+        spdlog::flush_every(std::chrono::seconds(2));
 
         toml::array& symbols = *tbl.get_as<toml::array>("symbols");
         for (auto& symbol : symbols) {
@@ -130,11 +133,11 @@ int main(int argc, char** argv)
             std::cin >> value;
 
             if (value == "#symbols")
-                application.get_order_matcher().display();
+                application.get_markets().display();
             else if (value == "#quit")
                 break;
             else
-                application.get_order_matcher().display(value);
+                application.get_markets().display(value);
 
             std::cout << std::endl;
         }

@@ -1,11 +1,10 @@
 #pragma once
 
-#include <thread>
-#include <mutex>
-#include <format>
+#include "pch.h"
 
 #include "httplib/httplib.h"
 #include "nlohmann/json.h"
+#include "spdlog/spdlog.h"
 
 #include "common/time_utils.h"
 
@@ -80,7 +79,7 @@ namespace fix_sim {
                msg += std::format("error={}", body);
             }
 
-            std::cout << msg << std::endl;
+            spdlog::info(msg);
          });
 
          server.Get("/bar_range", [this](const Request& req, Response& res) {
@@ -112,7 +111,7 @@ namespace fix_sim {
                msg += std::format("error={}", body);
             }
 
-            std::cout << msg << std::endl;
+            spdlog::info(msg);
          });
       }
 
@@ -127,7 +126,7 @@ namespace fix_sim {
          //server.stop();
          //thread.join();
 
-         std::cout << "====> rest server stated on " << host << ":" << port << std::endl;
+         spdlog::info("====> rest server stated on {}:{}", host, port);
       }
    };
 }

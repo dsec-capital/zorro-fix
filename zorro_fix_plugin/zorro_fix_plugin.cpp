@@ -43,6 +43,13 @@ namespace zfix {
 		LoggedIn = 1
 	};
 
+	enum BrokerBuyError {
+		OrderRejectedOrTimeout = 0,
+		TradeOrderIdUUID = -1,
+		BrokerAPITimeout = -2,
+		OrderAcceptedWithoutOrderId = -3
+	};
+
 	bool log_history_bars = false;
 
 	// http://localhost:8080/bars?symbol=AUD/USD
@@ -436,9 +443,12 @@ namespace zfix {
 	/*
 	* BrokerBuy2
 	* 
-	* Returns 
-	*	0 when the order was rejected or a FOK or IOC order was unfilled within the wait time (adjustable with the SET_WAIT command). The order must then be cancelled by the plugin.
-	*	  Trade or order ID number when the order was successfully placed. If the broker API does not provide trade or order IDs, the plugin should generate a unique 6-digit number, f.i. from a counter, and return it as a trade ID.
+	* Returns see BrokerBuyStatus
+	*  if successful 
+	*    Trade or order id 
+	*  or on error
+	*	 0 when the order was rejected or a FOK or IOC order was unfilled within the wait time (adjustable with the SET_WAIT command). The order must then be cancelled by the plugin.
+	*	   Trade or order ID number when the order was successfully placed. If the broker API does not provide trade or order IDs, the plugin should generate a unique 6-digit number, f.i. from a counter, and return it as a trade ID.
 	*	-1 when the trade or order identifier is a UUID that is then retrieved with the GET_UUID command.
 	*	-2 when the broker API did not respond at all within the wait time. The plugin must then attempt to cancel the order. Zorro will display a "possible orphan" warning.
 	*	-3 when the order was accepted, but got no ID yet. The ID is then taken from the next subsequent BrokerBuy call that returned a valid ID. This is used for combo positions that require several orders.
@@ -449,7 +459,7 @@ namespace zfix {
 
 		if (!fix_thread) {
 			show("BrokerBuy2: no FIX session");
-			return -2;
+			return BrokerBuyError::BrokerAPITimeout;
 		}
 
 		auto symbol = FIX::Symbol(Asset);
@@ -481,13 +491,13 @@ namespace zfix {
 
 		if (!success) {
 			show("BrokerBuy2 timeout while waiting for FIX exec report!");
-			return 0;
+			return BrokerBuyError::OrderRejectedOrTimeout;
 		}
 		else {
 			if (report.exec_type == FIX::ExecType_REJECTED) {
 				spdlog::debug("BrokerBuy2: rejected {}", report.to_string());
 				show(std::format("BrokerBuy2: rejected {}", report.to_string()));
-				return 0;
+				return BrokerBuyError::OrderRejectedOrTimeout;
 			}
 			else if (report.cl_ord_id == cl_ord_id.getString()) {
 				auto i_ord_id = next_internal_order_id();
@@ -511,12 +521,11 @@ namespace zfix {
 			else {
 				spdlog::debug("BrokerBuy2: report {} does belong to cl {}", report.to_string(), cl_ord_id.getString());
 				show(std::format("BrokerBuy2: report {} does belong to cl {}", report.to_string(), cl_ord_id.getString()));
-				return 0;
+				return BrokerBuyError::OrderRejectedOrTimeout;
 
 				// TODO what should be done in this rare case?
 				// example: two orders at almost same time, 
 				// exec report of the second order arrives first 
-
 			}
 		}		
 	}

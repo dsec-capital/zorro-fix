@@ -64,8 +64,6 @@ namespace common {
 		avg_executed_price =
 			((quantity * price) + (avg_executed_price * executed_quantity))
 			/ (quantity + executed_quantity);
-
-		std::cout << std::format("***** price={} quantity={} avg_executed_price={} denom={}", price, quantity, avg_executed_price, quantity + executed_quantity);
 		
 		open_quantity -= quantity;
 		executed_quantity += quantity;
@@ -88,11 +86,11 @@ namespace common {
 			"type=" + std::to_string(type) + ", " +
 			"price=" + std::to_string(price) + ", " +
 			"quantity=" + std::to_string(quantity) + ", " +
-			"openQuantity=" + std::to_string(open_quantity) + ", " +
-			"executedQuantity=" + std::to_string(executed_quantity) + ", " +
-			"avgExecutedPrice=" + std::to_string(avg_executed_price) + ", " +
-			"lastExecutedPrice=" + std::to_string(last_executed_price) + ", " +
-			"lastExecutedQuantity=" + std::to_string(last_executed_quantity);
+			"open_quantity=" + std::to_string(open_quantity) + ", " +
+			"executed_quantity=" + std::to_string(executed_quantity) + ", " +
+			"avg_executed_price=" + std::to_string(avg_executed_price) + ", " +
+			"last_executed_price=" + std::to_string(last_executed_price) + ", " +
+			"last_executed_quantity=" + std::to_string(last_executed_quantity);
 	}
 
 	std::string to_string(const Order::Side& side) {

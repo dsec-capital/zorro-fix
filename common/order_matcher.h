@@ -43,6 +43,8 @@ namespace common {
 
 		void display() const;
 
+		std::string to_string() const;
+
 	private:
 		// note: insertion order is only maintained for elements with  
 		// identical keys, which properly implements price time priority 
@@ -57,6 +59,13 @@ namespace common {
 	};
 
 	std::string to_string(const typename OrderMatcher::level_vector_t& levels);
+
+	template<typename Op>
+	inline std::string to_string(const OrderMatcher& matcher, Op op) {
+		OrderMatcher::level_vector_t levels;
+		matcher.book_levels(op, levels);
+		return to_string(levels);
+	}
 
 	template<typename Op>
 	inline void print_levels(const OrderMatcher& matcher, Op op) {

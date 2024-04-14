@@ -1,6 +1,8 @@
 #ifndef PCH_H
 #define PCH_H
 
+#define _SILENCE_ALL_MS_EXT_DEPRECATION_WARNINGS
+
 #include <map>
 #include <queue>
 #include <vector>
