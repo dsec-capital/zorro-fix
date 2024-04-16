@@ -501,7 +501,7 @@ namespace zfix {
 			}
 			else if (report.cl_ord_id == cl_ord_id.getString()) { 
 				auto i_ord_id = next_internal_order_id();
-				order_id_by_internal_order_id.emplace(i_ord_id, report.ord_id); // TODO remove the mappings at some point
+				order_id_by_internal_order_id.emplace(i_ord_id, report.ord_id);  
 				order_tracker.process(report);
 
 				if (report.ord_status == FIX::OrdStatus_FILLED || report.ord_status == FIX::OrdStatus_PARTIALLY_FILLED) {
@@ -513,8 +513,8 @@ namespace zfix {
 					}
 				}
 
-				spdlog::debug("BrokerBuy2: processed {} \n{}", report.to_string(), order_tracker.to_string());
-				show(std::format("BrokerBuy2: processed {} \n{}", report.to_string(), order_tracker.to_string()));
+				spdlog::debug("BrokerBuy2: i_ord_id={} processed={} \n{}", i_ord_id, report.to_string(), order_tracker.to_string());
+				show(std::format("BrokerBuy2: i_ord_id={} processed={} \n{}", i_ord_id, report.to_string(), order_tracker.to_string()));
 
 				return i_ord_id;
 			}
@@ -630,7 +630,6 @@ namespace zfix {
 						} 
 						else {
 							order_tracker.process(report);
-
 							show(order_tracker.to_string());
 						}
 
@@ -664,7 +663,6 @@ namespace zfix {
 						}
 						else {
 							order_tracker.process(report);
-
 							show(order_tracker.to_string());
 						}
 
@@ -672,8 +670,13 @@ namespace zfix {
 					}
 				}
 			}
+			else {
+				spdlog::error("BrokerSell2: could not find open order with ord_id={} ", it->second);
+				show(std::format("BrokerSell2: could not find open order with ord_id={} ", it->second));
+			}
 		}
 		else {
+			spdlog::error("BrokerSell2: mapping not found for trade_id={} ", trade_id);
 			show(std::format("BrokerSell2: mapping not found for trade_id={} ", trade_id));
 		}
 

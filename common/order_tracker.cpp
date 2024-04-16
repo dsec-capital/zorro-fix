@@ -140,18 +140,18 @@ namespace common {
 
 		switch (report.exec_type) {
 			case FIX::ExecType_PENDING_NEW: {
-				pending_orders_by_cl_ord_id.emplace(report.ord_id, std::move(OrderReport(report)));
+				pending_orders_by_cl_ord_id.emplace(report.cl_ord_id, std::move(OrderReport(report)));
 				break;
 			}
 
 			case FIX::ExecType_NEW: {
-				pending_orders_by_cl_ord_id.erase(report.ord_id);
-				open_orders_by_ord_id.emplace(report.cl_ord_id, std::move(OrderReport(report)));
+				pending_orders_by_cl_ord_id.erase(report.cl_ord_id);
+				open_orders_by_ord_id.emplace(report.ord_id, std::move(OrderReport(report)));
 				break;
 			}
 
 			case FIX::ExecType_TRADE: {
-				open_orders_by_ord_id.emplace(report.cl_ord_id, std::move(OrderReport(report)));
+				open_orders_by_ord_id.emplace(report.ord_id, std::move(OrderReport(report)));
 				auto& position = net_position(report.symbol);
 				position.qty += report.last_qty;
 				position.avg_px = report.avg_px;
@@ -159,18 +159,18 @@ namespace common {
 			}
 
 			case FIX::ExecType_PENDING_CANCEL: {
-				open_orders_by_ord_id.emplace(report.cl_ord_id, std::move(OrderReport(report)));
+				open_orders_by_ord_id.emplace(report.ord_id, std::move(OrderReport(report)));
 				break;
 			}
 
 			case FIX::ExecType_REPLACED: {
-				open_orders_by_ord_id.emplace(report.cl_ord_id, std::move(OrderReport(report)));
+				open_orders_by_ord_id.emplace(report.ord_id, std::move(OrderReport(report)));
 				break;
 			}
 
 			case FIX::ExecType_CANCELED: {
-				open_orders_by_ord_id.erase(report.cl_ord_id);
-				history_orders_by_ord_id.emplace(report.cl_ord_id, std::move(OrderReport(report)));
+				open_orders_by_ord_id.erase(report.ord_id);
+				history_orders_by_ord_id.emplace(report.ord_id, std::move(OrderReport(report)));
 				break;
 			}
 
