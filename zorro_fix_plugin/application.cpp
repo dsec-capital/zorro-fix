@@ -189,8 +189,8 @@ namespace zfix {
 		FIX::Symbol symbol;
 		FIX::ExecID exec_id;
 		FIX::ExecType exec_type;
-		FIX::OrderID order_id;
-		FIX::ClOrdID ord_id;
+		FIX::OrderID ord_id;
+		FIX::ClOrdID cl_ord_id;
 		FIX::OrdStatus ord_status;
 		FIX::OrdType ord_type;
 		FIX::Side side;
@@ -206,8 +206,8 @@ namespace zfix {
 		message.get(symbol);
 		message.get(exec_id);
 		message.get(exec_type);
-		message.get(order_id);
 		message.get(ord_id);
+		message.get(cl_ord_id);
 		message.get(ord_status);
 		message.get(ord_type);
 		message.get(side);
@@ -223,7 +223,7 @@ namespace zfix {
 		ExecReport report(
 			symbol.getString(),
 			ord_id.getString(),
-			order_id.getString(),
+			cl_ord_id.getString(),
 			exec_id.getString(),
 			exec_type.getValue(),
 			ord_type.getValue(),
@@ -317,6 +317,7 @@ namespace zfix {
 
 	FIX::Message Application::order_cancel_request(
 		const FIX::Symbol& symbol,
+		const FIX::OrderID& ordID,
 		const FIX::OrigClOrdID& origClOrdID,
 		const FIX::ClOrdID& clOrdID,
 		const FIX::Side& side,
@@ -329,6 +330,7 @@ namespace zfix {
 			FIX::TransactTime());
 
 		request.set(symbol);
+		request.set(ordID);
 		request.set(orderQty);
 
 		auto& header = request.getHeader();
@@ -344,6 +346,7 @@ namespace zfix {
 
 	FIX::Message Application::order_cancel_replace_request(
 		const FIX::Symbol& symbol,
+		const FIX::OrderID& ordID,
 		const FIX::OrigClOrdID& origClOrdID,
 		const FIX::ClOrdID& clOrdID,
 		const FIX::Side& side,
@@ -360,6 +363,7 @@ namespace zfix {
 
 		request.set(FIX::HandlInst('1'));
 		request.set(symbol);
+		request.set(ordID);
 		request.set(price);
 		request.set(orderQty);
 

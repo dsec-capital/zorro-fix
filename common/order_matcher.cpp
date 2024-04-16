@@ -116,21 +116,24 @@ namespace common {
        return num;
    }
 
-   Order& OrderMatcher::find(Order::Side side, std::string id)
+   Order& OrderMatcher::find(Order::Side side, std::string ord_id)
    {
       if (side == Order::buy)
       {
          bid_order_map_t::iterator i;
          for (i = bid_orders.begin(); i != bid_orders.end(); ++i)
-            if (i->second.get_ord_id() == id) return i->second;
+            if (i->second.get_ord_id() == ord_id) return i->second;
       }
       else if (side == Order::sell)
       {
          ask_order_map_t::iterator i;
          for (i = ask_orders.begin(); i != ask_orders.end(); ++i)
-            if (i->second.get_ord_id() == id) return i->second;
+            if (i->second.get_ord_id() == ord_id) return i->second;
       }
-      throw std::exception();
+      throw std::runtime_error(std::format(
+          "OrderMatcher::find: could not find order with ord_id={}, side={}", 
+          ord_id, side == Order::buy ? "buy" : "sell"
+      ));
    }
 
    typename OrderMatcher::bid_map_t OrderMatcher::bid_map(const std::function<double(const Order&)>& f) const {

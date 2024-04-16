@@ -499,9 +499,9 @@ namespace zfix {
 				show(std::format("BrokerBuy2: rejected {}", report.to_string()));
 				return BrokerBuyError::OrderRejectedOrTimeout;
 			}
-			else if (report.ord_id == ord_id.getString()) {
+			else if (report.ord_id == ord_id.getString()) { 
 				auto i_ord_id = next_internal_order_id();
-				order_id_by_internal_order_id.emplace(i_ord_id, report.order_id); // TODO remove the mappings at some point
+				order_id_by_internal_order_id.emplace(i_ord_id, report.ord_id); // TODO remove the mappings at some point
 				order_tracker.process(report);
 
 				if (report.ord_status == FIX::OrdStatus_FILLED || report.ord_status == FIX::OrdStatus_PARTIALLY_FILLED) {
@@ -607,8 +607,9 @@ namespace zfix {
 				}
 				else {
 					auto symbol = FIX::Symbol(order.symbol);
-					auto orig_cl_ord_id = FIX::OrigClOrdID(order.ord_id);
-					auto ord_id = FIX::ClOrdID(next_client_order_id());
+					auto ord_id = FIX::OrderID(order.ord_id);
+					auto orig_cl_ord_id = FIX::OrigClOrdID(order.cl_ord_id);
+					auto cl_ord_id = FIX::ClOrdID(next_client_order_id());
 					auto side = FIX::Side(order.side);
 					auto ord_type = FIX::OrdType(order.ord_type);
 
@@ -617,7 +618,7 @@ namespace zfix {
 						show(std::format("BrokerSell2: cancel working order"));
 
 						auto msg = fix_thread->fix_app().order_cancel_request(
-							symbol, orig_cl_ord_id, ord_id, side, FIX::OrderQty(order.leaves_qty)
+							symbol, ord_id, orig_cl_ord_id, cl_ord_id, side, FIX::OrderQty(order.leaves_qty)
 						);
 
 						ExecReport report;
@@ -650,7 +651,7 @@ namespace zfix {
 
 						auto new_qty = max(target_qty, 0);
 						auto msg = fix_thread->fix_app().order_cancel_replace_request(
-							symbol, orig_cl_ord_id, ord_id, side, ord_type, 
+							symbol, ord_id, orig_cl_ord_id, cl_ord_id, side, ord_type, 
 							FIX::OrderQty(new_qty), FIX::Price(order.price)
 						);
 

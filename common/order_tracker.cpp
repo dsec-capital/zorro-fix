@@ -10,7 +10,7 @@ namespace common {
 		const ExecReport& report
 	) : symbol(report.symbol)
 	  , ord_id(report.ord_id)
-	  , order_id(report.order_id)
+	  , cl_ord_id(report.cl_ord_id)
 	  , ord_type(report.ord_type)
 	  , ord_status(report.ord_status)
 	  , side(report.side)
@@ -24,7 +24,7 @@ namespace common {
 	OrderReport::OrderReport(
 		const std::string& symbol,
 		const std::string& ord_id,
-		const std::string& order_id,
+		const std::string& cl_ord_id,
 		const char ord_type,
 		const char ord_status,
 		const char side,
@@ -35,7 +35,7 @@ namespace common {
 		double leaves_qty
 	) : symbol(symbol)
 	  , ord_id(ord_id)
-	  , order_id(order_id)
+	  , cl_ord_id(cl_ord_id)
 	  , ord_type(ord_type)
 	  , ord_status(ord_status)
 	  , side(side)
@@ -49,7 +49,7 @@ namespace common {
 	std::string OrderReport::to_string() const {
 		return "symbol=" + symbol + ", "
 			"ord_id=" + ord_id + ", "
-			"order_id=" + order_id + ", "
+			"cl_ord_id=" + cl_ord_id + ", "
 			"ord_status=" + std::to_string(ord_status) + ", "
 			"ord_type=" + std::to_string(ord_type) + ", "
 			"side=" + std::to_string(side) + ", "
@@ -146,12 +146,12 @@ namespace common {
 
 			case FIX::ExecType_NEW: {
 				pending_orders_by_cl_ord_id.erase(report.ord_id);
-				open_orders_by_ord_id.emplace(report.order_id, std::move(OrderReport(report)));
+				open_orders_by_ord_id.emplace(report.cl_ord_id, std::move(OrderReport(report)));
 				break;
 			}
 
 			case FIX::ExecType_TRADE: {
-				open_orders_by_ord_id.emplace(report.order_id, std::move(OrderReport(report)));
+				open_orders_by_ord_id.emplace(report.cl_ord_id, std::move(OrderReport(report)));
 				auto& position = net_position(report.symbol);
 				position.qty += report.last_qty;
 				position.avg_px = report.avg_px;
@@ -159,18 +159,18 @@ namespace common {
 			}
 
 			case FIX::ExecType_PENDING_CANCEL: {
-				open_orders_by_ord_id.emplace(report.order_id, std::move(OrderReport(report)));
+				open_orders_by_ord_id.emplace(report.cl_ord_id, std::move(OrderReport(report)));
 				break;
 			}
 
 			case FIX::ExecType_REPLACED: {
-				open_orders_by_ord_id.emplace(report.order_id, std::move(OrderReport(report)));
+				open_orders_by_ord_id.emplace(report.cl_ord_id, std::move(OrderReport(report)));
 				break;
 			}
 
 			case FIX::ExecType_CANCELED: {
-				open_orders_by_ord_id.erase(report.order_id);
-				history_orders_by_ord_id.emplace(report.order_id, std::move(OrderReport(report)));
+				open_orders_by_ord_id.erase(report.cl_ord_id);
+				history_orders_by_ord_id.emplace(report.cl_ord_id, std::move(OrderReport(report)));
 				break;
 			}
 
@@ -189,16 +189,16 @@ namespace common {
 		std::string rows;
 		rows += "OrderTracker[\n";
 		rows += "  pending orders:\n";
-		for (auto& [ord_id, order] : pending_orders_by_cl_ord_id) {
-			rows += std::format("    {} : {}\n", ord_id, order.to_string());
+		for (auto& [cl_ord_id, order] : pending_orders_by_cl_ord_id) {
+			rows += std::format("    cl_ord_id={} order={}\n", cl_ord_id, order.to_string());
 		}
 		rows += "  open orders:\n";
 		for (auto& [ord_id, order] : open_orders_by_ord_id) {
-			rows += std::format("    {} : {}\n", ord_id, order.to_string());
+			rows += std::format("    ord_id={} order={}\n", ord_id, order.to_string());
 		}
 		rows += "  positions:\n";
 		for (auto& [symbol, pos] : position_by_symbol) {
-			rows += std::format("    {} : {}\n", symbol, pos.to_string());
+			rows += std::format("    symbol={} pos={}\n", symbol, pos.to_string());
 		}
 		rows += "]";
 		return rows;

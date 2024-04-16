@@ -60,6 +60,7 @@ namespace zfix
 
 		FIX::Message order_cancel_request(
 			const FIX::Symbol& symbol,
+			const FIX::OrderID& ordID,
 			const FIX::OrigClOrdID& origClOrdID,
 			const FIX::ClOrdID& clOrdId,
 			const FIX::Side& side,
@@ -68,6 +69,7 @@ namespace zfix
 
 		FIX::Message order_cancel_replace_request(
 			const FIX::Symbol& symbol,
+			const FIX::OrderID& ordID,
 			const FIX::OrigClOrdID& origClOrdID,
 			const FIX::ClOrdID& clOrdId,
 			const FIX::Side& side,

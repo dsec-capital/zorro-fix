@@ -157,6 +157,7 @@ void Application::onMessage(const FIX44::NewOrderSingle& message, const FIX::Ses
 		ordType = FIX::OrdType_LIMIT;
 		double aggressive_price = side == FIX::Side_BUY ? (std::numeric_limits<double>::max)() : 0.0;
 		price = FIX::Price(aggressive_price);
+
 		spdlog::info(
 			"converging market order {} to limit order with maximally aggressive price", 
 			FIX::Side_BUY ? "buy" : "sell"
@@ -178,6 +179,7 @@ void Application::onMessage(const FIX44::NewOrderSingle& message, const FIX::Ses
 	}
 	catch (std::exception& e)
 	{
+		spdlog::error("Application::onMessage[NewOrderSingle]: {}", e.what());
 		reject_order(senderCompID, targetCompID, clOrdID, symbol, price, side, ordType, orderQty, e.what());
 	}
 	
@@ -186,10 +188,12 @@ void Application::onMessage(const FIX44::NewOrderSingle& message, const FIX::Ses
 
 void Application::onMessage(const FIX44::OrderCancelRequest& message, const FIX::SessionID&)
 {
+	FIX::OrderID ordID;
 	FIX::OrigClOrdID origClOrdID;
 	FIX::Symbol symbol;
 	FIX::Side side;
 
+	message.get(ordID);
 	message.get(origClOrdID);
 	message.get(symbol);
 	message.get(side);
@@ -198,7 +202,9 @@ void Application::onMessage(const FIX44::OrderCancelRequest& message, const FIX:
 	{
 		process_cancel(origClOrdID, symbol, convert(side));
 	}
-	catch (std::exception&) {}
+	catch (std::exception& e) {
+		spdlog::error("Application::onMessage[OrderCancelRequest]: {}", e.what());
+	}
 }
 
 void Application::onMessage(const FIX44::MarketDataRequest& message, const FIX::SessionID&)
@@ -393,7 +399,7 @@ void Application::update_order(const Order& order, char exec_status, char ord_st
 	);
 
 	fixOrder.set(FIX::Symbol(order.get_symbol())); 
-	fixOrder.set(FIX::ClOrdID(order.get_ord_id()));
+	fixOrder.set(FIX::ClOrdID(order.get_cl_ord_id()));
 	fixOrder.set(FIX::OrderQty(order.get_quantity()));
 	fixOrder.set(FIX::OrdType(order.get_type() == Order::Type::limit ? FIX::OrdType_LIMIT : FIX::OrdType_MARKET));
 	if (order.get_type() == Order::Type::limit) {
@@ -414,7 +420,9 @@ void Application::update_order(const Order& order, char exec_status, char ord_st
 	{
 		FIX::Session::sendToTarget(fixOrder, senderCompID, targetCompID);
 	}
-	catch (FIX::SessionNotFound&) {}
+	catch (FIX::SessionNotFound& e) {
+		spdlog::error("Application::update_order: session not found {}", e.what());
+	}
 
 	spdlog::info(markets.get_market(order.get_symbol())->second.to_string());
 }
@@ -477,7 +485,9 @@ void Application::reject_order(
 	{
 		FIX::Session::sendToTarget(fixOrder, senderCompID, targetCompID);
 	}
-	catch (FIX::SessionNotFound&) {}
+	catch (FIX::SessionNotFound& e) {
+		spdlog::error("Application::reject_order: session not found {}", e.what());
+	}
 }
 
 void Application::process_order(const Order& order)
@@ -505,11 +515,11 @@ void Application::process_order(const Order& order)
 }
 
 void Application::process_cancel(
-	const std::string& id,
+	const std::string& ord_id,
 	const std::string& symbol, 
 	Order::Side side)
 {
-	Order& order = markets.find(symbol, side, id);
+	Order& order = markets.find(symbol, side, ord_id);
 	order.cancel();
 	cancel_order(order);
 	markets.erase(order);

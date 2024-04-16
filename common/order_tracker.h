@@ -25,7 +25,7 @@ namespace common {
 		OrderReport(
 			const std::string& symbol,
 			const std::string& ord_id,
-			const std::string& order_id,
+			const std::string& cl_ord_id,
 			const char ord_type,
 			const char ord_status,
 			const char side,
@@ -38,7 +38,7 @@ namespace common {
 
 		std::string symbol{};
 		std::string ord_id{};
-		std::string order_id{};
+		std::string cl_ord_id{};
 		char ord_type{ FIX::OrdType_MARKET };
 		char ord_status{ FIX::OrdStatus_REJECTED };
 		char side{ FIX::Side_UNDISCLOSED };

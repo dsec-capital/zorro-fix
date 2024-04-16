@@ -85,7 +85,8 @@ namespace common {
 	std::string Order::to_string() const {
 		return
 			"symbol=" + symbol + ", " +
-			"clOrdId=" + ord_id + ", " +
+			"ord_id=" + ord_id + ", " +
+			"cl_ord_id=" + cl_ord_id + ", " +
 			"owner=" + owner + ", " +
 			"target=" + target + ", " +
 			"side=" + std::to_string(side) + ", " +
