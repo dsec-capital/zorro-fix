@@ -473,14 +473,14 @@ namespace zfix {
 		else
 			ord_type = FIX::OrdType_MARKET;
 
-		auto ord_id = FIX::ClOrdID(next_client_order_id());
+		auto cl_ord_id = FIX::ClOrdID(next_client_order_id());
 		auto side = amount > 0 ? FIX::Side(FIX::Side_BUY) : FIX::Side(FIX::Side_SELL);
 		auto qty = FIX::OrderQty(std::abs(amount));
 		auto limit_price = FIX::Price(limit);
 		auto stop_price = FIX::StopPx(stop);
 
 		auto msg = fix_thread->fix_app().new_order_single(
-			symbol, ord_id, side, ord_type, time_in_force, qty, limit_price, stop_price
+			symbol, cl_ord_id, side, ord_type, time_in_force, qty, limit_price, stop_price
 		);
 
 		spdlog::debug("BrokerBuy2: NewOrderSingle {}", fix_string(msg));
@@ -499,7 +499,7 @@ namespace zfix {
 				show(std::format("BrokerBuy2: rejected {}", report.to_string()));
 				return BrokerBuyError::OrderRejectedOrTimeout;
 			}
-			else if (report.ord_id == ord_id.getString()) { 
+			else if (report.cl_ord_id == cl_ord_id.getString()) { 
 				auto i_ord_id = next_internal_order_id();
 				order_id_by_internal_order_id.emplace(i_ord_id, report.ord_id); // TODO remove the mappings at some point
 				order_tracker.process(report);
@@ -519,8 +519,8 @@ namespace zfix {
 				return i_ord_id;
 			}
 			else {
-				spdlog::debug("BrokerBuy2: report {} does belong to cl {}", report.to_string(), ord_id.getString());
-				show(std::format("BrokerBuy2: report {} does belong to cl {}", report.to_string(), ord_id.getString()));
+				spdlog::debug("BrokerBuy2: report {} does belong to given cl_ord_id={}", report.to_string(), cl_ord_id.getString());
+				show(std::format("BrokerBuy2: report {} does belong given cl_ord_id={}", report.to_string(), cl_ord_id.getString()));
 				return BrokerBuyError::OrderRejectedOrTimeout;
 
 				// TODO what should be done in this rare case?
