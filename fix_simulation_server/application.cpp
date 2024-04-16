@@ -99,7 +99,7 @@ void Application::onLogout(const FIX::SessionID& sessionID)
 	auto targetCompID = sessionID.getTargetCompID().getString();
 	auto it = market_data_subscriptions.begin();
 	spdlog::info(
-		"====> removing market data subscriptions for senderCompID = {} targetCompID = {}", 
+		"====> removing market data subscriptions for sender_comp_id = {} target_comp_id = {}", 
 		senderCompID, targetCompID
 	);
 	while(it != market_data_subscriptions.end()) {
@@ -134,27 +134,27 @@ void Application::fromApp(
 
 void Application::onMessage(const FIX44::NewOrderSingle& message, const FIX::SessionID&)
 {
-	FIX::SenderCompID senderCompID;
-	FIX::TargetCompID targetCompID;
-	FIX::ClOrdID clOrdID;
+	FIX::SenderCompID sender_comp_id;
+	FIX::TargetCompID target_comp_id;
+	FIX::ClOrdID cl_ord_id;
 	FIX::Symbol symbol;
 	FIX::Side side;
-	FIX::OrdType ordType;
+	FIX::OrdType ord_type;
 	FIX::Price price(0);
 	FIX::OrderQty orderQty(0);
 	FIX::TimeInForce timeInForce(FIX::TimeInForce_DAY);
 
-	message.getHeader().get(senderCompID);
-	message.getHeader().get(targetCompID);
-	message.get(clOrdID);
+	message.getHeader().get(sender_comp_id);
+	message.getHeader().get(target_comp_id);
+	message.get(cl_ord_id);
 	message.get(symbol);
 	message.get(side);
-	message.get(ordType);
-	if (ordType == FIX::OrdType_LIMIT) {
+	message.get(ord_type);
+	if (ord_type == FIX::OrdType_LIMIT) {
 		message.get(price);
 	}
-	else if (ordType == FIX::OrdType_MARKET) {
-		ordType = FIX::OrdType_LIMIT;
+	else if (ord_type == FIX::OrdType_MARKET) {
+		ord_type = FIX::OrdType_LIMIT;
 		double aggressive_price = side == FIX::Side_BUY ? (std::numeric_limits<double>::max)() : 0.0;
 		price = FIX::Price(aggressive_price);
 
@@ -169,7 +169,7 @@ void Application::onMessage(const FIX44::NewOrderSingle& message, const FIX::Ses
 	try
 	{
 		if (timeInForce == FIX::TimeInForce_GOOD_TILL_CANCEL || timeInForce == FIX::TimeInForce_DAY) {
-			Order order(generate_id("ord_id"), clOrdID, symbol, senderCompID, targetCompID, convert(side), convert(ordType), price, (long)orderQty);
+			Order order(generate_id("ord_id"), cl_ord_id, symbol, sender_comp_id, target_comp_id, convert(side), convert(ord_type), price, (long)orderQty);
 
 			process_order(order);
 		}
@@ -180,7 +180,7 @@ void Application::onMessage(const FIX44::NewOrderSingle& message, const FIX::Ses
 	catch (std::exception& e)
 	{
 		spdlog::error("Application::onMessage[NewOrderSingle]: {}", e.what());
-		reject_order(senderCompID, targetCompID, clOrdID, symbol, price, side, ordType, orderQty, e.what());
+		reject_order(sender_comp_id, target_comp_id, cl_ord_id, symbol, price, side, ord_type, orderQty, e.what());
 	}
 	
 	spdlog::info(markets.get_market(symbol.getString())->second.to_string());
@@ -188,63 +188,63 @@ void Application::onMessage(const FIX44::NewOrderSingle& message, const FIX::Ses
 
 void Application::onMessage(const FIX44::OrderCancelRequest& message, const FIX::SessionID&)
 {
-	FIX::OrderID ordID;
-	FIX::OrigClOrdID origClOrdID;
+	FIX::OrderID ord_id;
+	FIX::OrigClOrdID orig_cl_ord_id;
 	FIX::Symbol symbol;
 	FIX::Side side;
 
-	message.get(ordID);
-	message.get(origClOrdID);
+	message.get(ord_id);
+	message.get(orig_cl_ord_id);
 	message.get(symbol);
 	message.get(side);
 
 	try
 	{
-		process_cancel(origClOrdID, symbol, convert(side));
+		process_cancel(ord_id, symbol, convert(side));
 	}
 	catch (std::exception& e) {
-		spdlog::error("Application::onMessage[OrderCancelRequest]: {}", e.what());
+		spdlog::error("Application::onMessage[OrderCancelRequest]: ord_id={}, orig_cl_ord_id={} error={}", ord_id.getString(), orig_cl_ord_id.getString(), e.what());
 	}
 }
 
 void Application::onMessage(const FIX44::MarketDataRequest& message, const FIX::SessionID&)
 {
-	FIX::SenderCompID senderCompID;
-	FIX::TargetCompID targetCompID;
-	FIX::MDReqID mdReqID;
-	FIX::SubscriptionRequestType subscriptionRequestType;
-	FIX::MarketDepth marketDepth;
-	FIX::NoRelatedSym noRelatedSym;
-	FIX44::MarketDataRequest::NoRelatedSym noRelatedSymGroup;
+	FIX::SenderCompID sender_comp_id;
+	FIX::TargetCompID target_comp_id;
+	FIX::MDReqID md_req_id;
+	FIX::SubscriptionRequestType subscription_request_type;
+	FIX::MarketDepth market_depth;
+	FIX::NoRelatedSym no_related_sym;
+	FIX44::MarketDataRequest::NoRelatedSym no_related_sym_group;
 
-	message.getHeader().get(senderCompID);
-	message.getHeader().get(targetCompID);
-	message.get(mdReqID);
-	message.get(subscriptionRequestType);
-	message.get(marketDepth);
-	message.get(noRelatedSym);
+	message.getHeader().get(sender_comp_id);
+	message.getHeader().get(target_comp_id);
+	message.get(md_req_id);
+	message.get(subscription_request_type);
+	message.get(market_depth);
+	message.get(no_related_sym);
 
-	if (subscriptionRequestType == FIX::SubscriptionRequestType_SNAPSHOT ||
-		subscriptionRequestType == FIX::SubscriptionRequestType_SNAPSHOT_AND_UPDATES) { 
+	if (subscription_request_type == FIX::SubscriptionRequestType_SNAPSHOT ||
+		subscription_request_type == FIX::SubscriptionRequestType_SNAPSHOT_AND_UPDATES) { 
 
-		for (int i = 1; i <= noRelatedSym; ++i)
+		for (int i = 1; i <= no_related_sym; ++i)
 		{
 			FIX::Symbol symbol;
-			message.getGroup(i, noRelatedSymGroup);
-			noRelatedSymGroup.get(symbol);
+			message.getGroup(i, no_related_sym_group);
+			no_related_sym_group.get(symbol);
 
 			const auto& market = markets.get_market(symbol.getString())->second;
 			
 			// flip to send back target->sender and sender->target 
 			auto snapshot = get_snapshot_message(
-				targetCompID.getValue(), 
-				senderCompID.getValue(), 
+				target_comp_id.getValue(), 
+				sender_comp_id.getValue(), 
 				market.get_top_of_book().first
 			);
 			FIX::Session::sendToTarget(snapshot);
 
-			if (subscriptionRequestType == FIX::SubscriptionRequestType_SNAPSHOT_AND_UPDATES) {
-				subscribe_market_data(symbol.getValue(), targetCompID.getValue(), senderCompID.getValue());
+			if (subscription_request_type == FIX::SubscriptionRequestType_SNAPSHOT_AND_UPDATES) {
+				subscribe_market_data(symbol.getValue(), target_comp_id.getValue(), sender_comp_id.getValue());
 			}
 		}
 	} 
