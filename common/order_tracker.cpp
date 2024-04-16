@@ -150,24 +150,20 @@ namespace common {
 				break;
 			}
 
-			case FIX::ExecType_PARTIAL_FILL: {
+			case FIX::ExecType_TRADE: {
 				open_orders_by_ord_id.emplace(report.order_id, std::move(OrderReport(report)));
-				auto position = net_position(report.symbol);
-				position.qty += report.last_qty;
-				position.avg_px = report.avg_px;
-				break;
-			}
-
-			case FIX::ExecType_FILL: {
-				open_orders_by_ord_id.erase(report.order_id);
-				history_orders_by_ord_id.emplace(report.order_id, std::move(OrderReport(report)));
-				auto position = net_position(report.symbol);
+				auto& position = net_position(report.symbol);
 				position.qty += report.last_qty;
 				position.avg_px = report.avg_px;
 				break;
 			}
 
 			case FIX::ExecType_PENDING_CANCEL: {
+				open_orders_by_ord_id.emplace(report.order_id, std::move(OrderReport(report)));
+				break;
+			}
+
+			case FIX::ExecType_REPLACED: {
 				open_orders_by_ord_id.emplace(report.order_id, std::move(OrderReport(report)));
 				break;
 			}
@@ -179,9 +175,13 @@ namespace common {
 			}
 
 			case FIX::ExecType_REJECTED: {
-				SPDLOG_WARN("rejected {}", report.to_string());
+				spdlog::warn("rejected {}", report.to_string());
 				break;
 			}
+
+			default:
+				spdlog::error(" OrderTracker::process: invalid FIX::ExecType {}", report.exec_type);
+
 		}
 	}
 

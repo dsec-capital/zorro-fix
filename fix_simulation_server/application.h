@@ -73,7 +73,7 @@ private:
 
 	void process_cancel(const std::string& id, const std::string& symbol, Order::Side);
 
-	void update_order(const Order&, char status, const std::string& text);
+	void update_order(const Order&, char exec_status, char ord_status, const std::string& text);
 
 	void reject_order(const Order& order);
 

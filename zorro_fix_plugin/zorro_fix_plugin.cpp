@@ -58,7 +58,7 @@ namespace zfix {
 	httplib::Client rest_client(std::format("{}:{}", rest_host, rest_port));
 
 	int max_snaphsot_waiting_iterations = 10; 
-	std::chrono::milliseconds fix_blocking_queue_waiting_time = 500ms;
+	std::chrono::milliseconds fix_exec_report_waiting_time = 500ms;
 	std::string settings_cfg_file = "Plugin/zorro_fix_client.cfg";
 
 	int client_order_id = 0;
@@ -487,10 +487,10 @@ namespace zfix {
 		show(std::format("BrokerBuy2: NewOrderSingle {}", fix_string(msg)));
 
 		ExecReport report;
-		bool success = exec_report_queue.pop(report, std::chrono::milliseconds(500));
+		bool success = exec_report_queue.pop(report, fix_exec_report_waiting_time);
 
 		if (!success) {
-			show("BrokerBuy2 timeout while waiting for FIX exec report!");
+			show("BrokerBuy2 timeout while waiting for FIX exec report on order new!");
 			return BrokerBuyError::OrderRejectedOrTimeout;
 		}
 		else {
@@ -620,7 +620,19 @@ namespace zfix {
 							symbol, orig_cl_ord_id, cl_ord_id, side, FIX::OrderQty(order.leaves_qty)
 						);
 
-						// TODO here we should wait for a response 
+						ExecReport report;
+						bool success = exec_report_queue.pop(report, fix_exec_report_waiting_time);
+
+						if (!success) {
+							show("BrokerSell2 timeout while waiting for FIX exec report on order cancel!");
+							return BrokerBuyError::OrderRejectedOrTimeout;
+						} 
+						else {
+							order_tracker.process(report);
+
+							show(order_tracker.to_string());
+						}
+
 						return trade_id;
 					}
 					else {
@@ -641,6 +653,19 @@ namespace zfix {
 							symbol, orig_cl_ord_id, cl_ord_id, side, ord_type, 
 							FIX::OrderQty(new_qty), FIX::Price(order.price)
 						);
+
+						ExecReport report;
+						bool success = exec_report_queue.pop(report, fix_exec_report_waiting_time);
+
+						if (!success) {
+							show("BrokerSell2 timeout while waiting for FIX exec report on order cancel/replace!");
+							return BrokerBuyError::OrderRejectedOrTimeout;
+						}
+						else {
+							order_tracker.process(report);
+
+							show(order_tracker.to_string());
+						}
 
 						return trade_id;
 					}
