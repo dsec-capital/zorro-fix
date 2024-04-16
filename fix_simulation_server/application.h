@@ -28,9 +28,10 @@ public:
 		 FIX::Log *logger, 
 		 std::mutex& mutex
 	) : logger(logger)
-     , markets(market)
+      , markets(market)
 	  , market_update_period(market_update_period)
 	  , mutex(mutex)
+	  , ord_id(0)
 	{}
 
 	void run_market_data_update();
@@ -42,6 +43,8 @@ public:
 	const Markets& get_markets();
 
 private:
+
+	std::string generate_id(const std::string& label);
 
 	// FIX Application overloads
 
@@ -130,6 +133,7 @@ private:
 	std::map<std::string, std::pair<std::string, std::string>> market_data_subscriptions;
 
 	std::mutex& mutex;
+	int ord_id;
 	std::thread thread;
 	bool started{ false };
 	std::atomic_bool done{ false };

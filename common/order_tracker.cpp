@@ -9,7 +9,7 @@ namespace common {
 	OrderReport::OrderReport(
 		const ExecReport& report
 	) : symbol(report.symbol)
-	  , cl_ord_id(report.cl_ord_id)
+	  , ord_id(report.ord_id)
 	  , order_id(report.order_id)
 	  , ord_type(report.ord_type)
 	  , ord_status(report.ord_status)
@@ -23,7 +23,7 @@ namespace common {
 
 	OrderReport::OrderReport(
 		const std::string& symbol,
-		const std::string& cl_ord_id,
+		const std::string& ord_id,
 		const std::string& order_id,
 		const char ord_type,
 		const char ord_status,
@@ -34,7 +34,7 @@ namespace common {
 		double cum_qty,
 		double leaves_qty
 	) : symbol(symbol)
-	  , cl_ord_id(cl_ord_id)
+	  , ord_id(ord_id)
 	  , order_id(order_id)
 	  , ord_type(ord_type)
 	  , ord_status(ord_status)
@@ -48,7 +48,7 @@ namespace common {
 
 	std::string OrderReport::to_string() const {
 		return "symbol=" + symbol + ", "
-			"cl_ord_id=" + cl_ord_id + ", "
+			"ord_id=" + ord_id + ", "
 			"order_id=" + order_id + ", "
 			"ord_status=" + std::to_string(ord_status) + ", "
 			"ord_type=" + std::to_string(ord_type) + ", "
@@ -118,8 +118,8 @@ namespace common {
 		return it->second;
 	}
 
-	std::pair<typename OrderTracker::const_iterator, bool> OrderTracker::get_pending_order(const std::string& cl_ord_id) const {
-		auto it = pending_orders_by_cl_ord_id.find(cl_ord_id);
+	std::pair<typename OrderTracker::const_iterator, bool> OrderTracker::get_pending_order(const std::string& ord_id) const {
+		auto it = pending_orders_by_cl_ord_id.find(ord_id);
 		return std::make_pair(it, it != pending_orders_by_cl_ord_id.end());
 	}
 
@@ -140,12 +140,12 @@ namespace common {
 
 		switch (report.exec_type) {
 			case FIX::ExecType_PENDING_NEW: {
-				pending_orders_by_cl_ord_id.emplace(report.cl_ord_id, std::move(OrderReport(report)));
+				pending_orders_by_cl_ord_id.emplace(report.ord_id, std::move(OrderReport(report)));
 				break;
 			}
 
 			case FIX::ExecType_NEW: {
-				pending_orders_by_cl_ord_id.erase(report.cl_ord_id);
+				pending_orders_by_cl_ord_id.erase(report.ord_id);
 				open_orders_by_ord_id.emplace(report.order_id, std::move(OrderReport(report)));
 				break;
 			}
@@ -189,8 +189,8 @@ namespace common {
 		std::string rows;
 		rows += "OrderTracker[\n";
 		rows += "  pending orders:\n";
-		for (auto& [cl_ord_id, order] : pending_orders_by_cl_ord_id) {
-			rows += std::format("    {} : {}\n", cl_ord_id, order.to_string());
+		for (auto& [ord_id, order] : pending_orders_by_cl_ord_id) {
+			rows += std::format("    {} : {}\n", ord_id, order.to_string());
 		}
 		rows += "  open orders:\n";
 		for (auto& [ord_id, order] : open_orders_by_ord_id) {

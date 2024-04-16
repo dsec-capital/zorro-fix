@@ -24,7 +24,7 @@ namespace common {
 
 		OrderReport(
 			const std::string& symbol,
-			const std::string& cl_ord_id,
+			const std::string& ord_id,
 			const std::string& order_id,
 			const char ord_type,
 			const char ord_status,
@@ -37,7 +37,7 @@ namespace common {
 		);
 
 		std::string symbol{};
-		std::string cl_ord_id{};
+		std::string ord_id{};
 		std::string order_id{};
 		char ord_type{ FIX::OrdType_MARKET };
 		char ord_status{ FIX::OrdStatus_REJECTED };
@@ -108,7 +108,7 @@ namespace common {
 
 		NetPosition& net_position(const std::string& symbol);
 
-		std::pair<typename OrderTracker::const_iterator, bool> get_pending_order(const std::string& cl_ord_id) const;
+		std::pair<typename OrderTracker::const_iterator, bool> get_pending_order(const std::string& ord_id) const;
 
 		std::pair<typename OrderTracker::const_iterator, bool> get_open_order(const std::string& ord_id) const;
 

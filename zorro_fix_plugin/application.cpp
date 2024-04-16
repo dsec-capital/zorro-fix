@@ -190,7 +190,7 @@ namespace zfix {
 		FIX::ExecID exec_id;
 		FIX::ExecType exec_type;
 		FIX::OrderID order_id;
-		FIX::ClOrdID cl_ord_id;
+		FIX::ClOrdID ord_id;
 		FIX::OrdStatus ord_status;
 		FIX::OrdType ord_type;
 		FIX::Side side;
@@ -207,7 +207,7 @@ namespace zfix {
 		message.get(exec_id);
 		message.get(exec_type);
 		message.get(order_id);
-		message.get(cl_ord_id);
+		message.get(ord_id);
 		message.get(ord_status);
 		message.get(ord_type);
 		message.get(side);
@@ -222,7 +222,7 @@ namespace zfix {
 
 		ExecReport report(
 			symbol.getString(),
-			cl_ord_id.getString(),
+			ord_id.getString(),
 			order_id.getString(),
 			exec_id.getString(),
 			exec_type.getValue(),

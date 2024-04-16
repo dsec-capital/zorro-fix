@@ -16,7 +16,8 @@ namespace common {
 		enum Type { market, limit };
 
 		Order(
-			const std::string& clOrdId,
+			const std::string& ord_id,
+			const std::string& cl_ord_id,
 			const std::string& symbol,
 			const std::string& owner,
 			const std::string& target,
@@ -26,7 +27,9 @@ namespace common {
 			long quantity
 		);
 
-		const std::string& get_client_id() const;
+		const std::string& get_ord_id() const;
+		const std::string& get_cl_ord_id() const;
+		void set_cl_ord_id(const std::string& new_cl_ord_id);
 		const std::string& get_symbol() const;
 		const std::string& get_owner() const;
 		const std::string& get_target() const;
@@ -51,6 +54,7 @@ namespace common {
 		std::string to_string() const;
 
 	private:
+		std::string ord_id;
 		std::string cl_ord_id;
 		std::string symbol;
 		std::string owner;

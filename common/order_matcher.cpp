@@ -2,6 +2,8 @@
 
 #include "order_matcher.h"
 
+#include "spdlog/spdlog.h"
+
 namespace common {
 
    OrderMatcher::OrderMatcher(std::mutex& mutex) : mutex(mutex) {}
@@ -38,12 +40,15 @@ namespace common {
 
    void OrderMatcher::erase(const Order& order)
    {
-      std::string id = order.get_client_id();
+      std::string id = order.get_ord_id();
       if (order.get_side() == Order::buy)
       {
           for (auto it = bid_orders.begin(); it != bid_orders.end(); ++it) {
-              if (it->second.get_client_id() == id) {
+              if (it->second.get_ord_id() == id) {
                   bid_orders.erase(it);
+
+                  spdlog::debug("OrderMatcher::erase bid order={}", order.to_string());
+
                   return;
               }
           }
@@ -51,12 +56,17 @@ namespace common {
       else if (order.get_side() == Order::sell)
       {
           for (auto it = ask_orders.begin(); it != ask_orders.end(); ++it) {
-              if (it->second.get_client_id() == id) {
+              if (it->second.get_ord_id() == id) {
                   ask_orders.erase(it);
+
+                  spdlog::debug("OrderMatcher::erase ask order={}", order.to_string());
+
                   return;
               }
           }
       }
+
+      spdlog::debug("OrderMatcher::erase could not find working order={}", order.to_string());
    }
 
    int OrderMatcher::match(Order& order, std::queue<Order>& orders)
@@ -73,6 +83,9 @@ namespace common {
                order.execute(exec_price, quantity);
                orders.push(ask);
                orders.push(order);
+
+               spdlog::debug("OrderMatcher::match: ask side match: ask={} order={}", ask.to_string(), order.to_string());
+
                ++num;
                if (ask.is_closed())
                    it = ask_orders.erase(it);
@@ -90,6 +103,9 @@ namespace common {
                order.execute(exec_price, quantity);
                orders.push(bid);
                orders.push(order);
+
+               spdlog::debug("OrderMatcher::match: bid side match: ask={} order={}", bid.to_string(), order.to_string());
+
                ++num;
                if (bid.is_closed())
                    it = bid_orders.erase(it);
@@ -106,13 +122,13 @@ namespace common {
       {
          bid_order_map_t::iterator i;
          for (i = bid_orders.begin(); i != bid_orders.end(); ++i)
-            if (i->second.get_client_id() == id) return i->second;
+            if (i->second.get_ord_id() == id) return i->second;
       }
       else if (side == Order::sell)
       {
          ask_order_map_t::iterator i;
          for (i = ask_orders.begin(); i != ask_orders.end(); ++i)
-            if (i->second.get_client_id() == id) return i->second;
+            if (i->second.get_ord_id() == id) return i->second;
       }
       throw std::exception();
    }
@@ -175,8 +191,8 @@ namespace common {
             const auto& o = ait->second;
             auto side = o.get_side() == Order::Side::buy ? "bid" : "ask";   
             rows += std::format(
-                "symbol={}, owner={}, price={:8.5f}, side={}, quantity={}, open_quantity={}, executed_quantity={}, avg_executed_price=={:8.5f}, last_executed_price=={:8.5f}, last_executed_quantity={}\n", 
-                o.get_symbol(), o.get_owner(), o.get_price(), side, o.get_quantity(), o.get_open_quantity(), o.get_executed_quantity(), o.get_avg_executed_price(), o.get_last_executed_price(), o.get_last_executed_quantity()
+                "[{}] : symbol={}, owner={}, ord_id={}, cl_ord_id={}, price={:8.5f}, side={}, quantity={}, open_quantity={}, executed_quantity={}, avg_executed_price=={:8.5f}, last_executed_price=={:8.5f}, last_executed_quantity={}\n", 
+                ait->first, o.get_symbol(), o.get_owner(), o.get_ord_id(), o.get_cl_ord_id(), o.get_price(), side, o.get_quantity(), o.get_open_quantity(), o.get_executed_quantity(), o.get_avg_executed_price(), o.get_last_executed_price(), o.get_last_executed_quantity()
             );
         }
         rows += "------------------------------------\n";
@@ -184,8 +200,8 @@ namespace common {
             const auto& o = bit->second;
             auto side = o.get_side() == Order::Side::buy ? "bid" : "ask";
             rows += std::format(
-                "symbol={}, owner={}, price={:8.5f}, side={}, quantity={}, open_quantity={}, executed_quantity={}, avg_executed_price=={:8.5f}, last_executed_price=={:8.5f}, last_executed_quantity={}\n",
-                o.get_symbol(), o.get_owner(), o.get_price(), side, o.get_quantity(), o.get_open_quantity(), o.get_executed_quantity(), o.get_avg_executed_price(), o.get_last_executed_price(), o.get_last_executed_quantity()
+                "[{}] : symbol={}, owner={}, ord_id={}, cl_ord_id={}, price={:8.5f}, side={}, quantity={}, open_quantity={}, executed_quantity={}, avg_executed_price=={:8.5f}, last_executed_price=={:8.5f}, last_executed_quantity={}\n",
+                bit->first, o.get_symbol(), o.get_owner(), o.get_ord_id(), o.get_cl_ord_id(), o.get_price(), side, o.get_quantity(), o.get_open_quantity(), o.get_executed_quantity(), o.get_avg_executed_price(), o.get_last_executed_price(), o.get_last_executed_quantity()
             );
         }
         rows += "]";

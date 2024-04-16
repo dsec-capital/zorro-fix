@@ -12,13 +12,17 @@ using namespace common;
 
 constexpr auto SYMBOL = "APPL";
 
-static int cl_ord_id = 0; 
+static int ord_id = 0; 
 
 std::mutex mutex;
 
 auto by_quantity = [](const Order& o) {return o.get_quantity(); };
 auto by_open_quantity = [](const Order& o) {return o.get_open_quantity(); };
 auto by_last_exec_quantity = [](const Order& o) {return o.get_last_executed_quantity(); };
+
+std::string generate_id(const std::string& label) {
+	return std::format("{}_{}", label, ++ord_id);
+}
 
 Order create_order(
 	Order::Side side, 
@@ -27,8 +31,7 @@ Order create_order(
 	const std::string& owner = "market", 
 	Order::Type type=Order::Type::limit,
 	const std::string& target="target") {
-	++cl_ord_id;
-	return Order(std::format("cl_ord_id_{}", cl_ord_id), SYMBOL, owner, target, side, type, price, quantity);
+	return Order(generate_id("ord_id"), generate_id("cl_ord_id"), SYMBOL, owner, target, side, type, price, quantity);
 }
 
 void test_quoting() {

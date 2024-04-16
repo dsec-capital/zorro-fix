@@ -45,7 +45,7 @@ void Application::run_market_data_update() {
 
 			// insert updated oders into book, eventually crossing with existing client orders
 			std::queue<Order> orders;
-			market.update_quotes(top.first, top.second, orders);
+			market.update_quotes(top.first, top.second, orders, [this](const std::string& label) { return this->generate_id(label); });
 
 			// handle the partial fills and full fills here
 			while (orders.size())
@@ -168,7 +168,7 @@ void Application::onMessage(const FIX44::NewOrderSingle& message, const FIX::Ses
 	try
 	{
 		if (timeInForce == FIX::TimeInForce_GOOD_TILL_CANCEL || timeInForce == FIX::TimeInForce_DAY) {
-			Order order(clOrdID, symbol, senderCompID, targetCompID, convert(side), convert(ordType), price, (long)orderQty);
+			Order order(generate_id("ord_id"), clOrdID, symbol, senderCompID, targetCompID, convert(side), convert(ordType), price, (long)orderQty);
 
 			process_order(order);
 		}
@@ -382,7 +382,7 @@ void Application::update_order(const Order& order, char exec_status, char ord_st
 	FIX::SenderCompID senderCompID(order.get_target());
 
 	FIX44::ExecutionReport fixOrder(
-		FIX::OrderID(order.get_client_id()),
+		FIX::OrderID(order.get_ord_id()),
 		FIX::ExecID(generator.genExecutionID()),
 		FIX::ExecType(exec_status),
 		FIX::OrdStatus(ord_status),
@@ -393,7 +393,7 @@ void Application::update_order(const Order& order, char exec_status, char ord_st
 	);
 
 	fixOrder.set(FIX::Symbol(order.get_symbol())); 
-	fixOrder.set(FIX::ClOrdID(order.get_client_id()));
+	fixOrder.set(FIX::ClOrdID(order.get_ord_id()));
 	fixOrder.set(FIX::OrderQty(order.get_quantity()));
 	fixOrder.set(FIX::OrdType(order.get_type() == Order::Type::limit ? FIX::OrdType_LIMIT : FIX::OrdType_MARKET));
 	if (order.get_type() == Order::Type::limit) {
@@ -570,4 +570,9 @@ FIX::OrdType Application::convert(Order::Type type)
 const Markets& Application::get_markets() {
 	return markets;
 }
+
+std::string Application::generate_id(const std::string& label) {
+	return std::format("{}_{}", label, ++ord_id);
+}
+
 
