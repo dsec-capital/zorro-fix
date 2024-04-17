@@ -185,16 +185,14 @@ namespace common {
         }
     }
 
-    void OrderMatcher::display() const
-    {
+    void OrderMatcher::display() const {
         std::cout << to_string() << std::endl;
     }
 
     std::string OrderMatcher::to_string() const {
-        std::unique_lock<std::mutex> ul(mutex);
+        //std::lock_guard<std::mutex> ul(mutex);  // issue with threading leading to abort crash
         bid_order_map_t bids = bid_orders;
         ask_order_map_t asks = ask_orders;
-        ul.release();
 
         std::string rows;
         rows += "OrderMatcher[\n";
@@ -221,15 +219,15 @@ namespace common {
 
     int OrderMatcher::by_quantity(const Order& o) {
         return o.get_quantity();
-    };
+    }
 
     int OrderMatcher::by_open_quantity(const Order& o) {
         return o.get_open_quantity();
-    };
+    }
 
     int OrderMatcher::by_last_exec_quantity(const Order& o) {
         return o.get_last_executed_quantity();
-    };
+    }
 
     std::string to_string(const typename OrderMatcher::level_vector_t& levels) {
         std::string str;
