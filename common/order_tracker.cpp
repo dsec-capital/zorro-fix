@@ -151,7 +151,13 @@ namespace common {
 			}
 
 			case FIX::ExecType_TRADE: {
-				open_orders_by_ord_id.emplace(report.ord_id, std::move(OrderReport(report)));
+				OrderReport order_report(report);
+				if (order_report.leaves_qty == 0) {
+					open_orders_by_ord_id.erase(report.ord_id);
+				} 
+				else {
+					open_orders_by_ord_id.emplace(report.ord_id, std::move(order_report));
+				}
 				auto& position = net_position(report.symbol);
 				position.qty += report.last_qty;
 				position.avg_px = report.avg_px;

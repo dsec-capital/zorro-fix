@@ -519,10 +519,14 @@ void Application::process_cancel(
 	const std::string& symbol, 
 	Order::Side side)
 {
-	Order& order = markets.find(symbol, side, ord_id);
-	order.cancel();
-	cancel_order(order);
-	markets.erase(order);
+	auto& market = markets.get_market(symbol)->second;
+	auto order = market.erase(ord_id, side);
+	if (order.has_value()) {
+		spdlog::debug("Application::process_cancel: cancelled order={}", order.value().to_string());
+	}
+	else {
+		spdlog::debug("Application::process_cancel: could not find order with ord_id={} side={}", ord_id, common::to_string(side));
+	}
 }
 
 Order::Side Application::convert(const FIX::Side& side)

@@ -77,12 +77,12 @@ void test_quoting() {
 		//std::cout << std::format("{:>8.1f} | {:<8.1f}", next.bid_price, next.ask_price) << std::endl;
 
 		if (next.bid_price != current.bid_price) {
-			matcher.erase(o_bid);
+			matcher.erase(o_bid.get_ord_id(), o_bid.get_side());
 			o_bid = create_order(Order::Side::buy, next.bid_price, 100, "market");
 			matcher.insert(o_bid, order_q);
 		}
 		if (next.ask_price != current.ask_price) {
-			matcher.erase(o_ask);
+			matcher.erase(o_ask.get_ord_id(), o_ask.get_side());
 			o_ask = create_order(Order::Side::sell, next.ask_price, 100, "market");
 			matcher.insert(o_ask, order_q);
 		}

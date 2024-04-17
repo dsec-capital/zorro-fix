@@ -20,13 +20,6 @@ namespace common {
 		return it->second.insert(order, orders);
 	}
 
-	void Markets::erase(const Order& order)
-	{
-		auto it = markets.find(order.get_symbol());
-		if (it == markets.end()) return;
-		it->second.erase(order);
-	}
-
 	Order& Markets::find(std::string symbol, Order::Side side, std::string id)
 	{
 		auto it = markets.find(symbol);

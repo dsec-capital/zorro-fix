@@ -25,7 +25,7 @@ namespace common {
 
 		int match(Order& order, std::queue<Order>&);
 
-		void erase(const Order& order);
+		std::optional<Order> erase(const std::string& ord_id, const Order::Side& side);
 
 		Order& find(Order::Side side, std::string id);
 

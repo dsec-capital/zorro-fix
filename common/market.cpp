@@ -91,9 +91,8 @@ namespace common {
         std::queue<Order>& orders, 
         std::function<std::string(const std::string&)> id_generator
     ) {
-        std::lock_guard<std::mutex> ul(mutex);
         if (previous.bid_price != current.bid_price) {
-            OrderMatcher::erase(bid_order);
+            OrderMatcher::erase(bid_order.get_ord_id(), bid_order.get_side());
             bid_order = Order(
                 id_generator("quote_ord_id"),
                 id_generator("quote_cl_ord_id"),
@@ -108,7 +107,7 @@ namespace common {
             OrderMatcher::insert(bid_order, orders);
         }
         if (previous.ask_price != current.ask_price) {
-            OrderMatcher::erase(ask_order);
+            OrderMatcher::erase(ask_order.get_ord_id(), ask_order.get_side());
             ask_order = Order(
                 id_generator("quote_ord_id"),
                 id_generator("quote_cl_ord_id"),

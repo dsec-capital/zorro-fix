@@ -21,8 +21,6 @@ namespace common {
 
 		std::tuple<const Order*, bool, int> insert(const Order& order, std::queue<Order>& orders);
 
-		void erase(const Order& order);
-
 		Order& find(std::string symbol, Order::Side side, std::string id);
 
 		void display(std::string symbol) const;
