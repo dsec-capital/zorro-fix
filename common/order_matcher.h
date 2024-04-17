@@ -11,6 +11,12 @@ namespace common {
 	class OrderMatcher
 	{
 	public:
+		// note: insertion order is only maintained for elements with  
+		// identical keys, which properly implements price time priority 
+		typedef std::multimap<double, Order, std::greater<double>> bid_order_map_t;
+		typedef std::multimap<double, Order, std::less<double>> ask_order_map_t;
+
+
 		typedef std::map<double, double, std::greater<double>> bid_map_t;
 		typedef std::map<double, double, std::less<double>> ask_map_t;
 		typedef std::vector<BookLevel> level_vector_t;
@@ -29,6 +35,8 @@ namespace common {
 
 		Order& find(Order::Side side, std::string id);
 
+		std::pair<bid_order_map_t, ask_order_map_t> get_orders() const;
+
 		bid_map_t bid_map(const std::function<double(const Order&)> &f) const;
 
 		ask_map_t ask_map(const std::function<double(const Order&)> &f) const;
@@ -46,11 +54,6 @@ namespace common {
 		std::string to_string() const;
 
 	private:
-		// note: insertion order is only maintained for elements with  
-		// identical keys, which properly implements price time priority 
-		typedef std::multimap<double, Order, std::greater<double>> bid_order_map_t;
-		typedef std::multimap<double, Order, std::less<double>> ask_order_map_t;
-
 		std::mutex& mutex;
 
 		std::queue<Order> order_updates;

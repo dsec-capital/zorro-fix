@@ -426,7 +426,7 @@ void Application::update_order(const Order& order, char exec_status, char ord_st
 		spdlog::error("Application::update_order: session not found {}", e.what());
 	}
 
-	//spdlog::info(markets.get_market(order.get_symbol())->second.to_string());
+	spdlog::info(markets.get_market(order.get_symbol())->second.to_string());
 }
 
 void Application::reject_order(const Order& order)
@@ -525,7 +525,7 @@ void Application::process_cancel(
 	auto order = market.erase(ord_id, side);
 	if (order.has_value()) {
 		cancel_order(order.value());
-		spdlog::debug("Application::process_cancel: cancelled order={}", order.value().to_string());
+		spdlog::info("Application::process_cancel: cancelled order={}", order.value().to_string());
 	}
 	else {
 		spdlog::error("Application::process_cancel: could not find order with ord_id={} side={}", ord_id, common::to_string(side));

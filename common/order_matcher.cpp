@@ -135,6 +135,12 @@ namespace common {
         ));
     }
 
+    std::pair<typename OrderMatcher::bid_order_map_t, typename OrderMatcher::ask_order_map_t> OrderMatcher::get_orders() const {
+        std::lock_guard<std::mutex> ul(mutex);
+        return std::make_pair(bid_orders, ask_orders);
+    }
+
+
     typename OrderMatcher::bid_map_t OrderMatcher::bid_map(const std::function<double(const Order&)>& f) const 
     {
         std::lock_guard<std::mutex> ul(mutex);
@@ -190,10 +196,7 @@ namespace common {
     }
 
     std::string OrderMatcher::to_string() const {
-        //std::lock_guard<std::mutex> ul(mutex);  // issue with threading leading to abort crash
-        bid_order_map_t bids = bid_orders;
-        ask_order_map_t asks = ask_orders;
-
+        auto [bids, asks] = get_orders(); // issue with threading leading to abort crash
         std::string rows;
         rows += "OrderMatcher[\n";
         for (auto ait = asks.begin(); ait != asks.end(); ++ait) {
