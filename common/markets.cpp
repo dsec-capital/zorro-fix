@@ -6,25 +6,36 @@ namespace common {
 
 	Markets::Markets(market_map_t& markets) : markets(markets) {}
 
-	typename Markets::market_map_t::iterator Markets::get_market(const std::string& symbol) {
-		auto it = markets.find(symbol);
-		if (it == markets.end()) {
-			throw std::runtime_error(std::format("no market defined for symbol {}", symbol));
+	OrderInsertResult Markets::insert(const Order& order)
+	{
+		auto it = markets.find(order.get_symbol());
+		if (it != markets.end()) {
+			return it->second.insert(order);
 		}
-		return it;
+		else {
+			return OrderInsertResult();
+		}
 	}
 
-	std::tuple<const Order*, bool, int> Markets::insert(const Order& order, std::queue<Order>& orders)
-	{
-		auto it = get_market(order.get_symbol());
-		return it->second.insert(order, orders);
-	}
-
-	Order& Markets::find(std::string symbol, Order::Side side, std::string id)
+	std::optional<Order> Markets::find(const std::string& symbol, const std::string& ord_id, Order::Side side)
 	{
 		auto it = markets.find(symbol);
-		if (it == markets.end()) throw std::exception();
-		return it->second.find(side, id);
+		if (it != markets.end()) {
+			return it->second.find(ord_id, side);
+		}
+		else {
+			return std::optional<Order>();
+		}
+	}
+
+	std::optional<Order> Markets::erase(const std::string& symbol, const std::string& ord_id, Order::Side side) {
+		auto it = markets.find(symbol);
+		if (it != markets.end()) {
+			return it->second.erase(ord_id, side);
+		}
+		else {
+			return std::optional<Order>();
+		}
 	}
 
 	void Markets::display(std::string symbol) const

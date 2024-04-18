@@ -17,11 +17,11 @@ namespace common {
 
 		Markets(market_map_t& markets);
 
-		typename market_map_t::iterator get_market(const std::string& symbol);
+		OrderInsertResult insert(const Order& order);
 
-		std::tuple<const Order*, bool, int> insert(const Order& order, std::queue<Order>& orders);
+		std::optional<Order> find(const std::string& symbol, const std::string& ord_id, Order::Side side);
 
-		Order& find(std::string symbol, Order::Side side, std::string id);
+		std::optional<Order> erase(const std::string& symbol, const std::string& ord_id, Order::Side side);
 
 		void display(std::string symbol) const;
 

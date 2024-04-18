@@ -8,6 +8,17 @@
 
 namespace common {
 
+	class OrderInsertResult {
+	public:
+		OrderInsertResult();
+
+		OrderInsertResult(const std::optional<Order>& order, std::vector<Order>&& matched, bool error=false);
+
+		std::optional<Order> resting_order;
+		std::vector<Order> matched;
+		bool error;
+	};
+
 	class OrderMatcher
 	{
 	public:
@@ -15,7 +26,6 @@ namespace common {
 		// identical keys, which properly implements price time priority 
 		typedef std::multimap<double, Order, std::greater<double>> bid_order_map_t;
 		typedef std::multimap<double, Order, std::less<double>> ask_order_map_t;
-
 
 		typedef std::map<double, double, std::greater<double>> bid_map_t;
 		typedef std::map<double, double, std::less<double>> ask_map_t;
@@ -27,13 +37,13 @@ namespace common {
 
 		OrderMatcher& operator= (const OrderMatcher&) = delete;
 
-		std::tuple<const Order*, bool, int> insert(const Order& order, std::queue<Order>& orders);
+		OrderInsertResult insert(const Order& order);
 
-		int match(Order& order, std::queue<Order>&);
+		std::optional<Order> find(const std::string& ord_id, Order::Side side);
 
 		std::optional<Order> erase(const std::string& ord_id, const Order::Side& side);
 
-		Order& find(Order::Side side, std::string id);
+		int match(Order& order, std::vector<Order>&);
 
 		std::pair<bid_order_map_t, ask_order_map_t> get_orders() const;
 

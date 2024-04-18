@@ -44,15 +44,53 @@ void Application::run_market_data_update() {
 			}
 
 			// insert updated oders into book, eventually crossing with existing client orders
-			std::queue<Order> orders;
-			market.update_quotes(top.first, top.second, orders, [this](const std::string& label) { return this->generate_id(label); });
+			if (top.first.bid_price != top.second.bid_price) {
+				const auto& bid_order = market.get_bid_order();
+				market.erase(bid_order.get_ord_id(), bid_order.get_side());
+				auto order = Order(
+					generate_id("quote_ord_id"),
+					generate_id("quote_cl_ord_id"),
+					symbol,
+					OWNER_MARKET_SIMULATOR,
+					"",
+					Order::Side::buy,
+					Order::Type::limit,
+					top.first.bid_price,
+					(long)top.first.bid_volume
+				);
+				auto result = market.quote(order);
 
-			// handle the partial fills and full fills here
-			while (orders.size())
-			{
-				fill_order(orders.front());
-				orders.pop();
+				for (const auto& fill : result.matched)
+				{
+					fill_order(fill);
+				}
 			}
+			if (top.first.ask_price != top.second.ask_price) {
+				const auto& ask_order = market.get_ask_order();
+				market.erase(ask_order.get_ord_id(), ask_order.get_side());
+				auto order = Order(
+					generate_id("quote_ord_id"),
+					generate_id("quote_cl_ord_id"),
+					symbol,
+					OWNER_MARKET_SIMULATOR,
+					"",
+					Order::Side::sell,
+					Order::Type::limit,
+					top.first.ask_price,
+					(long)top.first.ask_volume
+				);
+				auto result = market.quote(order);
+
+				for (const auto& fill : result.matched)
+				{
+					fill_order(fill);
+				}
+			}
+
+			//spdlog::debug("update_quotes {} by_open_quantity", symbol);
+			//spdlog::debug(common::to_string(*this, OrderMatcher::by_open_quantity));
+			//spdlog::debug("update_quotes {} by_last_exec_quantity", symbol);
+			//spdlog::debug(common::to_string(*this, OrderMatcher::by_last_exec_quantity));
 		}
 	}
 }
@@ -235,18 +273,24 @@ void Application::onMessage(const FIX44::MarketDataRequest& message, const FIX::
 			message.getGroup(i, no_related_sym_group);
 			no_related_sym_group.get(symbol);
 
-			const auto& market = markets.get_market(symbol.getString())->second;
-			
-			// flip to send back target->sender and sender->target 
-			auto snapshot = get_snapshot_message(
-				target_comp_id.getValue(), 
-				sender_comp_id.getValue(), 
-				market.get_top_of_book().first
-			);
-			FIX::Session::sendToTarget(snapshot);
+			auto it = markets.markets.find(symbol.getString());
+			if (it != markets.markets.end()) {
+				const auto& market = it->second;
 
-			if (subscription_request_type == FIX::SubscriptionRequestType_SNAPSHOT_AND_UPDATES) {
-				subscribe_market_data(symbol.getValue(), target_comp_id.getValue(), sender_comp_id.getValue());
+				// flip to send back target->sender and sender->target 
+				auto snapshot = get_snapshot_message(
+					target_comp_id.getValue(),
+					sender_comp_id.getValue(),
+					market.get_top_of_book().first
+				);
+				FIX::Session::sendToTarget(snapshot);
+
+				if (subscription_request_type == FIX::SubscriptionRequestType_SNAPSHOT_AND_UPDATES) {
+					subscribe_market_data(symbol.getValue(), target_comp_id.getValue(), sender_comp_id.getValue());
+				}
+			}
+			else {
+				throw std::runtime_error(std::format("invalid market symbol={}", symbol.getString()));
 			}
 		}
 	} 
@@ -425,8 +469,6 @@ void Application::update_order(const Order& order, char exec_status, char ord_st
 	catch (FIX::SessionNotFound& e) {
 		spdlog::error("Application::update_order: session not found {}", e.what());
 	}
-
-	spdlog::info(markets.get_market(order.get_symbol())->second.to_string());
 }
 
 void Application::reject_order(const Order& order)
@@ -494,25 +536,23 @@ void Application::reject_order(
 
 void Application::process_order(const Order& order)
 {
-	std::queue<Order> orders;
-	auto [inserted_order_ptr, error, num_matches] = markets.insert(order, orders);
+	auto result = markets.insert(order);
 
-	if (error) {
-		assert(orders.empty());
+	if (result.error) {
+		assert(result.matched.empty());
 		reject_order(order);
 		return;
 	} 
 
 	// we have a new or partial fill 
-	if (inserted_order_ptr != nullptr) {
-		accept_order(order);
+	if (result.resting_order) {
+		accept_order(result.resting_order.value());
 	}
 
 	// handle the partial fills and full fills here
-	while (orders.size())
+	for (const auto& fill : result.matched)
 	{
-		fill_order(orders.front());
-		orders.pop();
+		fill_order(fill);
 	}
 }
 
@@ -521,8 +561,7 @@ void Application::process_cancel(
 	const std::string& symbol, 
 	Order::Side side)
 {
-	auto& market = markets.get_market(symbol)->second;
-	auto order = market.erase(ord_id, side);
+	auto order = markets.erase(symbol, ord_id, side);
 	if (order.has_value()) {
 		cancel_order(order.value());
 		spdlog::info("Application::process_cancel: cancelled order={}", order.value().to_string());

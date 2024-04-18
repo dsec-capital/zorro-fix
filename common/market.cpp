@@ -85,47 +85,25 @@ namespace common {
         }
     }
 
-    void Market::update_quotes(
-        const TopOfBook& current, 
-        const TopOfBook& previous, 
-        std::queue<Order>& orders, 
-        std::function<std::string(const std::string&)> id_generator
-    ) {
-        if (previous.bid_price != current.bid_price) {
-            OrderMatcher::erase(bid_order.get_ord_id(), bid_order.get_side());
-            bid_order = Order(
-                id_generator("quote_ord_id"),
-                id_generator("quote_cl_ord_id"),
-                symbol,
-                OWNER_MARKET_SIMULATOR,
-                "",
-                Order::Side::buy,
-                Order::Type::limit,
-                current.bid_price,
-                (long)current.bid_volume
-            );
-            OrderMatcher::insert(bid_order, orders);
-        }
-        if (previous.ask_price != current.ask_price) {
-            OrderMatcher::erase(ask_order.get_ord_id(), ask_order.get_side());
-            ask_order = Order(
-                id_generator("quote_ord_id"),
-                id_generator("quote_cl_ord_id"),
-                symbol,
-                OWNER_MARKET_SIMULATOR,
-                "",
-                Order::Side::sell,
-                Order::Type::limit,
-                current.ask_price,
-                (long)current.ask_volume
-            );;
-            OrderMatcher::insert(ask_order, orders);
-        }
+    const Order& Market::get_bid_order() const {
+        return bid_order;
+    }
 
-        spdlog::debug("update_quotes {} by_open_quantity", symbol);
-        spdlog::debug(common::to_string(*this, OrderMatcher::by_open_quantity));
-        spdlog::debug("update_quotes {} by_last_exec_quantity", symbol);
-        spdlog::debug(common::to_string(*this, OrderMatcher::by_last_exec_quantity));
+    const Order& Market::get_ask_order() const {
+        return ask_order;
+    }
+
+    OrderInsertResult Market::quote(const Order& order_ins) {
+        auto result = insert(order_ins);
+        if (!result.error) {
+            if (Order::Side::buy) {
+                bid_order = order_ins;
+            }
+            else {
+                ask_order = order_ins;
+            }
+        }
+        return result;
     }
 
     std::pair<TopOfBook, TopOfBook> Market::get_top_of_book() const {

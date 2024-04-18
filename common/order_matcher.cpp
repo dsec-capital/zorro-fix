@@ -6,37 +6,50 @@
 
 namespace common {
 
+    OrderInsertResult::OrderInsertResult() : resting_order(std::optional<Order>()), matched(), error(false) {}
+
+    OrderInsertResult::OrderInsertResult(
+        const std::optional<Order>& order,
+        std::vector<Order>&& matched,
+        bool error
+    ) : resting_order(order)
+      , matched(matched)
+      , error(error)
+    {}
+
     OrderMatcher::OrderMatcher(std::mutex& mutex) : mutex(mutex) {}
 
-    std::tuple<const Order*, bool, int> OrderMatcher::insert(const Order& order_in, std::queue<Order>& orders)
+    OrderInsertResult OrderMatcher::insert(const Order& order_ins)
     {
         std::lock_guard<std::mutex> ul(mutex);
         auto num = 0;
         auto error = false;
-        auto order = order_in;
+        auto order = order_ins;
         const Order* order_ptr = nullptr;
         const auto& price = order.get_price();
+        std::vector<Order> matched;
+        std::optional<Order> resting_order;
         if (order.get_side() == Order::buy) {
             auto it = ask_orders.begin();
             if (it != ask_orders.end() && price >= it->second.get_price()) {
-                num += match(order, orders);
+                num += match(order, matched);
             }
             if (!order.is_closed()) {
                 auto it = bid_orders.insert(std::make_pair(price, order));
-                order_ptr = &it->second;
+                resting_order = it->second;
             }
         }
         else {
             auto it = bid_orders.begin();
             if (it != bid_orders.end() && price <= it->second.get_price()) {
-                num += match(order, orders);
+                num += match(order, matched);
             }
             if (!order.is_closed()) {
                 ask_orders.insert(std::make_pair(price, order));
-                order_ptr = &it->second;
+                resting_order = it->second;
             }
         }
-        return std::make_tuple(order_ptr, error, num);
+        return OrderInsertResult(resting_order, std::move(matched));
     }
 
     std::optional<Order> OrderMatcher::erase(const std::string& ord_id, const Order::Side& side)
@@ -66,7 +79,7 @@ namespace common {
         return std::optional<Order>();
     }
 
-    int OrderMatcher::match(Order& order, std::queue<Order>& orders)
+    int OrderMatcher::match(Order& order, std::vector<Order>& orders)
     {
         std::lock_guard<std::mutex> ul(mutex);
         auto num = 0;
@@ -79,8 +92,8 @@ namespace common {
                 long quantity = std::min(ask.get_open_quantity(), order.get_open_quantity());
                 ask.execute(exec_price, quantity);
                 order.execute(exec_price, quantity);
-                orders.push(ask);
-                orders.push(order);
+                orders.push_back(ask);
+                orders.push_back(order);
 
                 spdlog::debug("OrderMatcher::match: ask side match: ask={} order={}", ask.to_string(), order.to_string());
 
@@ -99,8 +112,8 @@ namespace common {
                 long quantity = std::min(bid.get_open_quantity(), order.get_open_quantity());
                 bid.execute(exec_price, quantity);
                 order.execute(exec_price, quantity);
-                orders.push(bid);
-                orders.push(order);
+                orders.push_back(bid);
+                orders.push_back(order);
 
                 spdlog::debug("OrderMatcher::match: bid side match: ask={} order={}", bid.to_string(), order.to_string());
 
@@ -114,21 +127,22 @@ namespace common {
         return num;
     }
 
-    Order& OrderMatcher::find(Order::Side side, std::string ord_id)
+    std::optional<Order> OrderMatcher::find(const std::string& ord_id, Order::Side side)
     {
         std::lock_guard<std::mutex> ul(mutex);
         if (side == Order::buy)
         {
             bid_order_map_t::iterator i;
             for (i = bid_orders.begin(); i != bid_orders.end(); ++i)
-                if (i->second.get_ord_id() == ord_id) return i->second;
+                if (i->second.get_ord_id() == ord_id) return std::make_optional(i->second);
         }
         else if (side == Order::sell)
         {
             ask_order_map_t::iterator i;
             for (i = ask_orders.begin(); i != ask_orders.end(); ++i)
-                if (i->second.get_ord_id() == ord_id) return i->second;
+                if (i->second.get_ord_id() == ord_id) return std::make_optional(i->second);
         }
+        return std::optional<Order>();
         throw std::runtime_error(std::format(
             "OrderMatcher::find: could not find order with ord_id={}, side={}",
             ord_id, side == Order::buy ? "buy" : "sell"

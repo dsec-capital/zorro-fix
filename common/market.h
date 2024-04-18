@@ -40,13 +40,6 @@ namespace common {
 
 		void simulate_next();
 
-		void update_quotes(
-			const TopOfBook& current, 
-			const TopOfBook& previous, 
-			std::queue<Order>& orders, 
-			std::function<std::string(const std::string&)> id_generator
-		);
-
 		std::pair<TopOfBook, TopOfBook> get_top_of_book() const;
 
 		void extend_bar_history(const std::chrono::nanoseconds& until_past);
@@ -54,6 +47,12 @@ namespace common {
 		std::tuple<std::chrono::nanoseconds, std::chrono::nanoseconds, size_t> get_bar_range() const;
 
 		std::pair<nlohmann::json, int> get_bars_as_json(const std::chrono::nanoseconds& from, const std::chrono::nanoseconds& to);
+
+		const Order& get_bid_order() const;
+
+		const Order& get_ask_order() const;
+
+		OrderInsertResult quote(const Order& order_ins);
 
 	private:
 		std::string symbol;
