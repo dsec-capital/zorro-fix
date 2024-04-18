@@ -25,12 +25,16 @@ std::string fix_string(const FIX::Message& msg) {
 }
 
 void Application::run_market_data_update() {
+	bool quote = true;
+
 	while (!done) {
 		std::this_thread::sleep_for(market_update_period);
 
 		auto now = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch());
 
 		for (auto& [symbol, market] : markets.markets) {
+			spdlog::debug("Application::run_market_data_update: symbol={}", symbol);
+
 			market.simulate_next();
 			
 			// send market data to subscribers only
@@ -43,54 +47,57 @@ void Application::run_market_data_update() {
 				}
 			}
 
-			// insert updated oders into book, eventually crossing with existing client orders
-			if (top.first.bid_price != top.second.bid_price) {
-				const auto& bid_order = market.get_bid_order();
-				market.erase(bid_order.get_ord_id(), bid_order.get_side());
-				auto order = Order(
-					generate_id("quote_ord_id"),
-					generate_id("quote_cl_ord_id"),
-					symbol,
-					OWNER_MARKET_SIMULATOR,
-					"",
-					Order::Side::buy,
-					Order::Type::limit,
-					top.first.bid_price,
-					(long)top.first.bid_volume
-				);
-				auto result = market.quote(order);
+			if (quote) {
+				if (top.first.bid_price != top.second.bid_price) {
+					const auto& bid_order = market.get_bid_order();
+					market.erase(bid_order.get_ord_id(), bid_order.get_side());
+					auto order = Order(
+						generate_id("quote_ord_id"),
+						generate_id("quote_cl_ord_id"),
+						symbol,
+						OWNER_MARKET_SIMULATOR,
+						"",
+						Order::Side::buy,
+						Order::Type::limit,
+						top.first.bid_price,
+						(long)top.first.bid_volume
+					);
+					auto result = market.quote(order);
+					spdlog::debug("Application::run_market_data_update: bid side quote price={}", top.first.bid_price);
 
-				for (const auto& fill : result.matched)
-				{
-					fill_order(fill);
+					for (const auto& fill : result.matched)
+					{
+						fill_order(fill);
+						spdlog::debug("Application::run_market_data_update: bid side fill order={}", fill.to_string());
+					}
+				}
+
+				if (top.first.ask_price != top.second.ask_price) {
+					const auto& ask_order = market.get_ask_order();
+					market.erase(ask_order.get_ord_id(), ask_order.get_side());
+					auto order = Order(
+						generate_id("quote_ord_id"),
+						generate_id("quote_cl_ord_id"),
+						symbol,
+						OWNER_MARKET_SIMULATOR,
+						"",
+						Order::Side::sell,
+						Order::Type::limit,
+						top.first.ask_price,
+						(long)top.first.ask_volume
+					);
+					auto result = market.quote(order);
+					spdlog::debug("Application::run_market_data_update: ask side quote price={}", top.first.ask_price);
+
+					for (const auto& fill : result.matched)
+					{
+						fill_order(fill);
+						spdlog::debug("Application::run_market_data_update: ask side fill order={}", fill.to_string());
+					}
 				}
 			}
-			if (top.first.ask_price != top.second.ask_price) {
-				const auto& ask_order = market.get_ask_order();
-				market.erase(ask_order.get_ord_id(), ask_order.get_side());
-				auto order = Order(
-					generate_id("quote_ord_id"),
-					generate_id("quote_cl_ord_id"),
-					symbol,
-					OWNER_MARKET_SIMULATOR,
-					"",
-					Order::Side::sell,
-					Order::Type::limit,
-					top.first.ask_price,
-					(long)top.first.ask_volume
-				);
-				auto result = market.quote(order);
 
-				for (const auto& fill : result.matched)
-				{
-					fill_order(fill);
-				}
-			}
-
-			//spdlog::debug("update_quotes {} by_open_quantity", symbol);
-			//spdlog::debug(common::to_string(*this, OrderMatcher::by_open_quantity));
-			//spdlog::debug("update_quotes {} by_last_exec_quantity", symbol);
-			//spdlog::debug(common::to_string(*this, OrderMatcher::by_last_exec_quantity));
+			spdlog::debug("Application::run_market_data_update: completed symbol={}", symbol);
 		}
 	}
 }
@@ -221,6 +228,8 @@ void Application::onMessage(const FIX44::NewOrderSingle& message, const FIX::Ses
 		reject_order(sender_comp_id, target_comp_id, cl_ord_id, symbol, price, side, ord_type, orderQty, e.what());
 	}
 	
+	spdlog::debug("Application::onMessage[NewOrderSingle]: completed message={}", fix_string(message));
+
 	//spdlog::info(markets.get_market(symbol.getString())->second.to_string());
 }
 
@@ -230,8 +239,6 @@ void Application::onMessage(const FIX44::OrderCancelRequest& message, const FIX:
 	FIX::OrigClOrdID orig_cl_ord_id;
 	FIX::Symbol symbol;
 	FIX::Side side;
-
-	spdlog::debug("**** Application::onMessage[OrderCancelRequest]: {}", fix_string(message));
 
 	message.get(ord_id);
 	message.get(orig_cl_ord_id);
@@ -245,6 +252,8 @@ void Application::onMessage(const FIX44::OrderCancelRequest& message, const FIX:
 	catch (std::exception& e) {
 		spdlog::error("Application::onMessage[OrderCancelRequest]: ord_id={}, orig_cl_ord_id={} error={}", ord_id.getString(), orig_cl_ord_id.getString(), e.what());
 	}
+
+	spdlog::debug("Application::onMessage[OrderCancelRequest]: completed message={}", fix_string(message));
 }
 
 void Application::onMessage(const FIX44::MarketDataRequest& message, const FIX::SessionID&)

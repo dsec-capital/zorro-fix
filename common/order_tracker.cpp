@@ -46,6 +46,14 @@ namespace common {
 	  , leaves_qty(leaves_qty)
 	{}
 
+	bool OrderReport::is_filled() const {
+		return leaves_qty == 0;
+	}
+
+	bool OrderReport::is_cancelled() const {
+		return ord_status == FIX::OrdStatus_CANCELED;
+	}
+
 	std::string OrderReport::to_string() const {
 		return "symbol=" + symbol + ", "
 			"ord_id=" + ord_id + ", "
@@ -123,14 +131,9 @@ namespace common {
 		return std::make_pair(it, it != pending_orders_by_cl_ord_id.end());
 	}
 
-	std::pair<typename OrderTracker::const_iterator, bool> OrderTracker::get_open_order(const std::string& ord_id) const {
-		auto it = open_orders_by_ord_id.find(ord_id);
-		return std::make_pair(it, it != open_orders_by_ord_id.end());
-	}
-
-	std::pair<typename OrderTracker::const_iterator, bool> OrderTracker::get_history_order(const std::string& ord_id) const {
-		auto it = history_orders_by_ord_id.find(ord_id);
-		return std::make_pair(it, it != history_orders_by_ord_id.end());
+	std::pair<typename OrderTracker::const_iterator, bool> OrderTracker::get_order(const std::string& ord_id) const {
+		auto it = orders_by_ord_id.find(ord_id);
+		return std::make_pair(it, it != orders_by_ord_id.end());
 	}
 
 	void OrderTracker::process(const ExecReport& report) {
@@ -146,18 +149,12 @@ namespace common {
 
 			case FIX::ExecType_NEW: {
 				pending_orders_by_cl_ord_id.erase(report.cl_ord_id);
-				open_orders_by_ord_id.emplace(report.ord_id, std::move(OrderReport(report)));
+				orders_by_ord_id.emplace(report.ord_id, std::move(OrderReport(report)));
 				break;
 			}
 
 			case FIX::ExecType_TRADE: {
-				OrderReport order_report(report);
-				if (order_report.leaves_qty == 0) {
-					open_orders_by_ord_id.erase(report.ord_id);
-				} 
-				else {
-					open_orders_by_ord_id.emplace(report.ord_id, std::move(order_report));
-				}
+				orders_by_ord_id.emplace(report.ord_id, std::move(OrderReport(report)));
 				auto& position = net_position(report.symbol);
 				position.qty += report.last_qty;
 				position.avg_px = report.avg_px;
@@ -165,18 +162,17 @@ namespace common {
 			}
 
 			case FIX::ExecType_PENDING_CANCEL: {
-				open_orders_by_ord_id.emplace(report.ord_id, std::move(OrderReport(report)));
+				orders_by_ord_id.emplace(report.ord_id, std::move(OrderReport(report)));
 				break;
 			}
 
 			case FIX::ExecType_REPLACED: {
-				open_orders_by_ord_id.emplace(report.ord_id, std::move(OrderReport(report)));
+				orders_by_ord_id.emplace(report.ord_id, std::move(OrderReport(report)));
 				break;
 			}
 
 			case FIX::ExecType_CANCELED: {
-				open_orders_by_ord_id.erase(report.ord_id);
-				history_orders_by_ord_id.emplace(report.ord_id, std::move(OrderReport(report)));
+				orders_by_ord_id.emplace(report.ord_id, std::move(OrderReport(report)));
 				break;
 			}
 
@@ -199,7 +195,7 @@ namespace common {
 			rows += std::format("    cl_ord_id={} order={}\n", cl_ord_id, order.to_string());
 		}
 		rows += "  open orders:\n";
-		for (auto& [ord_id, order] : open_orders_by_ord_id) {
+		for (auto& [ord_id, order] : orders_by_ord_id) {
 			rows += std::format("    ord_id={} order={}\n", ord_id, order.to_string());
 		}
 		rows += "  positions:\n";

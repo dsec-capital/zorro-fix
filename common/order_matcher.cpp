@@ -22,31 +22,29 @@ namespace common {
     OrderInsertResult OrderMatcher::insert(const Order& order_ins)
     {
         std::lock_guard<std::mutex> ul(mutex);
-        auto num = 0;
         auto error = false;
         auto order = order_ins;
-        const Order* order_ptr = nullptr;
-        const auto& price = order.get_price();
         std::vector<Order> matched;
+        const auto& price = order.get_price();
         std::optional<Order> resting_order;
         if (order.get_side() == Order::buy) {
             auto it = ask_orders.begin();
             if (it != ask_orders.end() && price >= it->second.get_price()) {
-                num += match(order, matched);
+                match(order, matched);
             }
             if (!order.is_closed()) {
-                auto it = bid_orders.insert(std::make_pair(price, order));
-                resting_order = it->second;
+                bid_orders.insert(std::make_pair(price, order));
+                resting_order = std::make_optional(order);
             }
         }
         else {
             auto it = bid_orders.begin();
             if (it != bid_orders.end() && price <= it->second.get_price()) {
-                num += match(order, matched);
+                match(order, matched);
             }
             if (!order.is_closed()) {
                 ask_orders.insert(std::make_pair(price, order));
-                resting_order = it->second;
+                resting_order = std::make_optional(order);
             }
         }
         return OrderInsertResult(resting_order, std::move(matched));

@@ -48,6 +48,10 @@ namespace common {
 		double cum_qty{ 0 };
 		double leaves_qty{ 0 };
 
+		bool is_filled() const;
+
+		bool is_cancelled() const;
+
 		std::string to_string() const;
 	};
 
@@ -98,8 +102,7 @@ namespace common {
 		std::string account;
 		std::unordered_map<std::string, NetPosition> position_by_symbol;
 		std::unordered_map<std::string, OrderReport> pending_orders_by_cl_ord_id;
-		std::unordered_map<std::string, OrderReport> open_orders_by_ord_id;
-		std::unordered_map<std::string, OrderReport> history_orders_by_ord_id;
+		std::unordered_map<std::string, OrderReport> orders_by_ord_id;
 
 	public:
 		typedef typename std::unordered_map<std::string, OrderReport>::const_iterator const_iterator;
@@ -110,9 +113,7 @@ namespace common {
 
 		std::pair<typename OrderTracker::const_iterator, bool> get_pending_order(const std::string& ord_id) const;
 
-		std::pair<typename OrderTracker::const_iterator, bool> get_open_order(const std::string& ord_id) const;
-
-		std::pair<typename OrderTracker::const_iterator, bool> get_history_order(const std::string& ord_id) const;
+		std::pair<typename OrderTracker::const_iterator, bool> get_order(const std::string& ord_id) const;
 
 		void process(const ExecReport& report);
 

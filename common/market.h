@@ -61,7 +61,6 @@ namespace common {
 		std::chrono::nanoseconds history_age;
 		std::chrono::nanoseconds history_sample_period;
 		bool prune_bars;
-		std::mutex& mutex;
 
 		BarBuilder bar_builder;
 		ReverseBarBuilder history_bar_builder;

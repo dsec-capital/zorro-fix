@@ -23,13 +23,12 @@ namespace common {
         , history_age(history_age)
         , history_sample_period(history_sample_period)
         , prune_bars(prune_bars)
-        , mutex(mutex)
         , bar_builder(bar_period, [this](const std::chrono::nanoseconds& end, double o, double h, double l, double c) {
-                spdlog::info("[{}] new bar end={} open={:.5f} high={:.5f} low={:.5f} close={:.5f}\n", symbol, common::to_string(end), o, h, l, c);
+                spdlog::info("[{}] new bar end={} open={:.5f} high={:.5f} low={:.5f} close={:.5f}", symbol, common::to_string(end), o, h, l, c);
                 this->bars.try_emplace(end, end, o, h, l, c);
             })
         , history_bar_builder(current.timestamp, bar_period, [this](const std::chrono::nanoseconds& end, double o, double h, double l, double c) {
-                spdlog::debug("[{}] hist bar end={} open={:.5f} high={:.5f} low={:.5f} close={:.5f}\n", symbol, common::to_string(end), o, h, l, c);
+                spdlog::debug("[{}] hist bar end={} open={:.5f} high={:.5f} low={:.5f} close={:.5f}", symbol, common::to_string(end), o, h, l, c);
                 this->bars.try_emplace(end, end, o, h, l, c);
             })
         , current(current)
@@ -96,7 +95,7 @@ namespace common {
     OrderInsertResult Market::quote(const Order& order_ins) {
         auto result = insert(order_ins);
         if (!result.error) {
-            if (Order::Side::buy) {
+            if (order_ins.get_side() == Order::Side::buy) {
                 bid_order = order_ins;
             }
             else {

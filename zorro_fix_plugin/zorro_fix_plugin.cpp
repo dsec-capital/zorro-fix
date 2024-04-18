@@ -540,7 +540,7 @@ namespace zfix {
 
 		auto it = order_id_by_internal_order_id.find(trade_id);
 		if (it != order_id_by_internal_order_id.end()) {
-			auto [oit, success] = order_tracker.get_open_order(it->second);
+			auto [oit, success] = order_tracker.get_order(it->second);
 			if (success) {
 				if (open) {
 					*open = oit->second.avg_px;
@@ -567,7 +567,7 @@ namespace zfix {
 
 		auto it = order_id_by_internal_order_id.find(trade_id);
 		if (it != order_id_by_internal_order_id.end()) {
-			auto [oit, success] = order_tracker.get_open_order(it->second);
+			auto [oit, success] = order_tracker.get_order(it->second);
 
 			if (success) {
 				auto& order = oit->second;
@@ -575,7 +575,8 @@ namespace zfix {
 				spdlog::debug("BrokerSell2: found open order={}", order.to_string());
 				show(std::format("BrokerSell2: found open order={}", order.to_string()));
 
-				if (order.ord_status == FIX::OrdStatus_FILLED) {
+				// trade opposite quantity for a fully filled order or partially filled and canceled order 
+				if (order.ord_status == FIX::OrdStatus_FILLED || (order.ord_status == FIX::OrdStatus_CANCELED && order.cum_qty > 0)) {
 					double close_price;
 					int close_fill;
 					int signed_qty = (int)(order.side == FIX::Side_BUY ? -order.cum_qty : order.cum_qty);
@@ -589,7 +590,7 @@ namespace zfix {
 					if (trade_id_close) {
 						auto cit = order_id_by_internal_order_id.find(trade_id_close);
 						if (cit != order_id_by_internal_order_id.end()) {
-							auto [coit, success] = order_tracker.get_open_order(cit->second);
+							auto [coit, success] = order_tracker.get_order(cit->second);
 							auto& close_order = coit->second;
 							if (close) {
 								*close = close_order.avg_px;

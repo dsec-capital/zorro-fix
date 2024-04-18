@@ -63,10 +63,10 @@ namespace common {
 
 		std::string to_string() const;
 
-	private:
+	protected:
 		std::mutex& mutex;
 
-		std::queue<Order> order_updates;
+	private:
 		bid_order_map_t bid_orders;
 		ask_order_map_t ask_orders;
 	};

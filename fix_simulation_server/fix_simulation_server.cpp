@@ -55,7 +55,7 @@ int main(int argc, char** argv)
             std::chrono::milliseconds(cfg["market_update_period_millis"].value<int>().value())
         );
 
-        spdlog::set_level(spdlog::level::info);
+        spdlog::set_level(spdlog::level::debug);
         spdlog::flush_every(std::chrono::seconds(2));
 
         toml::array& symbols = *tbl.get_as<toml::array>("symbols");
@@ -132,14 +132,13 @@ int main(int argc, char** argv)
             std::string value;
             std::cin >> value;
 
-            if (value == "#symbols")
-                application.get_markets().display();
-            else if (value == "#quit")
-                break;
-            else
-                application.get_markets().display(value);
-
-            std::cout << std::endl;
+            //if (value == "#symbols")
+            //    application.get_markets().display();
+            //else if (value == "#quit")
+            //    break;
+            //else
+            //    application.get_markets().display(value);
+            //std::cout << std::endl;
         }
 
         application.stop_market_data_updates();
