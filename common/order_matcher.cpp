@@ -77,10 +77,8 @@ namespace common {
         return std::optional<Order>();
     }
 
-    int OrderMatcher::match(Order& order, std::vector<Order>& orders)
+    void OrderMatcher::match(Order& order, std::vector<Order>& orders)
     {
-        std::lock_guard<std::mutex> ul(mutex);
-        auto num = 0;
         const auto& price = order.get_price();
         if (order.get_side() == Order::Side::buy) {
             auto it = ask_orders.begin();
@@ -95,7 +93,6 @@ namespace common {
 
                 spdlog::debug("OrderMatcher::match: ask side match: ask={} order={}", ask.to_string(), order.to_string());
 
-                ++num;
                 if (ask.is_closed())
                     it = ask_orders.erase(it);
                 else
@@ -115,14 +112,12 @@ namespace common {
 
                 spdlog::debug("OrderMatcher::match: bid side match: ask={} order={}", bid.to_string(), order.to_string());
 
-                ++num;
                 if (bid.is_closed())
                     it = bid_orders.erase(it);
                 else
                     ++it;
             }
         }
-        return num;
     }
 
     std::optional<Order> OrderMatcher::find(const std::string& ord_id, Order::Side side)

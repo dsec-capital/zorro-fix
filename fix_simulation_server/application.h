@@ -56,15 +56,11 @@ private:
 
 	void toAdmin(FIX::Message&, const FIX::SessionID&);
 
-	void toApp(FIX::Message&, const FIX::SessionID&) EXCEPT(FIX::DoNotSend);
+	void toApp(FIX::Message&, const FIX::SessionID&);
 
-	void fromAdmin(
-		const FIX::Message&, const FIX::SessionID&
-	) EXCEPT(FIX::FieldNotFound, FIX::IncorrectDataFormat, FIX::IncorrectTagValue, FIX::RejectLogon);
+	void fromAdmin(const FIX::Message&, const FIX::SessionID&);
 
-	void fromApp(
-		const FIX::Message& message, const FIX::SessionID& sessionID
-	) EXCEPT(FIX::FieldNotFound, FIX::IncorrectDataFormat, FIX::IncorrectTagValue, FIX::UnsupportedMessageType);
+	void fromApp(const FIX::Message& message, const FIX::SessionID& sessionID);
 
 	void onMessage(const FIX44::NewOrderSingle&, const FIX::SessionID&);
 	void onMessage(const FIX44::OrderCancelRequest&, const FIX::SessionID&);

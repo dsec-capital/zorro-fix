@@ -43,8 +43,6 @@ namespace common {
 
 		std::optional<Order> erase(const std::string& ord_id, const Order::Side& side);
 
-		int match(Order& order, std::vector<Order>&);
-
 		std::pair<bid_order_map_t, ask_order_map_t> get_orders() const;
 
 		bid_map_t bid_map(const std::function<double(const Order&)> &f) const;
@@ -67,6 +65,8 @@ namespace common {
 		std::mutex& mutex;
 
 	private:
+		void match(Order& order, std::vector<Order>&);
+
 		bid_order_map_t bid_orders;
 		ask_order_map_t ask_orders;
 	};

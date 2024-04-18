@@ -35,66 +35,71 @@ void Application::run_market_data_update() {
 		for (auto& [symbol, market] : markets.markets) {
 			spdlog::debug("Application::run_market_data_update: symbol={}", symbol);
 
-			market.simulate_next();
-			
-			// send market data to subscribers only
-			auto top = market.get_top_of_book();
-			auto it = market_data_subscriptions.find(symbol);
-			if (it != market_data_subscriptions.end()) {
-				auto message = get_update_message(it->second.first, it->second.second, top);
-				if (message.has_value()) {
-					FIX::Session::sendToTarget(message.value());
+			try {
+				market.simulate_next();
+
+				// send market data to subscribers only
+				auto top = market.get_top_of_book();
+				auto it = market_data_subscriptions.find(symbol);
+				if (it != market_data_subscriptions.end()) {
+					auto message = get_update_message(it->second.first, it->second.second, top);
+					if (message) {
+						FIX::Session::sendToTarget(message.value());
+					}
+				}
+
+				if (quote) {
+					if (top.first.bid_price != top.second.bid_price) {
+						const auto& bid_order = market.get_bid_order();
+						market.erase(bid_order.get_ord_id(), bid_order.get_side());
+						auto order = Order(
+							generate_id("quote_ord_id"),
+							generate_id("quote_cl_ord_id"),
+							symbol,
+							OWNER_MARKET_SIMULATOR,
+							"",
+							Order::Side::buy,
+							Order::Type::limit,
+							top.first.bid_price,
+							(long)top.first.bid_volume
+						);
+						auto result = market.quote(order);
+						spdlog::debug("Application::run_market_data_update: bid side quote price={}", top.first.bid_price);
+
+						for (const auto& fill : result.matched)
+						{
+							fill_order(fill);
+							spdlog::debug("Application::run_market_data_update: bid side fill order={}", fill.to_string());
+						}
+					}
+
+					if (top.first.ask_price != top.second.ask_price) {
+						const auto& ask_order = market.get_ask_order();
+						market.erase(ask_order.get_ord_id(), ask_order.get_side());
+						auto order = Order(
+							generate_id("quote_ord_id"),
+							generate_id("quote_cl_ord_id"),
+							symbol,
+							OWNER_MARKET_SIMULATOR,
+							"",
+							Order::Side::sell,
+							Order::Type::limit,
+							top.first.ask_price,
+							(long)top.first.ask_volume
+						);
+						auto result = market.quote(order);
+						spdlog::debug("Application::run_market_data_update: ask side quote price={}", top.first.ask_price);
+
+						for (const auto& fill : result.matched)
+						{
+							fill_order(fill);
+							spdlog::debug("Application::run_market_data_update: ask side fill order={}", fill.to_string());
+						}
+					}
 				}
 			}
-
-			if (quote) {
-				if (top.first.bid_price != top.second.bid_price) {
-					const auto& bid_order = market.get_bid_order();
-					market.erase(bid_order.get_ord_id(), bid_order.get_side());
-					auto order = Order(
-						generate_id("quote_ord_id"),
-						generate_id("quote_cl_ord_id"),
-						symbol,
-						OWNER_MARKET_SIMULATOR,
-						"",
-						Order::Side::buy,
-						Order::Type::limit,
-						top.first.bid_price,
-						(long)top.first.bid_volume
-					);
-					auto result = market.quote(order);
-					spdlog::debug("Application::run_market_data_update: bid side quote price={}", top.first.bid_price);
-
-					for (const auto& fill : result.matched)
-					{
-						fill_order(fill);
-						spdlog::debug("Application::run_market_data_update: bid side fill order={}", fill.to_string());
-					}
-				}
-
-				if (top.first.ask_price != top.second.ask_price) {
-					const auto& ask_order = market.get_ask_order();
-					market.erase(ask_order.get_ord_id(), ask_order.get_side());
-					auto order = Order(
-						generate_id("quote_ord_id"),
-						generate_id("quote_cl_ord_id"),
-						symbol,
-						OWNER_MARKET_SIMULATOR,
-						"",
-						Order::Side::sell,
-						Order::Type::limit,
-						top.first.ask_price,
-						(long)top.first.ask_volume
-					);
-					auto result = market.quote(order);
-					spdlog::debug("Application::run_market_data_update: ask side quote price={}", top.first.ask_price);
-
-					for (const auto& fill : result.matched)
-					{
-						fill_order(fill);
-						spdlog::debug("Application::run_market_data_update: ask side fill order={}", fill.to_string());
-					}
-				}
+			catch (std::exception& e) {
+				spdlog::error("Application::run_market_data_update: exception={}", e.what());
 			}
 
 			spdlog::debug("Application::run_market_data_update: completed symbol={}", symbol);
@@ -140,41 +145,51 @@ void Application::onLogon(const FIX::SessionID& sessionID)
 
 void Application::onLogout(const FIX::SessionID& sessionID) 
 {
-	auto senderCompID = sessionID.getSenderCompID().getString();
-	auto targetCompID = sessionID.getTargetCompID().getString();
-	auto it = market_data_subscriptions.begin();
-	spdlog::info(
-		"====> removing market data subscriptions for sender_comp_id = {} target_comp_id = {}", 
-		senderCompID, targetCompID
-	);
-	while(it != market_data_subscriptions.end()) {
-		if (senderCompID == it->second.first && targetCompID == it->second.second) {
-			spdlog::info("removing subscription for symbol={}", it->first);
-			it = market_data_subscriptions.erase(it);
+	try {
+		auto senderCompID = sessionID.getSenderCompID().getString();
+		auto targetCompID = sessionID.getTargetCompID().getString();
+		auto it = market_data_subscriptions.begin();
+		spdlog::info(
+			"====> removing market data subscriptions for sender_comp_id = {} target_comp_id = {}",
+			senderCompID, targetCompID
+		);
+		while (it != market_data_subscriptions.end()) {
+			if (senderCompID == it->second.first && targetCompID == it->second.second) {
+				spdlog::info("removing subscription for symbol={}", it->first);
+				it = market_data_subscriptions.erase(it);
+			}
+			else {
+				++it;
+			}
 		}
-		else {
-			++it;
-		}
-	} 
+	}
+	catch (std::exception& e) {
+		spdlog::error("Application::onLogon: {}", e.what());
+	}
+
 }
 
-void Application::toAdmin(FIX::Message&, const FIX::SessionID&)
-{}
-
-void Application::toApp(FIX::Message&, const FIX::SessionID&) EXCEPT(FIX::DoNotSend) 
-{}
-
-void Application::fromAdmin(
-	const FIX::Message&, const FIX::SessionID&
-) EXCEPT(FIX::FieldNotFound, FIX::IncorrectDataFormat, FIX::IncorrectTagValue, FIX::RejectLogon) 
-{}
-
-
-void Application::fromApp(
-	const FIX::Message& message, const FIX::SessionID& sessionID
-) EXCEPT(FIX::FieldNotFound, FIX::IncorrectDataFormat, FIX::IncorrectTagValue, FIX::UnsupportedMessageType) 
+void Application::toAdmin(FIX::Message& message, const FIX::SessionID&)
 {
-	crack(message, sessionID);
+}
+
+void Application::toApp(FIX::Message& message, const FIX::SessionID&)
+{
+}
+
+void Application::fromAdmin(const FIX::Message& message, const FIX::SessionID&) 
+{
+}
+
+
+void Application::fromApp(const FIX::Message& message, const FIX::SessionID& sessionID) 
+{
+	try {
+		crack(message, sessionID);
+	}
+	catch (std::exception& e) {
+		spdlog::error("Application::onLogon: {}", e.what());
+	}
 }
 
 void Application::onMessage(const FIX44::NewOrderSingle& message, const FIX::SessionID&)
@@ -229,8 +244,6 @@ void Application::onMessage(const FIX44::NewOrderSingle& message, const FIX::Ses
 	}
 	
 	spdlog::debug("Application::onMessage[NewOrderSingle]: completed message={}", fix_string(message));
-
-	//spdlog::info(markets.get_market(symbol.getString())->second.to_string());
 }
 
 void Application::onMessage(const FIX44::OrderCancelRequest& message, const FIX::SessionID&)
