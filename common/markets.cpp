@@ -38,11 +38,11 @@ namespace common {
 		}
 	}
 
-	void Markets::display(std::string symbol) const
+	std::string Markets::to_string(std::string symbol) const
 	{
 		auto it = markets.find(symbol);
-		if (it == markets.end()) return;
-		it->second.display();
+		if (it == markets.end()) return "";
+		return it->second.to_string();
 	}
 
 	void Markets::display() const

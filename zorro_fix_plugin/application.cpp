@@ -157,6 +157,7 @@ namespace zfix {
 
 			// publish this one before next in case a new symbol starts
 			if (it != books.end() && it->first != symbol) {
+				spdlog::info("Application::onMessage[MarketDataIncrementalRefresh]: (a) updated symbol={}", symbol.getString());
 				top_of_book_queue.push(it->second.top(it->first));
 				it = books.end();
 			}
@@ -180,6 +181,7 @@ namespace zfix {
 		}
 
 		if (it != books.end()) {
+			spdlog::info("Application::onMessage[MarketDataIncrementalRefresh]: (b) updated symbol={}", symbol.getString());
 			top_of_book_queue.push(it->second.top(it->first)); // publish if only one or last
 		}
 	}

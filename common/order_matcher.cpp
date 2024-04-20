@@ -198,12 +198,8 @@ namespace common {
         }
     }
 
-    void OrderMatcher::display() const {
-        std::cout << to_string() << std::endl;
-    }
-
     std::string OrderMatcher::to_string() const {
-        auto [bids, asks] = get_orders(); // issue with threading leading to abort crash
+        auto [bids, asks] = get_orders();  
         std::string rows;
         rows += "OrderMatcher[\n";
         for (auto ait = asks.begin(); ait != asks.end(); ++ait) {

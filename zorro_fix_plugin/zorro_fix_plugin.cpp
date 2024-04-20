@@ -70,8 +70,8 @@ namespace zfix {
 	BlockingTimeoutQueue<ExecReport> exec_report_queue;
 	BlockingTimeoutQueue<TopOfBook> top_of_book_queue;  
 	std::unordered_map<int, std::string> order_id_by_internal_order_id;
-	OrderTracker order_tracker("account");
 	std::unordered_map<std::string, TopOfBook> top_of_books;
+	OrderTracker order_tracker("account");
 
 	void show(const std::string& msg) {
 		if (!BrokerError) return;
@@ -82,7 +82,7 @@ namespace zfix {
 	int pop_exec_reports() {
 		auto n = exec_report_queue.pop_all(
 			[](const ExecReport& report) { 
-				order_tracker.process(report); 
+				auto ok = order_tracker.process(report); 
 			}
 		);
 		return n;
@@ -91,7 +91,7 @@ namespace zfix {
 	int pop_top_of_books() {
 		auto n = top_of_book_queue.pop_all(
 			[](const TopOfBook& top) { 
-				top_of_books.insert(std::make_pair(top.symbol, top)); 
+				top_of_books.insert_or_assign(top.symbol, top); 
 			}
 		);
 		return n;
@@ -303,13 +303,10 @@ namespace zfix {
 		}
 
 		const auto time = get_current_system_clock();
-		//show(std::format("BrokerTime {}", common::to_string(time)));
-
 		auto n = pop_exec_reports();
-		//show(std::format("BrokerTime {} exec reports processed", n));
-
 		auto m = pop_top_of_books();
-		//show(std::format("BrokerTime {} top of book processed", m));
+
+		show(std::format("BrokerTime {} top of book processed={} exec reports processed={}", common::to_string(time), m, n));
 
 		show(order_tracker.to_string());
 
@@ -502,7 +499,7 @@ namespace zfix {
 			else if (report.cl_ord_id == cl_ord_id.getString()) { 
 				auto i_ord_id = next_internal_order_id();
 				order_id_by_internal_order_id.emplace(i_ord_id, report.ord_id);  
-				order_tracker.process(report);
+				auto ok = order_tracker.process(report);
 
 				if (report.ord_status == FIX::OrdStatus_FILLED || report.ord_status == FIX::OrdStatus_PARTIALLY_FILLED) {
 					if (av_fill_price) {
@@ -630,7 +627,7 @@ namespace zfix {
 							return BrokerBuyError::OrderRejectedOrTimeout;
 						} 
 						else {
-							order_tracker.process(report);
+							auto ok = order_tracker.process(report);
 							show(order_tracker.to_string());
 						}
 
@@ -663,7 +660,7 @@ namespace zfix {
 							return BrokerBuyError::OrderRejectedOrTimeout;
 						}
 						else {
-							order_tracker.process(report);
+							auto ok = order_tracker.process(report);
 							show(order_tracker.to_string());
 						}
 

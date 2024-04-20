@@ -23,7 +23,7 @@ namespace common {
 
 		std::optional<Order> erase(const std::string& symbol, const std::string& ord_id, Order::Side side);
 
-		void display(std::string symbol) const;
+		std::string to_string(std::string symbol) const;
 
 		void display() const;
 

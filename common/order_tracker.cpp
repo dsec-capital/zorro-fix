@@ -136,53 +136,63 @@ namespace common {
 		return std::make_pair(it, it != orders_by_ord_id.end());
 	}
 
-	void OrderTracker::process(const ExecReport& report) {
+	bool OrderTracker::process(const ExecReport& report) {
 		if (report.exec_type == 'I') {
-			return;
+			return false;
 		}
 
 		switch (report.exec_type) {
 			case FIX::ExecType_PENDING_NEW: {
-				pending_orders_by_cl_ord_id.emplace(report.cl_ord_id, std::move(OrderReport(report)));
-				break;
+				auto [_, inserted] = pending_orders_by_cl_ord_id.emplace(report.cl_ord_id, std::move(OrderReport(report)));
+				if (!inserted) {
+					spdlog::error(std::format("OrderTracker::process[FIX::ExecType_PENDING_NEW]: failed to insert cl_ord_id={} report={}", report.cl_ord_id, report.to_string()));
+					return false;
+				}
+				return true;
 			}
 
 			case FIX::ExecType_NEW: {
 				pending_orders_by_cl_ord_id.erase(report.cl_ord_id);
-				orders_by_ord_id.emplace(report.ord_id, std::move(OrderReport(report)));
-				break;
+				auto [_, inserted] = orders_by_ord_id.emplace(report.ord_id, std::move(OrderReport(report)));
+				if (!inserted) {
+					spdlog::error(std::format("OrderTracker::process[FIX::ExecType_NEW]: failed to insert ord_id={} report={}", report.ord_id, report.to_string()));
+					return false;
+				}
+				return true;
 			}
 
 			case FIX::ExecType_TRADE: {
-				orders_by_ord_id.emplace(report.ord_id, std::move(OrderReport(report)));
+				orders_by_ord_id.insert_or_assign(report.ord_id, std::move(OrderReport(report)));
 				auto& position = net_position(report.symbol);
 				position.qty += report.last_qty;
 				position.avg_px = report.avg_px;
-				break;
+				return true;
 			}
 
 			case FIX::ExecType_PENDING_CANCEL: {
-				orders_by_ord_id.emplace(report.ord_id, std::move(OrderReport(report)));
-				break;
+				orders_by_ord_id.insert_or_assign(report.ord_id, std::move(OrderReport(report)));
+				return true;
 			}
 
 			case FIX::ExecType_REPLACED: {
-				orders_by_ord_id.emplace(report.ord_id, std::move(OrderReport(report)));
-				break;
+				orders_by_ord_id.insert_or_assign(report.ord_id, std::move(OrderReport(report)));
+				return true;
 			}
 
 			case FIX::ExecType_CANCELED: {
-				orders_by_ord_id.emplace(report.ord_id, std::move(OrderReport(report)));
-				break;
+				orders_by_ord_id.insert_or_assign(report.ord_id, std::move(OrderReport(report)));
+				return true;
 			}
 
 			case FIX::ExecType_REJECTED: {
 				spdlog::warn("rejected {}", report.to_string());
-				break;
+				return true;
 			}
 
-			default:
+			default: {
 				spdlog::error(" OrderTracker::process: invalid FIX::ExecType {}", report.exec_type);
+				return false;
+			}
 
 		}
 	}
@@ -194,7 +204,7 @@ namespace common {
 		for (auto& [cl_ord_id, order] : pending_orders_by_cl_ord_id) {
 			rows += std::format("    cl_ord_id={} order={}\n", cl_ord_id, order.to_string());
 		}
-		rows += "  open orders:\n";
+		rows += "  orders:\n";
 		for (auto& [ord_id, order] : orders_by_ord_id) {
 			rows += std::format("    ord_id={} order={}\n", ord_id, order.to_string());
 		}

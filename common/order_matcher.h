@@ -57,8 +57,6 @@ namespace common {
 
 		static int by_last_exec_quantity(const Order& o);
 
-		void display() const;
-
 		std::string to_string() const;
 
 	protected:
