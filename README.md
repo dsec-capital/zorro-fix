@@ -21,20 +21,34 @@ Performance-wise it is not as fast as commercial FIX implementations but provide
 API and application framework to develop FIX based server and client applications. 
 Some of the core building blocks and `fix_sumulation_server` are inspired from their examples. 
 
-Neither the FIX client plugin nor the FIX server are complete. Edge cases and errors and rejects are 
-currently only handled in a rudimentary manner. 
+Neither the FIX client plugin nor the FIX server are yet complete. More work is required. See the TODO list below. 
+
+The long term plans for developing a FIX plugin for Zorro is that more and more professional brokerage firms provide FIX access.
+This is also a trend in crypto currency prime brokerage, see for example the work (full disclosure - I am one of the co-authors):  
+
+  - [Phoenix Prime FIX Client Examples Package](https://github.com/mtxpt/phx-fix-examples)
+  - [Phoenix Prime FIX Foundation Package](https://github.com/mtxpt/phx-fix-base)
 
 Contributions and feedback are very welcome. 
+
+
+## Version History
+
+  - v1.0.1 Improving order cancellation and many smaller bug fixing
+  - v1.0.0 First official release
+
 
 ## TODO
 
 Some tasks on the roadmap:
 
   - [fix_sumulation_server]: cancel automatically market data subscription on logout and test multiple connects from `zorro_fix_plugin`.
-  - [fix_sumulation_server]: account functionality to support `BrokerAccount` 
-  - [zorro_fix_plugin]: implement function `BrokerAccount` 
-  - [zorro_fix_plugin]: better log output when cancelling orders in `BrokerBuy2`
-  - [zorro_fix_plugin]: a lot of testing
+  - [fix_sumulation_server]: account functionality to support `BrokerAccount`
+  - [fix_sumulation_server]: support for position (including asset balances) and trade reports, both, snapshot and updates
+  - [fix_sumulation_server]: support for secruity list  
+  - [zorro_fix_plugin]: implement function `BrokerAccount` for example with position snapshot and updates 
+  - [zorro_fix_plugin]: integrate position update and trade capture report  
+  - [zorro_fix_plugin]: more testing
 
 Currenbtly the market simulators only handle top of book. Eventually we want a fully simulated book, e.g. based in the `Fodra-Pham` model 
 or any other reasonable order book simulation model. 
