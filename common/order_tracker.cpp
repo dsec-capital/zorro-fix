@@ -9,8 +9,8 @@ namespace common {
 	OrderReport::OrderReport(
 		const ExecReport& report
 	) : symbol(report.symbol)
+	  , ord_id(report.ord_id)
 	  , cl_ord_id(report.cl_ord_id)
-	  , order_id(report.order_id)
 	  , ord_type(report.ord_type)
 	  , ord_status(report.ord_status)
 	  , side(report.side)
@@ -23,8 +23,8 @@ namespace common {
 
 	OrderReport::OrderReport(
 		const std::string& symbol,
+		const std::string& ord_id,
 		const std::string& cl_ord_id,
-		const std::string& order_id,
 		const char ord_type,
 		const char ord_status,
 		const char side,
@@ -34,8 +34,8 @@ namespace common {
 		double cum_qty,
 		double leaves_qty
 	) : symbol(symbol)
+	  , ord_id(ord_id)
 	  , cl_ord_id(cl_ord_id)
-	  , order_id(order_id)
 	  , ord_type(ord_type)
 	  , ord_status(ord_status)
 	  , side(side)
@@ -46,10 +46,18 @@ namespace common {
 	  , leaves_qty(leaves_qty)
 	{}
 
+	bool OrderReport::is_filled() const {
+		return leaves_qty == 0;
+	}
+
+	bool OrderReport::is_cancelled() const {
+		return ord_status == FIX::OrdStatus_CANCELED;
+	}
+
 	std::string OrderReport::to_string() const {
 		return "symbol=" + symbol + ", "
+			"ord_id=" + ord_id + ", "
 			"cl_ord_id=" + cl_ord_id + ", "
-			"order_id=" + order_id + ", "
 			"ord_status=" + std::to_string(ord_status) + ", "
 			"ord_type=" + std::to_string(ord_type) + ", "
 			"side=" + std::to_string(side) + ", "
@@ -118,70 +126,74 @@ namespace common {
 		return it->second;
 	}
 
-	std::pair<typename OrderTracker::const_iterator, bool> OrderTracker::get_pending_order(const std::string& cl_ord_id) const {
-		auto it = pending_orders_by_cl_ord_id.find(cl_ord_id);
+	std::pair<typename OrderTracker::const_iterator, bool> OrderTracker::get_pending_order(const std::string& ord_id) const {
+		auto it = pending_orders_by_cl_ord_id.find(ord_id);
 		return std::make_pair(it, it != pending_orders_by_cl_ord_id.end());
 	}
 
-	std::pair<typename OrderTracker::const_iterator, bool> OrderTracker::get_open_order(const std::string& ord_id) const {
-		auto it = open_orders_by_ord_id.find(ord_id);
-		return std::make_pair(it, it != open_orders_by_ord_id.end());
+	std::pair<typename OrderTracker::const_iterator, bool> OrderTracker::get_order(const std::string& ord_id) const {
+		auto it = orders_by_ord_id.find(ord_id);
+		return std::make_pair(it, it != orders_by_ord_id.end());
 	}
 
-	std::pair<typename OrderTracker::const_iterator, bool> OrderTracker::get_history_order(const std::string& ord_id) const {
-		auto it = history_orders_by_ord_id.find(ord_id);
-		return std::make_pair(it, it != history_orders_by_ord_id.end());
-	}
-
-	void OrderTracker::process(const ExecReport& report) {
+	bool OrderTracker::process(const ExecReport& report) {
 		if (report.exec_type == 'I') {
-			return;
+			return false;
 		}
 
 		switch (report.exec_type) {
 			case FIX::ExecType_PENDING_NEW: {
-				pending_orders_by_cl_ord_id.emplace(report.cl_ord_id, std::move(OrderReport(report)));
-				break;
+				auto [_, inserted] = pending_orders_by_cl_ord_id.emplace(report.cl_ord_id, std::move(OrderReport(report)));
+				if (!inserted) {
+					spdlog::error(std::format("OrderTracker::process[FIX::ExecType_PENDING_NEW]: failed to insert cl_ord_id={} report={}", report.cl_ord_id, report.to_string()));
+					return false;
+				}
+				return true;
 			}
 
 			case FIX::ExecType_NEW: {
 				pending_orders_by_cl_ord_id.erase(report.cl_ord_id);
-				open_orders_by_ord_id.emplace(report.order_id, std::move(OrderReport(report)));
-				break;
+				auto [_, inserted] = orders_by_ord_id.emplace(report.ord_id, std::move(OrderReport(report)));
+				if (!inserted) {
+					spdlog::error(std::format("OrderTracker::process[FIX::ExecType_NEW]: failed to insert ord_id={} report={}", report.ord_id, report.to_string()));
+					return false;
+				}
+				return true;
 			}
 
-			case FIX::ExecType_PARTIAL_FILL: {
-				open_orders_by_ord_id.emplace(report.order_id, std::move(OrderReport(report)));
-				auto position = net_position(report.symbol);
+			case FIX::ExecType_TRADE: {
+				orders_by_ord_id.insert_or_assign(report.ord_id, std::move(OrderReport(report)));
+				auto& position = net_position(report.symbol);
 				position.qty += report.last_qty;
 				position.avg_px = report.avg_px;
-				break;
-			}
-
-			case FIX::ExecType_FILL: {
-				open_orders_by_ord_id.erase(report.order_id);
-				history_orders_by_ord_id.emplace(report.order_id, std::move(OrderReport(report)));
-				auto position = net_position(report.symbol);
-				position.qty += report.last_qty;
-				position.avg_px = report.avg_px;
-				break;
+				return true;
 			}
 
 			case FIX::ExecType_PENDING_CANCEL: {
-				open_orders_by_ord_id.emplace(report.order_id, std::move(OrderReport(report)));
-				break;
+				orders_by_ord_id.insert_or_assign(report.ord_id, std::move(OrderReport(report)));
+				return true;
+			}
+
+			case FIX::ExecType_REPLACED: {
+				orders_by_ord_id.insert_or_assign(report.ord_id, std::move(OrderReport(report)));
+				return true;
 			}
 
 			case FIX::ExecType_CANCELED: {
-				open_orders_by_ord_id.erase(report.order_id);
-				history_orders_by_ord_id.emplace(report.order_id, std::move(OrderReport(report)));
-				break;
+				orders_by_ord_id.insert_or_assign(report.ord_id, std::move(OrderReport(report)));
+				return true;
 			}
 
 			case FIX::ExecType_REJECTED: {
-				SPDLOG_WARN("rejected {}", report.to_string());
-				break;
+				spdlog::warn("rejected {}", report.to_string());
+				return true;
 			}
+
+			default: {
+				spdlog::error(" OrderTracker::process: invalid FIX::ExecType {}", report.exec_type);
+				return false;
+			}
+
 		}
 	}
 
@@ -190,15 +202,15 @@ namespace common {
 		rows += "OrderTracker[\n";
 		rows += "  pending orders:\n";
 		for (auto& [cl_ord_id, order] : pending_orders_by_cl_ord_id) {
-			rows += std::format("    {} : {}\n", cl_ord_id, order.to_string());
+			rows += std::format("    cl_ord_id={} order={}\n", cl_ord_id, order.to_string());
 		}
-		rows += "  open orders:\n";
-		for (auto& [ord_id, order] : open_orders_by_ord_id) {
-			rows += std::format("    {} : {}\n", ord_id, order.to_string());
+		rows += "  orders:\n";
+		for (auto& [ord_id, order] : orders_by_ord_id) {
+			rows += std::format("    ord_id={} order={}\n", ord_id, order.to_string());
 		}
 		rows += "  positions:\n";
 		for (auto& [symbol, pos] : position_by_symbol) {
-			rows += std::format("    {} : {}\n", symbol, pos.to_string());
+			rows += std::format("    symbol={} pos={}\n", symbol, pos.to_string());
 		}
 		rows += "]";
 		return rows;

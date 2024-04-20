@@ -8,9 +8,25 @@
 
 namespace common {
 
+	class OrderInsertResult {
+	public:
+		OrderInsertResult();
+
+		OrderInsertResult(const std::optional<Order>& order, std::vector<Order>&& matched, bool error=false);
+
+		std::optional<Order> resting_order;
+		std::vector<Order> matched;
+		bool error;
+	};
+
 	class OrderMatcher
 	{
 	public:
+		// note: insertion order is only maintained for elements with  
+		// identical keys, which properly implements price time priority 
+		typedef std::multimap<double, Order, std::greater<double>> bid_order_map_t;
+		typedef std::multimap<double, Order, std::less<double>> ask_order_map_t;
+
 		typedef std::map<double, double, std::greater<double>> bid_map_t;
 		typedef std::map<double, double, std::less<double>> ask_map_t;
 		typedef std::vector<BookLevel> level_vector_t;
@@ -21,13 +37,13 @@ namespace common {
 
 		OrderMatcher& operator= (const OrderMatcher&) = delete;
 
-		std::tuple<const Order*, bool, int> insert(const Order& order, std::queue<Order>& orders);
+		OrderInsertResult insert(const Order& order);
 
-		int match(Order& order, std::queue<Order>&);
+		std::optional<Order> find(const std::string& ord_id, Order::Side side);
 
-		void erase(const Order& order);
+		std::optional<Order> erase(const std::string& ord_id, const Order::Side& side);
 
-		Order& find(Order::Side side, std::string id);
+		std::pair<bid_order_map_t, ask_order_map_t> get_orders() const;
 
 		bid_map_t bid_map(const std::function<double(const Order&)> &f) const;
 
@@ -41,19 +57,14 @@ namespace common {
 
 		static int by_last_exec_quantity(const Order& o);
 
-		void display() const;
-
 		std::string to_string() const;
 
-	private:
-		// note: insertion order is only maintained for elements with  
-		// identical keys, which properly implements price time priority 
-		typedef std::multimap<double, Order, std::greater<double>> bid_order_map_t;
-		typedef std::multimap<double, Order, std::less<double>> ask_order_map_t;
-
+	protected:
 		std::mutex& mutex;
 
-		std::queue<Order> order_updates;
+	private:
+		void match(Order& order, std::vector<Order>&);
+
 		bid_order_map_t bid_orders;
 		ask_order_map_t ask_orders;
 	};

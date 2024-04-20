@@ -58,7 +58,7 @@ namespace zfix {
 	httplib::Client rest_client(std::format("{}:{}", rest_host, rest_port));
 
 	int max_snaphsot_waiting_iterations = 10; 
-	std::chrono::milliseconds fix_blocking_queue_waiting_time = 500ms;
+	std::chrono::milliseconds fix_exec_report_waiting_time = 500ms;
 	std::string settings_cfg_file = "Plugin/zorro_fix_client.cfg";
 
 	int client_order_id = 0;
@@ -70,8 +70,8 @@ namespace zfix {
 	BlockingTimeoutQueue<ExecReport> exec_report_queue;
 	BlockingTimeoutQueue<TopOfBook> top_of_book_queue;  
 	std::unordered_map<int, std::string> order_id_by_internal_order_id;
-	OrderTracker order_tracker("account");
 	std::unordered_map<std::string, TopOfBook> top_of_books;
+	OrderTracker order_tracker("account");
 
 	void show(const std::string& msg) {
 		if (!BrokerError) return;
@@ -82,7 +82,7 @@ namespace zfix {
 	int pop_exec_reports() {
 		auto n = exec_report_queue.pop_all(
 			[](const ExecReport& report) { 
-				order_tracker.process(report); 
+				auto ok = order_tracker.process(report); 
 			}
 		);
 		return n;
@@ -91,7 +91,7 @@ namespace zfix {
 	int pop_top_of_books() {
 		auto n = top_of_book_queue.pop_all(
 			[](const TopOfBook& top) { 
-				top_of_books.insert(std::make_pair(top.symbol, top)); 
+				top_of_books.insert_or_assign(top.symbol, top); 
 			}
 		);
 		return n;
@@ -303,13 +303,10 @@ namespace zfix {
 		}
 
 		const auto time = get_current_system_clock();
-		//show(std::format("BrokerTime {}", common::to_string(time)));
-
 		auto n = pop_exec_reports();
-		//show(std::format("BrokerTime {} exec reports processed", n));
-
 		auto m = pop_top_of_books();
-		//show(std::format("BrokerTime {} top of book processed", m));
+
+		show(std::format("BrokerTime {} top of book processed={} exec reports processed={}", common::to_string(time), m, n));
 
 		show(order_tracker.to_string());
 
@@ -487,10 +484,10 @@ namespace zfix {
 		show(std::format("BrokerBuy2: NewOrderSingle {}", fix_string(msg)));
 
 		ExecReport report;
-		bool success = exec_report_queue.pop(report, std::chrono::milliseconds(500));
+		bool success = exec_report_queue.pop(report, fix_exec_report_waiting_time);
 
 		if (!success) {
-			show("BrokerBuy2 timeout while waiting for FIX exec report!");
+			show("BrokerBuy2 timeout while waiting for FIX exec report on order new!");
 			return BrokerBuyError::OrderRejectedOrTimeout;
 		}
 		else {
@@ -499,10 +496,10 @@ namespace zfix {
 				show(std::format("BrokerBuy2: rejected {}", report.to_string()));
 				return BrokerBuyError::OrderRejectedOrTimeout;
 			}
-			else if (report.cl_ord_id == cl_ord_id.getString()) {
+			else if (report.cl_ord_id == cl_ord_id.getString()) { 
 				auto i_ord_id = next_internal_order_id();
-				order_id_by_internal_order_id.emplace(i_ord_id, report.order_id); // TODO remove the mappings at some point
-				order_tracker.process(report);
+				order_id_by_internal_order_id.emplace(i_ord_id, report.ord_id);  
+				auto ok = order_tracker.process(report);
 
 				if (report.ord_status == FIX::OrdStatus_FILLED || report.ord_status == FIX::OrdStatus_PARTIALLY_FILLED) {
 					if (av_fill_price) {
@@ -513,14 +510,14 @@ namespace zfix {
 					}
 				}
 
-				spdlog::debug("BrokerBuy2: processed {} \n{}", report.to_string(), order_tracker.to_string());
-				show(std::format("BrokerBuy2: processed {} \n{}", report.to_string(), order_tracker.to_string()));
+				spdlog::debug("BrokerBuy2: i_ord_id={} processed={} \n{}", i_ord_id, report.to_string(), order_tracker.to_string());
+				show(std::format("BrokerBuy2: i_ord_id={} processed={} \n{}", i_ord_id, report.to_string(), order_tracker.to_string()));
 
 				return i_ord_id;
 			}
 			else {
-				spdlog::debug("BrokerBuy2: report {} does belong to cl {}", report.to_string(), cl_ord_id.getString());
-				show(std::format("BrokerBuy2: report {} does belong to cl {}", report.to_string(), cl_ord_id.getString()));
+				spdlog::debug("BrokerBuy2: report {} does belong to given cl_ord_id={}", report.to_string(), cl_ord_id.getString());
+				show(std::format("BrokerBuy2: report {} does belong given cl_ord_id={}", report.to_string(), cl_ord_id.getString()));
 				return BrokerBuyError::OrderRejectedOrTimeout;
 
 				// TODO what should be done in this rare case?
@@ -540,7 +537,7 @@ namespace zfix {
 
 		auto it = order_id_by_internal_order_id.find(trade_id);
 		if (it != order_id_by_internal_order_id.end()) {
-			auto [oit, success] = order_tracker.get_open_order(it->second);
+			auto [oit, success] = order_tracker.get_order(it->second);
 			if (success) {
 				if (open) {
 					*open = oit->second.avg_px;
@@ -567,7 +564,7 @@ namespace zfix {
 
 		auto it = order_id_by_internal_order_id.find(trade_id);
 		if (it != order_id_by_internal_order_id.end()) {
-			auto [oit, success] = order_tracker.get_open_order(it->second);
+			auto [oit, success] = order_tracker.get_order(it->second);
 
 			if (success) {
 				auto& order = oit->second;
@@ -575,7 +572,8 @@ namespace zfix {
 				spdlog::debug("BrokerSell2: found open order={}", order.to_string());
 				show(std::format("BrokerSell2: found open order={}", order.to_string()));
 
-				if (order.ord_status == FIX::OrdStatus_FILLED) {
+				// trade opposite quantity for a fully filled order or partially filled and canceled order 
+				if (order.ord_status == FIX::OrdStatus_FILLED || (order.ord_status == FIX::OrdStatus_CANCELED && order.cum_qty > 0)) {
 					double close_price;
 					int close_fill;
 					int signed_qty = (int)(order.side == FIX::Side_BUY ? -order.cum_qty : order.cum_qty);
@@ -583,15 +581,13 @@ namespace zfix {
 					spdlog::debug("BrokerSell2: closing filled order with trade in opposite direction signed_qty={}, limit={}", signed_qty, limit);
 					show(std::format("BrokerSell2: closing filled order with trade in opposite direction signed_qty={}, limit={}", signed_qty, limit));
 
-					auto trade_id_close = BrokerBuy2(
-						const_cast<char*>(order.symbol.c_str()), 
-						signed_qty, 0, limit, &close_price, &close_fill
-					);
+					auto asset = const_cast<char*>(order.symbol.c_str());
+					auto trade_id_close = BrokerBuy2(asset, signed_qty, 0, limit, &close_price, &close_fill);
 
 					if (trade_id_close) {
 						auto cit = order_id_by_internal_order_id.find(trade_id_close);
 						if (cit != order_id_by_internal_order_id.end()) {
-							auto [coit, success] = order_tracker.get_open_order(cit->second);
+							auto [coit, success] = order_tracker.get_order(cit->second);
 							auto& close_order = coit->second;
 							if (close) {
 								*close = close_order.avg_px;
@@ -609,6 +605,7 @@ namespace zfix {
 				}
 				else {
 					auto symbol = FIX::Symbol(order.symbol);
+					auto ord_id = FIX::OrderID(order.ord_id);
 					auto orig_cl_ord_id = FIX::OrigClOrdID(order.cl_ord_id);
 					auto cl_ord_id = FIX::ClOrdID(next_client_order_id());
 					auto side = FIX::Side(order.side);
@@ -619,8 +616,21 @@ namespace zfix {
 						show(std::format("BrokerSell2: cancel working order"));
 
 						auto msg = fix_thread->fix_app().order_cancel_request(
-							symbol, orig_cl_ord_id, cl_ord_id, side, FIX::OrderQty(order.leaves_qty)
+							symbol, ord_id, orig_cl_ord_id, cl_ord_id, side, FIX::OrderQty(order.leaves_qty)
 						);
+
+						ExecReport report;
+						bool success = exec_report_queue.pop(report, fix_exec_report_waiting_time);
+
+						if (!success) {
+							show("BrokerSell2 timeout while waiting for FIX exec report on order cancel!");
+							return BrokerBuyError::OrderRejectedOrTimeout;
+						} 
+						else {
+							auto ok = order_tracker.process(report);
+							show(order_tracker.to_string());
+						}
+
 						return trade_id;
 					}
 					else {
@@ -638,16 +648,33 @@ namespace zfix {
 
 						auto new_qty = max(target_qty, 0);
 						auto msg = fix_thread->fix_app().order_cancel_replace_request(
-							symbol, orig_cl_ord_id, cl_ord_id, side, ord_type, 
+							symbol, ord_id, orig_cl_ord_id, cl_ord_id, side, ord_type, 
 							FIX::OrderQty(new_qty), FIX::Price(order.price)
 						);
+
+						ExecReport report;
+						bool success = exec_report_queue.pop(report, fix_exec_report_waiting_time);
+
+						if (!success) {
+							show("BrokerSell2 timeout while waiting for FIX exec report on order cancel/replace!");
+							return BrokerBuyError::OrderRejectedOrTimeout;
+						}
+						else {
+							auto ok = order_tracker.process(report);
+							show(order_tracker.to_string());
+						}
 
 						return trade_id;
 					}
 				}
 			}
+			else {
+				spdlog::error("BrokerSell2: could not find open order with ord_id={} ", it->second);
+				show(std::format("BrokerSell2: could not find open order with ord_id={} ", it->second));
+			}
 		}
 		else {
+			spdlog::error("BrokerSell2: mapping not found for trade_id={} ", trade_id);
 			show(std::format("BrokerSell2: mapping not found for trade_id={} ", trade_id));
 		}
 

@@ -23,22 +23,21 @@ namespace common {
         , history_age(history_age)
         , history_sample_period(history_sample_period)
         , prune_bars(prune_bars)
-        , mutex(mutex)
         , bar_builder(bar_period, [this](const std::chrono::nanoseconds& end, double o, double h, double l, double c) {
-                spdlog::info("[{}] new bar end={} open={:.5f} high={:.5f} low={:.5f} close={:.5f}\n", symbol, common::to_string(end), o, h, l, c);
+                spdlog::info("[{}] new bar end={} open={:.5f} high={:.5f} low={:.5f} close={:.5f}", symbol, common::to_string(end), o, h, l, c);
                 this->bars.try_emplace(end, end, o, h, l, c);
             })
         , history_bar_builder(current.timestamp, bar_period, [this](const std::chrono::nanoseconds& end, double o, double h, double l, double c) {
-                spdlog::debug("[{}] hist bar end={} open={:.5f} high={:.5f} low={:.5f} close={:.5f}\n", symbol, common::to_string(end), o, h, l, c);
+                spdlog::debug("[{}] hist bar end={} open={:.5f} high={:.5f} low={:.5f} close={:.5f}", symbol, common::to_string(end), o, h, l, c);
                 this->bars.try_emplace(end, end, o, h, l, c);
             })
         , current(current)
         , previous(current)
         , oldest(current)
         , quoting(false)
-        , cl_ord_id(1)
         , bid_order(
-            quoting_cl_ord_id(),
+            std::format("quote_ord_id_0"),
+            std::format("quote_cl_ord_id_0"),
             symbol,
             OWNER_MARKET_SIMULATOR,
             "",
@@ -48,7 +47,8 @@ namespace common {
             (long)current.bid_volume
         )
         , ask_order(
-            quoting_cl_ord_id(),
+            std::format("quote_ord_id_1"),
+            std::format("quote_cl_ord_id_1"),
             symbol,
             OWNER_MARKET_SIMULATOR,
             "",
@@ -84,41 +84,25 @@ namespace common {
         }
     }
 
-    void Market::update_quotes(const TopOfBook& current, const TopOfBook& previous, std::queue<Order>& orders) {
-        std::lock_guard<std::mutex> ul(mutex);
-        if (previous.bid_price != current.bid_price) {
-            OrderMatcher::erase(bid_order);
-            bid_order = Order(
-                quoting_cl_ord_id(),
-                symbol,
-                OWNER_MARKET_SIMULATOR,
-                "",
-                Order::Side::buy,
-                Order::Type::limit,
-                current.bid_price,
-                (long)current.bid_volume
-            );
-            OrderMatcher::insert(bid_order, orders);
-        }
-        if (previous.ask_price != current.ask_price) {
-            OrderMatcher::erase(ask_order);
-            ask_order = Order(
-                quoting_cl_ord_id(),
-                symbol,
-                OWNER_MARKET_SIMULATOR,
-                "",
-                Order::Side::sell,
-                Order::Type::limit,
-                current.ask_price,
-                (long)current.ask_volume
-            );;
-            OrderMatcher::insert(ask_order, orders);
-        }
+    const Order& Market::get_bid_order() const {
+        return bid_order;
+    }
 
-        spdlog::debug("update_quotes {} by_open_quantity", symbol);
-        spdlog::debug(common::to_string(*this, OrderMatcher::by_open_quantity));
-        spdlog::debug("update_quotes {} by_last_exec_quantity", symbol);
-        spdlog::debug(common::to_string(*this, OrderMatcher::by_last_exec_quantity));
+    const Order& Market::get_ask_order() const {
+        return ask_order;
+    }
+
+    OrderInsertResult Market::quote(const Order& order_ins) {
+        auto result = insert(order_ins);
+        if (!result.error) {
+            if (order_ins.get_side() == Order::Side::buy) {
+                bid_order = order_ins;
+            }
+            else {
+                ask_order = order_ins;
+            }
+        }
+        return result;
     }
 
     std::pair<TopOfBook, TopOfBook> Market::get_top_of_book() const {
@@ -155,10 +139,6 @@ namespace common {
         }
         std::lock_guard<std::mutex> ul(mutex);
         return to_json(from, to, bars); 
-    }
-
-    std::string Market::quoting_cl_ord_id() {
-        return std::format("cl_ord_id_{}", ++cl_ord_id);
     }
 }
 

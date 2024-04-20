@@ -28,9 +28,10 @@ public:
 		 FIX::Log *logger, 
 		 std::mutex& mutex
 	) : logger(logger)
-     , markets(market)
+      , markets(market)
 	  , market_update_period(market_update_period)
 	  , mutex(mutex)
+	  , ord_id(0)
 	{}
 
 	void run_market_data_update();
@@ -43,6 +44,8 @@ public:
 
 private:
 
+	std::string generate_id(const std::string& label);
+
 	// FIX Application overloads
 
 	void onCreate(const FIX::SessionID&);
@@ -53,15 +56,11 @@ private:
 
 	void toAdmin(FIX::Message&, const FIX::SessionID&);
 
-	void toApp(FIX::Message&, const FIX::SessionID&) EXCEPT(FIX::DoNotSend);
+	void toApp(FIX::Message&, const FIX::SessionID&);
 
-	void fromAdmin(
-		const FIX::Message&, const FIX::SessionID&
-	) EXCEPT(FIX::FieldNotFound, FIX::IncorrectDataFormat, FIX::IncorrectTagValue, FIX::RejectLogon);
+	void fromAdmin(const FIX::Message&, const FIX::SessionID&);
 
-	void fromApp(
-		const FIX::Message& message, const FIX::SessionID& sessionID
-	) EXCEPT(FIX::FieldNotFound, FIX::IncorrectDataFormat, FIX::IncorrectTagValue, FIX::UnsupportedMessageType);
+	void fromApp(const FIX::Message& message, const FIX::SessionID& sessionID);
 
 	void onMessage(const FIX44::NewOrderSingle&, const FIX::SessionID&);
 	void onMessage(const FIX44::OrderCancelRequest&, const FIX::SessionID&);
@@ -71,9 +70,9 @@ private:
 
 	void process_order(const Order&);
 
-	void process_cancel(const std::string& id, const std::string& symbol, Order::Side);
+	void process_cancel(const std::string& ord_id, const std::string& symbol, Order::Side);
 
-	void update_order(const Order&, char status, const std::string& text);
+	void update_order(const Order&, char exec_status, char ord_status, const std::string& text);
 
 	void reject_order(const Order& order);
 
@@ -130,6 +129,7 @@ private:
 	std::map<std::string, std::pair<std::string, std::string>> market_data_subscriptions;
 
 	std::mutex& mutex;
+	int ord_id;
 	std::thread thread;
 	bool started{ false };
 	std::atomic_bool done{ false };

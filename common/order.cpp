@@ -5,7 +5,8 @@
 namespace common {
 
 	Order::Order(
-		const std::string& clOrdId,
+		const std::string& ord_id,
+		const std::string& cl_ord_id,
 		const std::string& symbol,
 		const std::string& owner,
 		const std::string& target,
@@ -13,14 +14,15 @@ namespace common {
 		Type type,
 		double price,
 		long quantity
-	) : cl_ord_id(clOrdId)
-		, symbol(symbol)
-		, owner(owner)
-		, target(target)
-		, side(side)
-		, type(type)
-		, price(price)
-		, quantity(quantity)
+	) : ord_id(ord_id)
+	  , cl_ord_id(cl_ord_id)
+	  , symbol(symbol)
+	  , owner(owner)
+	  , target(target)
+	  , side(side)
+	  , type(type)
+	  , price(price)
+	  , quantity(quantity)
 	{
 		open_quantity = quantity;
 		executed_quantity = 0;
@@ -29,7 +31,11 @@ namespace common {
 		last_executed_quantity = 0;
 	}
 
-	const std::string& Order::get_client_id() const { return cl_ord_id; }
+	const std::string& Order::get_ord_id() const { return ord_id; }
+
+	const std::string& Order::get_cl_ord_id() const { return cl_ord_id; }
+
+	void Order::set_cl_ord_id(const std::string& new_cl_ord_id) { cl_ord_id = new_cl_ord_id; }
 
 	const std::string& Order::get_symbol() const { return symbol; }
 
@@ -79,7 +85,8 @@ namespace common {
 	std::string Order::to_string() const {
 		return
 			"symbol=" + symbol + ", " +
-			"clOrdId=" + cl_ord_id + ", " +
+			"ord_id=" + ord_id + ", " +
+			"cl_ord_id=" + cl_ord_id + ", " +
 			"owner=" + owner + ", " +
 			"target=" + target + ", " +
 			"side=" + std::to_string(side) + ", " +

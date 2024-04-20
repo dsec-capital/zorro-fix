@@ -17,8 +17,8 @@ namespace common {
 
 		ExecReport(
 			const std::string& symbol,
+			const std::string& ord_id,
 			const std::string& cl_ord_id,
-			const std::string& order_id,
 			const std::string& exec_id,
 			const char exec_type,
 			const char ord_type,
@@ -35,8 +35,8 @@ namespace common {
 		);
 
 		std::string symbol{};
+		std::string ord_id{};
 		std::string cl_ord_id{};
-		std::string order_id{};
 		std::string exec_id{};
 		char exec_type{};
 		char ord_type{};

@@ -25,34 +25,84 @@ std::string fix_string(const FIX::Message& msg) {
 }
 
 void Application::run_market_data_update() {
+	bool quote = true;
+
 	while (!done) {
 		std::this_thread::sleep_for(market_update_period);
 
 		auto now = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch());
 
 		for (auto& [symbol, market] : markets.markets) {
-			market.simulate_next();
-			
-			// send market data to subscribers only
-			auto top = market.get_top_of_book();
-			auto it = market_data_subscriptions.find(symbol);
-			if (it != market_data_subscriptions.end()) {
-				auto message = get_update_message(it->second.first, it->second.second, top);
-				if (message.has_value()) {
-					FIX::Session::sendToTarget(message.value());
+			spdlog::debug("Application::run_market_data_update: symbol={}", symbol);
+
+			try {
+				market.simulate_next();
+
+				// send market data to subscribers only
+				auto top = market.get_top_of_book();
+				auto it = market_data_subscriptions.find(symbol);
+				if (it != market_data_subscriptions.end()) {
+					auto message = get_update_message(it->second.first, it->second.second, top);
+					if (message) {
+						FIX::Session::sendToTarget(message.value());
+					}
+				}
+
+				if (quote) {
+					if (top.first.bid_price != top.second.bid_price) {
+						const auto& bid_order = market.get_bid_order();
+						market.erase(bid_order.get_ord_id(), bid_order.get_side());
+						auto order = Order(
+							generate_id("quote_ord_id"),
+							generate_id("quote_cl_ord_id"),
+							symbol,
+							OWNER_MARKET_SIMULATOR,
+							"",
+							Order::Side::buy,
+							Order::Type::limit,
+							top.first.bid_price,
+							(long)top.first.bid_volume
+						);
+						auto result = market.quote(order);
+						spdlog::debug("Application::run_market_data_update: bid side quote price={}", top.first.bid_price);
+
+						for (const auto& fill : result.matched)
+						{
+							fill_order(fill);
+							spdlog::debug("Application::run_market_data_update: bid side fill order={}", fill.to_string());
+						}
+					}
+
+					if (top.first.ask_price != top.second.ask_price) {
+						const auto& ask_order = market.get_ask_order();
+						market.erase(ask_order.get_ord_id(), ask_order.get_side());
+						auto order = Order(
+							generate_id("quote_ord_id"),
+							generate_id("quote_cl_ord_id"),
+							symbol,
+							OWNER_MARKET_SIMULATOR,
+							"",
+							Order::Side::sell,
+							Order::Type::limit,
+							top.first.ask_price,
+							(long)top.first.ask_volume
+						);
+						auto result = market.quote(order);
+						spdlog::debug("Application::run_market_data_update: ask side quote price={}", top.first.ask_price);
+
+						for (const auto& fill : result.matched)
+						{
+							fill_order(fill);
+							spdlog::debug("Application::run_market_data_update: ask side fill order={}", fill.to_string());
+						}
+					}
 				}
 			}
-
-			// insert updated oders into book, eventually crossing with existing client orders
-			std::queue<Order> orders;
-			market.update_quotes(top.first, top.second, orders);
-
-			// handle the partial fills and full fills here
-			while (orders.size())
-			{
-				fill_order(orders.front());
-				orders.pop();
+			catch (std::exception& e) {
+				spdlog::error("Application::run_market_data_update: exception={}", e.what());
 			}
+
+			spdlog::debug("Application::run_market_data_update: completed symbol={}", symbol);
 		}
 	}
 }
@@ -95,68 +145,79 @@ void Application::onLogon(const FIX::SessionID& sessionID)
 
 void Application::onLogout(const FIX::SessionID& sessionID) 
 {
-	auto senderCompID = sessionID.getSenderCompID().getString();
-	auto targetCompID = sessionID.getTargetCompID().getString();
-	auto it = market_data_subscriptions.begin();
-	spdlog::info(
-		"====> removing market data subscriptions for senderCompID = {} targetCompID = {}", 
-		senderCompID, targetCompID
-	);
-	while(it != market_data_subscriptions.end()) {
-		if (senderCompID == it->second.first && targetCompID == it->second.second) {
-			spdlog::info("removing subscription for symbol={}", it->first);
-			it = market_data_subscriptions.erase(it);
+	try {
+		auto senderCompID = sessionID.getSenderCompID().getString();
+		auto targetCompID = sessionID.getTargetCompID().getString();
+		auto it = market_data_subscriptions.begin();
+		spdlog::info(
+			"====> removing market data subscriptions for sender_comp_id = {} target_comp_id = {}",
+			senderCompID, targetCompID
+		);
+		while (it != market_data_subscriptions.end()) {
+			if (senderCompID == it->second.first && targetCompID == it->second.second) {
+				spdlog::info("removing subscription for symbol={}", it->first);
+				it = market_data_subscriptions.erase(it);
+			}
+			else {
+				++it;
+			}
 		}
-		else {
-			++it;
-		}
-	} 
+	}
+	catch (std::exception& e) {
+		spdlog::error("Application::onLogon: {}", e.what());
+	}
+
 }
 
-void Application::toAdmin(FIX::Message&, const FIX::SessionID&)
-{}
-
-void Application::toApp(FIX::Message&, const FIX::SessionID&) EXCEPT(FIX::DoNotSend) 
-{}
-
-void Application::fromAdmin(
-	const FIX::Message&, const FIX::SessionID&
-) EXCEPT(FIX::FieldNotFound, FIX::IncorrectDataFormat, FIX::IncorrectTagValue, FIX::RejectLogon) 
-{}
-
-
-void Application::fromApp(
-	const FIX::Message& message, const FIX::SessionID& sessionID
-) EXCEPT(FIX::FieldNotFound, FIX::IncorrectDataFormat, FIX::IncorrectTagValue, FIX::UnsupportedMessageType) 
+void Application::toAdmin(FIX::Message& message, const FIX::SessionID&)
 {
-	crack(message, sessionID);
+}
+
+void Application::toApp(FIX::Message& message, const FIX::SessionID&)
+{
+}
+
+void Application::fromAdmin(const FIX::Message& message, const FIX::SessionID&) 
+{
+}
+
+
+void Application::fromApp(const FIX::Message& message, const FIX::SessionID& sessionID) 
+{
+	try {
+		crack(message, sessionID);
+	}
+	catch (std::exception& e) {
+		spdlog::error("Application::onLogon: {}", e.what());
+	}
 }
 
 void Application::onMessage(const FIX44::NewOrderSingle& message, const FIX::SessionID&)
 {
-	FIX::SenderCompID senderCompID;
-	FIX::TargetCompID targetCompID;
-	FIX::ClOrdID clOrdID;
+	FIX::SenderCompID sender_comp_id;
+	FIX::TargetCompID target_comp_id;
+	FIX::ClOrdID cl_ord_id;
 	FIX::Symbol symbol;
 	FIX::Side side;
-	FIX::OrdType ordType;
+	FIX::OrdType ord_type;
 	FIX::Price price(0);
 	FIX::OrderQty orderQty(0);
 	FIX::TimeInForce timeInForce(FIX::TimeInForce_DAY);
 
-	message.getHeader().get(senderCompID);
-	message.getHeader().get(targetCompID);
-	message.get(clOrdID);
+	message.getHeader().get(sender_comp_id);
+	message.getHeader().get(target_comp_id);
+	message.get(cl_ord_id);
 	message.get(symbol);
 	message.get(side);
-	message.get(ordType);
-	if (ordType == FIX::OrdType_LIMIT) {
+	message.get(ord_type);
+	if (ord_type == FIX::OrdType_LIMIT) {
 		message.get(price);
 	}
-	else if (ordType == FIX::OrdType_MARKET) {
-		ordType = FIX::OrdType_LIMIT;
+	else if (ord_type == FIX::OrdType_MARKET) {
+		ord_type = FIX::OrdType_LIMIT;
 		double aggressive_price = side == FIX::Side_BUY ? (std::numeric_limits<double>::max)() : 0.0;
 		price = FIX::Price(aggressive_price);
+
 		spdlog::info(
 			"converging market order {} to limit order with maximally aggressive price", 
 			FIX::Side_BUY ? "buy" : "sell"
@@ -168,7 +229,7 @@ void Application::onMessage(const FIX44::NewOrderSingle& message, const FIX::Ses
 	try
 	{
 		if (timeInForce == FIX::TimeInForce_GOOD_TILL_CANCEL || timeInForce == FIX::TimeInForce_DAY) {
-			Order order(clOrdID, symbol, senderCompID, targetCompID, convert(side), convert(ordType), price, (long)orderQty);
+			Order order(generate_id("ord_id"), cl_ord_id, symbol, sender_comp_id, target_comp_id, convert(side), convert(ord_type), price, (long)orderQty);
 
 			process_order(order);
 		}
@@ -178,67 +239,80 @@ void Application::onMessage(const FIX44::NewOrderSingle& message, const FIX::Ses
 	}
 	catch (std::exception& e)
 	{
-		reject_order(senderCompID, targetCompID, clOrdID, symbol, price, side, ordType, orderQty, e.what());
+		spdlog::error("Application::onMessage[NewOrderSingle]: {}", e.what());
+		reject_order(sender_comp_id, target_comp_id, cl_ord_id, symbol, price, side, ord_type, orderQty, e.what());
 	}
 	
-	spdlog::info(markets.get_market(symbol.getString())->second.to_string());
+	spdlog::debug("Application::onMessage[NewOrderSingle]: completed message={}", fix_string(message));
 }
 
 void Application::onMessage(const FIX44::OrderCancelRequest& message, const FIX::SessionID&)
 {
-	FIX::OrigClOrdID origClOrdID;
+	FIX::OrderID ord_id;
+	FIX::OrigClOrdID orig_cl_ord_id;
 	FIX::Symbol symbol;
 	FIX::Side side;
 
-	message.get(origClOrdID);
+	message.get(ord_id);
+	message.get(orig_cl_ord_id);
 	message.get(symbol);
 	message.get(side);
 
 	try
 	{
-		process_cancel(origClOrdID, symbol, convert(side));
+		process_cancel(ord_id, symbol, convert(side));
 	}
-	catch (std::exception&) {}
+	catch (std::exception& e) {
+		spdlog::error("Application::onMessage[OrderCancelRequest]: ord_id={}, orig_cl_ord_id={} error={}", ord_id.getString(), orig_cl_ord_id.getString(), e.what());
+	}
+
+	spdlog::debug("Application::onMessage[OrderCancelRequest]: completed message={}", fix_string(message));
 }
 
 void Application::onMessage(const FIX44::MarketDataRequest& message, const FIX::SessionID&)
 {
-	FIX::SenderCompID senderCompID;
-	FIX::TargetCompID targetCompID;
-	FIX::MDReqID mdReqID;
-	FIX::SubscriptionRequestType subscriptionRequestType;
-	FIX::MarketDepth marketDepth;
-	FIX::NoRelatedSym noRelatedSym;
-	FIX44::MarketDataRequest::NoRelatedSym noRelatedSymGroup;
+	FIX::SenderCompID sender_comp_id;
+	FIX::TargetCompID target_comp_id;
+	FIX::MDReqID md_req_id;
+	FIX::SubscriptionRequestType subscription_request_type;
+	FIX::MarketDepth market_depth;
+	FIX::NoRelatedSym no_related_sym;
+	FIX44::MarketDataRequest::NoRelatedSym no_related_sym_group;
 
-	message.getHeader().get(senderCompID);
-	message.getHeader().get(targetCompID);
-	message.get(mdReqID);
-	message.get(subscriptionRequestType);
-	message.get(marketDepth);
-	message.get(noRelatedSym);
+	message.getHeader().get(sender_comp_id);
+	message.getHeader().get(target_comp_id);
+	message.get(md_req_id);
+	message.get(subscription_request_type);
+	message.get(market_depth);
+	message.get(no_related_sym);
 
-	if (subscriptionRequestType == FIX::SubscriptionRequestType_SNAPSHOT ||
-		subscriptionRequestType == FIX::SubscriptionRequestType_SNAPSHOT_AND_UPDATES) { 
+	if (subscription_request_type == FIX::SubscriptionRequestType_SNAPSHOT ||
+		subscription_request_type == FIX::SubscriptionRequestType_SNAPSHOT_AND_UPDATES) { 
 
-		for (int i = 1; i <= noRelatedSym; ++i)
+		for (int i = 1; i <= no_related_sym; ++i)
 		{
 			FIX::Symbol symbol;
-			message.getGroup(i, noRelatedSymGroup);
-			noRelatedSymGroup.get(symbol);
+			message.getGroup(i, no_related_sym_group);
+			no_related_sym_group.get(symbol);
 
-			const auto& market = markets.get_market(symbol.getString())->second;
-			
-			// flip to send back target->sender and sender->target 
-			auto snapshot = get_snapshot_message(
-				targetCompID.getValue(), 
-				senderCompID.getValue(), 
-				market.get_top_of_book().first
-			);
-			FIX::Session::sendToTarget(snapshot);
+			auto it = markets.markets.find(symbol.getString());
+			if (it != markets.markets.end()) {
+				const auto& market = it->second;
 
-			if (subscriptionRequestType == FIX::SubscriptionRequestType_SNAPSHOT_AND_UPDATES) {
-				subscribe_market_data(symbol.getValue(), targetCompID.getValue(), senderCompID.getValue());
+				// flip to send back target->sender and sender->target 
+				auto snapshot = get_snapshot_message(
+					target_comp_id.getValue(),
+					sender_comp_id.getValue(),
+					market.get_top_of_book().first
+				);
+				FIX::Session::sendToTarget(snapshot);
+
+				if (subscription_request_type == FIX::SubscriptionRequestType_SNAPSHOT_AND_UPDATES) {
+					subscribe_market_data(symbol.getValue(), target_comp_id.getValue(), sender_comp_id.getValue());
+				}
+			}
+			else {
+				throw std::runtime_error(std::format("invalid market symbol={}", symbol.getString()));
 			}
 		}
 	} 
@@ -370,7 +444,7 @@ std::optional<FIX::Message> Application::get_update_message(
 	}
 } 
 
-void Application::update_order(const Order& order, char status, const std::string& text)
+void Application::update_order(const Order& order, char exec_status, char ord_status, const std::string& text)
 {
 	// do not reply back to the FIX client about the other side of 
 	// the order, i.e. owned/generated by the market simulator
@@ -382,10 +456,10 @@ void Application::update_order(const Order& order, char status, const std::strin
 	FIX::SenderCompID senderCompID(order.get_target());
 
 	FIX44::ExecutionReport fixOrder(
-		FIX::OrderID(order.get_client_id()),
+		FIX::OrderID(order.get_ord_id()),
 		FIX::ExecID(generator.genExecutionID()),
-		FIX::ExecType(status),
-		FIX::OrdStatus(status),
+		FIX::ExecType(exec_status),
+		FIX::OrdStatus(ord_status),
 		FIX::Side(convert(order.get_side())),
 		FIX::LeavesQty(order.get_open_quantity()),
 		FIX::CumQty(order.get_executed_quantity()),
@@ -393,17 +467,17 @@ void Application::update_order(const Order& order, char status, const std::strin
 	);
 
 	fixOrder.set(FIX::Symbol(order.get_symbol())); 
-	fixOrder.set(FIX::ClOrdID(order.get_client_id()));
+	fixOrder.set(FIX::ClOrdID(order.get_cl_ord_id()));
 	fixOrder.set(FIX::OrderQty(order.get_quantity()));
 	fixOrder.set(FIX::OrdType(order.get_type() == Order::Type::limit ? FIX::OrdType_LIMIT : FIX::OrdType_MARKET));
 	if (order.get_type() == Order::Type::limit) {
 		fixOrder.set(FIX::Price(order.get_price()));
 	}
-	if (status == FIX::OrdStatus_FILLED || 
-		status == FIX::OrdStatus_PARTIALLY_FILLED || 
-		status == FIX::OrdStatus_NEW || 
-		status == FIX::OrdStatus_REPLACED ||
-		status == FIX::OrdStatus_CANCELED)
+	if (ord_status == FIX::OrdStatus_FILLED || 
+		ord_status == FIX::OrdStatus_PARTIALLY_FILLED || 
+		ord_status == FIX::OrdStatus_NEW || 
+		ord_status == FIX::OrdStatus_REPLACED ||
+		ord_status == FIX::OrdStatus_CANCELED)
 	{
 		fixOrder.set(FIX::LastQty(order.get_last_executed_quantity()));
 		fixOrder.set(FIX::LastPx(order.get_last_executed_price()));
@@ -414,30 +488,30 @@ void Application::update_order(const Order& order, char status, const std::strin
 	{
 		FIX::Session::sendToTarget(fixOrder, senderCompID, targetCompID);
 	}
-	catch (FIX::SessionNotFound&) {}
-
-	spdlog::info(markets.get_market(order.get_symbol())->second.to_string());
+	catch (FIX::SessionNotFound& e) {
+		spdlog::error("Application::update_order: session not found {}", e.what());
+	}
 }
 
 void Application::reject_order(const Order& order)
 {
-	update_order(order, FIX::OrdStatus_REJECTED, "");
+	update_order(order, FIX::ExecType_REJECTED, FIX::OrdStatus_REJECTED, "");
 }
 
 void Application::accept_order(const Order& order)
 {
-	update_order(order, FIX::OrdStatus_NEW, "");
+	update_order(order, FIX::ExecType_NEW, FIX::OrdStatus_NEW, "");
 }
 
 void Application::fill_order(const Order& order)
 {
-	auto status = order.is_filled() ? FIX::OrdStatus_FILLED : FIX::OrdStatus_PARTIALLY_FILLED;
-	update_order(order, status, ""); 
+	auto ord_status = order.is_filled() ? FIX::OrdStatus_FILLED : FIX::OrdStatus_PARTIALLY_FILLED;
+	update_order(order, FIX::ExecType_TRADE, ord_status, "");
 }
 
 void Application::cancel_order(const Order& order)
 {
-	update_order(order, FIX::OrdStatus_CANCELED, "");
+	update_order(order, FIX::ExecType_CANCELED, FIX::OrdStatus_CANCELED, "");
 }
 
 void Application::reject_order(
@@ -477,42 +551,47 @@ void Application::reject_order(
 	{
 		FIX::Session::sendToTarget(fixOrder, senderCompID, targetCompID);
 	}
-	catch (FIX::SessionNotFound&) {}
+	catch (FIX::SessionNotFound& e) {
+		spdlog::error("Application::reject_order: session not found {}", e.what());
+	}
 }
 
 void Application::process_order(const Order& order)
 {
-	std::queue<Order> orders;
-	auto [inserted_order_ptr, error, num_matches] = markets.insert(order, orders);
+	auto result = markets.insert(order);
 
-	if (error) {
-		assert(orders.empty());
+	if (result.error) {
+		assert(result.matched.empty());
 		reject_order(order);
 		return;
 	} 
 
 	// we have a new or partial fill 
-	if (inserted_order_ptr != nullptr) {
-		accept_order(order);
+	if (result.resting_order) {
+		accept_order(result.resting_order.value());
 	}
 
 	// handle the partial fills and full fills here
-	while (orders.size())
+	for (const auto& fill : result.matched)
 	{
-		fill_order(orders.front());
-		orders.pop();
+		fill_order(fill);
 	}
 }
 
 void Application::process_cancel(
-	const std::string& id,
+	const std::string& ord_id,
 	const std::string& symbol, 
 	Order::Side side)
 {
-	Order& order = markets.find(symbol, side, id);
-	order.cancel();
-	cancel_order(order);
-	markets.erase(order);
+	spdlog::info("Application::process_cancel: cancelling ord_id={}\n{}", ord_id, markets.to_string(symbol));
+	auto order = markets.erase(symbol, ord_id, side);
+	if (order.has_value()) {
+		cancel_order(order.value());
+		spdlog::info("Application::process_cancel: cancelled order={}\n{}", order.value().to_string(), markets.to_string(symbol));
+	}
+	else {
+		spdlog::error("Application::process_cancel: could not find order with ord_id={} side={}", ord_id, common::to_string(side));
+	}
 }
 
 Order::Side Application::convert(const FIX::Side& side)
@@ -570,4 +649,9 @@ FIX::OrdType Application::convert(Order::Type type)
 const Markets& Application::get_markets() {
 	return markets;
 }
+
+std::string Application::generate_id(const std::string& label) {
+	return std::format("{}_{}", label, ++ord_id);
+}
+
 

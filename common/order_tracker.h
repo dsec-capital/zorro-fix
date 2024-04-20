@@ -24,8 +24,8 @@ namespace common {
 
 		OrderReport(
 			const std::string& symbol,
+			const std::string& ord_id,
 			const std::string& cl_ord_id,
-			const std::string& order_id,
 			const char ord_type,
 			const char ord_status,
 			const char side,
@@ -37,8 +37,8 @@ namespace common {
 		);
 
 		std::string symbol{};
+		std::string ord_id{};
 		std::string cl_ord_id{};
-		std::string order_id{};
 		char ord_type{ FIX::OrdType_MARKET };
 		char ord_status{ FIX::OrdStatus_REJECTED };
 		char side{ FIX::Side_UNDISCLOSED };
@@ -47,6 +47,10 @@ namespace common {
 		double order_qty{ 0 };
 		double cum_qty{ 0 };
 		double leaves_qty{ 0 };
+
+		bool is_filled() const;
+
+		bool is_cancelled() const;
 
 		std::string to_string() const;
 	};
@@ -98,8 +102,7 @@ namespace common {
 		std::string account;
 		std::unordered_map<std::string, NetPosition> position_by_symbol;
 		std::unordered_map<std::string, OrderReport> pending_orders_by_cl_ord_id;
-		std::unordered_map<std::string, OrderReport> open_orders_by_ord_id;
-		std::unordered_map<std::string, OrderReport> history_orders_by_ord_id;
+		std::unordered_map<std::string, OrderReport> orders_by_ord_id;
 
 	public:
 		typedef typename std::unordered_map<std::string, OrderReport>::const_iterator const_iterator;
@@ -108,13 +111,11 @@ namespace common {
 
 		NetPosition& net_position(const std::string& symbol);
 
-		std::pair<typename OrderTracker::const_iterator, bool> get_pending_order(const std::string& cl_ord_id) const;
+		std::pair<typename OrderTracker::const_iterator, bool> get_pending_order(const std::string& ord_id) const;
 
-		std::pair<typename OrderTracker::const_iterator, bool> get_open_order(const std::string& ord_id) const;
+		std::pair<typename OrderTracker::const_iterator, bool> get_order(const std::string& ord_id) const;
 
-		std::pair<typename OrderTracker::const_iterator, bool> get_history_order(const std::string& ord_id) const;
-
-		void process(const ExecReport& report);
+		bool process(const ExecReport& report);
 
 		std::string to_string() const;
 	};
