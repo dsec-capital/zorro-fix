@@ -11,9 +11,9 @@ standard FIX functionality is implemented:
 	- MarketDataSnapshotFullRefresh (in)
 	- MarketDataIncrementalRefresh (in)
   - Order execution
-    - NewOrderSingle
-    - OrderCancelRequest
-    - OrderCancelReplaceRequest
+    - NewOrderSingle (out)
+    - OrderCancelRequest (out)
+    - OrderCancelReplaceRequest (out)
     - ExecReport (in) 
 
 The project depends on the [QuickFix](https://quickfixengine.org) open source library.
@@ -23,7 +23,7 @@ Some of the core building blocks and `fix_sumulation_server` are inspired from t
 
 Neither the FIX client plugin nor the FIX server are yet complete. More work is required. See the TODO list below. 
 
-The long term plans for developing a FIX plugin for Zorro is that more and more professional brokerage firms provide FIX access.
+The long term reasons for developing a FIX plugin for Zorro is that more and more professional brokerage firms provide FIX access.
 This is also a trend in crypto currency prime brokerage, see for example the work (full disclosure - I am one of the co-authors):  
 
   - [Phoenix Prime FIX Client Examples Package](https://github.com/mtxpt/phx-fix-examples)
@@ -46,12 +46,14 @@ Some tasks on the roadmap:
   - [fix_sumulation_server]: account functionality to support `BrokerAccount`
   - [fix_sumulation_server]: support for position (including asset balances) and trade reports, both, snapshot and updates
   - [fix_sumulation_server]: support for secruity list  
+  - [fix_sumulation_server]: support order status request and mass order status request  
   - [zorro_fix_plugin]: implement function `BrokerAccount` for example with position snapshot and updates 
   - [zorro_fix_plugin]: integrate position update and trade capture report  
+  - [zorro_fix_plugin]: integrate order status request repsoneses  
   - [zorro_fix_plugin]: more testing
 
-Currenbtly the market simulators only handle top of book. Eventually we want a fully simulated book, e.g. based in the `Fodra-Pham` model 
-or any other reasonable order book simulation model. 
+Currently the market simulators only handle top of book. Eventually we want a fully simulated book, e.g. based in the `Fodra-Pham` model 
+or any other suitable order book simulation model. 
 
 
 ## Quick Start Tutorial
