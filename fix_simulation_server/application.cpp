@@ -39,7 +39,7 @@ void Application::run_market_data_update() {
 				market.simulate_next();
 
 				// send market data to subscribers only
-				auto top = market.get_top_of_book();
+				auto top = market.get_current_and_previous_top_of_book();
 				auto it = market_data_subscriptions.find(symbol);
 				if (it != market_data_subscriptions.end()) {
 					auto message = get_update_message(it->second.first, it->second.second, top);
@@ -215,12 +215,19 @@ void Application::onMessage(const FIX44::NewOrderSingle& message, const FIX::Ses
 	}
 	else if (ord_type == FIX::OrdType_MARKET) {
 		ord_type = FIX::OrdType_LIMIT;
-		double aggressive_price = side == FIX::Side_BUY ? (std::numeric_limits<double>::max)() : 0.0;
+		auto top = markets.get_current_top_of_book(symbol.getString());
+		double aggressive_price;
+		if (top) {
+			aggressive_price = side == FIX::Side_BUY ? top.value().ask_price * 100.0 : top.value().bid_price / 100.0;
+		}
+		else {
+			aggressive_price = side == FIX::Side_BUY ? 100000000.0 : 0.0;
+		}
 		price = FIX::Price(aggressive_price);
 
 		spdlog::info(
-			"converging market order {} to limit order with maximally aggressive price", 
-			FIX::Side_BUY ? "buy" : "sell"
+			"Application::onMessage[NewOrderSingle]: converging market order {} to limit order with aggressive price {}", 
+			FIX::Side_BUY ? "buy" : "sell", aggressive_price
 		);
 	}
 	message.get(orderQty);
@@ -229,7 +236,18 @@ void Application::onMessage(const FIX44::NewOrderSingle& message, const FIX::Ses
 	try
 	{
 		if (timeInForce == FIX::TimeInForce_GOOD_TILL_CANCEL || timeInForce == FIX::TimeInForce_DAY) {
-			Order order(generate_id("ord_id"), cl_ord_id, symbol, sender_comp_id, target_comp_id, convert(side), convert(ord_type), price, (long)orderQty);
+			Order order(
+				generate_id("ord_id"), 
+				cl_ord_id, symbol, 
+				sender_comp_id, 
+				target_comp_id, 
+				convert(side), 
+				convert(ord_type), 
+				price, 
+				(long)orderQty
+			);
+
+			spdlog::info("Application::onMessage[NewOrderSingle]: processing order {}", order.to_string());
 
 			process_order(order);
 		}
@@ -303,7 +321,7 @@ void Application::onMessage(const FIX44::MarketDataRequest& message, const FIX::
 				auto snapshot = get_snapshot_message(
 					target_comp_id.getValue(),
 					sender_comp_id.getValue(),
-					market.get_top_of_book().first
+					market.get_current_and_previous_top_of_book().first
 				);
 				FIX::Session::sendToTarget(snapshot);
 

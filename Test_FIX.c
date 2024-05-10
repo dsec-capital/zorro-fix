@@ -3,6 +3,7 @@
 
 static var startTime;
 static bool Quoting = false;
+static bool Inventory = false;
 TRADE* BidTrade;
 TRADE* AskTrade;
 
@@ -118,6 +119,13 @@ function run() {
 		printf("\nenterLong: OrderLimit=%.5f", OrderLimit);
 
 		Quoting = true;
+	}
+
+	if (!is(LOOKBACK) && !Inventory) {
+		Lots = 2;
+		enterLong(tmf);
+
+		Inventory = true;
 	}
 
 	for (open_trades)

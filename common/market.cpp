@@ -105,7 +105,12 @@ namespace common {
         return result;
     }
 
-    std::pair<TopOfBook, TopOfBook> Market::get_top_of_book() const {
+    TopOfBook Market::get_current_top_of_book() const {
+        std::lock_guard<std::mutex> ul(mutex);
+        return current;
+    }
+
+    std::pair<TopOfBook, TopOfBook> Market::get_current_and_previous_top_of_book() const {
         std::lock_guard<std::mutex> ul(mutex);
         return std::make_pair(current, previous);
     }
