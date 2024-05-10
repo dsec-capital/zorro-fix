@@ -45,7 +45,7 @@ namespace zfix {
 		LoggedIn = 1
 	};
 
-	enum BrokerBuyError {
+	enum BrokerError {
 		OrderRejectedOrTimeout = 0,
 		TradeOrderIdUUID = -1,
 		BrokerAPITimeout = -2,
@@ -63,7 +63,19 @@ namespace zfix {
 
 	int client_order_id = 0;
 	int internal_order_id = 1000;
-	auto time_in_force = FIX::TimeInForce_GOOD_TILL_CANCEL;
+
+	std::string asset;
+	std::string currency;
+	std::string position_symbol;
+	std::string order_text;
+	int multiplier = 1;
+	int price_type = 0;
+	int vol_type = 0;
+	int leverage = 1;
+	double amount = 1;
+	double limit = 0;
+	char time_in_force = FIX::TimeInForce_GOOD_TILL_CANCEL;
+	HWND window_handle;
 
 	std::shared_ptr<spdlog::logger> spd_logger = nullptr;
 	std::unique_ptr<zfix::FixThread> fix_thread = nullptr;
@@ -79,6 +91,15 @@ namespace zfix {
 		auto msg = std::vformat(fmt.get(), std::make_format_args(args...));
 		auto tmsg = "[" + now_str() + "] " + msg + "\n";
 		BrokerError(tmsg.c_str());
+	}
+
+	std::string order_mapping_string() {
+		std::string str = "OrderMapping[\n";
+		for (const auto& [internal_id, order_id] : order_id_by_internal_order_id) {
+			str += std::format("  internal_id={}, order_id={}\n", internal_id, order_id);
+		}
+		str += "]";
+		return str;
 	}
 
 	namespace log {
@@ -161,6 +182,15 @@ namespace zfix {
 		return (int)np.qty;
 	}
 
+	double get_avg_entry_price(const std::string& symbol) {
+		auto np = order_tracker.net_position(symbol);
+		return np.avg_px;
+	}
+
+	int get_num_orders() {
+		return order_tracker.num_orders();
+	}
+
 	std::string next_client_order_id() {
 		++client_order_id;
 		return std::format("cl_ord_id_{}", client_order_id);
@@ -181,13 +211,11 @@ namespace zfix {
 
 	// DATE is fractional time in days since midnight 1899-12-30
 	// The type __time32_t is representing the time as seconds elapsed since midnight 1970-01-01
-	DATE convert_time(__time32_t t32)
-	{
+	DATE convert_time(__time32_t t32) {
 		return (DATE)t32 / SECONDS_PER_DAY + DAYS_BETWEEN_1899_12_30_1979_01_01;  
 	}
 
-	__time32_t convert_time(DATE date)
-	{
+	__time32_t convert_time(DATE date) {
 		return (__time32_t)((date - DAYS_BETWEEN_1899_12_30_1979_01_01) * SECONDS_PER_DAY);
 	}
 
@@ -257,14 +285,22 @@ namespace zfix {
 		return res->status;
 	}
 
-	DLLFUNC_C void BrokerHTTP(FARPROC fpSend, FARPROC fpStatus, FARPROC fpResult, FARPROC fpFree) {
-		(FARPROC&)http_send = fpSend;
-		(FARPROC&)http_status = fpStatus;
-		(FARPROC&)http_result = fpResult;
-		(FARPROC&)http_free = fpFree;
+	void plugin_callback(void* address) {
+		show("plugin_callback called with address={}", address);
 	}
 
-	DLLFUNC int BrokerLogin(char* User, char* Pwd, char* Type, char* Account) {
+	void trigger_price_quote_request() {
+		PostMessage(window_handle, WM_APP + 1, 0, 0);
+	}
+
+	DLLFUNC_C void BrokerHTTP(FARPROC fp_send, FARPROC fp_status, FARPROC fp_result, FARPROC fp_free) {
+		(FARPROC&)http_send = fp_send;
+		(FARPROC&)http_status = fp_status;
+		(FARPROC&)http_result = fp_result;
+		(FARPROC&)http_free = fp_free;
+	}
+
+	DLLFUNC int BrokerLogin(char* user, char* password, char* type, char* account) {
 		try {
 			if (fix_thread == nullptr) {
 				log::debug<1, true>("BrokerLogin: FIX thread createing...");
@@ -275,7 +311,8 @@ namespace zfix {
 				));
 				log::debug<1, true>how("BrokerLogin: FIX thread created");
 			}
-			if (User) {
+
+			if (user) {
 				log::debug<1, true>("BrokerLogin: FIX service starting...");
 				fix_thread->start();
 				log::debug<1, true>("BrokerLogin: FIX service running");
@@ -316,6 +353,7 @@ namespace zfix {
 
 	DLLFUNC int BrokerOpen(char* Name, FARPROC fpError, FARPROC fpProgress) {
 		if (Name) strcpy_s(Name, 32, "_FixPlugin");
+
 		(FARPROC&)BrokerError = fpError;
 		(FARPROC&)BrokerProgress = fpProgress;
 
@@ -356,8 +394,8 @@ namespace zfix {
 		auto m = pop_top_of_books();
 
 		log::debug<4, true>(
-			"BrokerTime {} top of book processed={} exec reports processed={}\n{}", 
-			common::to_string(time), m, n, order_tracker.to_string()
+			"BrokerTime {} top of book processed={} exec reports processed={}\n{}\n{}", 
+			common::to_string(time), m, n, order_tracker.to_string(), order_mapping_string()
 		);
 
 		return ExchangeStatus::Open;
@@ -502,7 +540,7 @@ namespace zfix {
 
 		if (!fix_thread) {
 			log::error<true>("BrokerBuy2: no FIX session");
-			return BrokerBuyError::BrokerAPITimeout;
+			return BrokerError::BrokerAPITimeout;
 		}
 
 		auto symbol = FIX::Symbol(Asset);
@@ -533,16 +571,16 @@ namespace zfix {
 
 		if (!success) {
 			log::error<true>("BrokerBuy2 timeout while waiting for FIX exec report on order new!");
-			return BrokerBuyError::OrderRejectedOrTimeout;
+			return BrokerError::OrderRejectedOrTimeout;
 		}
 		else {
 			if (report.exec_type == FIX::ExecType_REJECTED) {
 				log::info<1, true>("BrokerBuy2: rejected {}", report.to_string());
-				return BrokerBuyError::OrderRejectedOrTimeout;
+				return BrokerError::OrderRejectedOrTimeout;
 			}
 			else if (report.cl_ord_id == cl_ord_id.getString()) { 
-				auto i_ord_id = next_internal_order_id();
-				order_id_by_internal_order_id.emplace(i_ord_id, report.ord_id);  
+				auto interal_id = next_internal_order_id();
+				order_id_by_internal_order_id.emplace(interal_id, report.ord_id);
 				auto ok = order_tracker.process(report);
 
 				if (report.ord_status == FIX::OrdStatus_FILLED || report.ord_status == FIX::OrdStatus_PARTIALLY_FILLED) {
@@ -555,17 +593,24 @@ namespace zfix {
 					*fill_qty = (int)report.cum_qty;  // assuming lot size
 				}
 
-				log::debug<2, true>("BrokerBuy2: i_ord_id={} processed={}\n{}", i_ord_id, report.to_string(), order_tracker.to_string());
+				log::debug<2, true>(
+					"BrokerBuy2: interal_id={} processed={}\n{}\n{}", 
+					interal_id, report.to_string(), order_tracker.to_string(), order_mapping_string()
+				);
 
-				return i_ord_id;
+				return interal_id;
 			}
 			else {
 				// TODO what should be done in this rare case?
 				// example: two orders at almost same time, 
 				// exec report of the second order arrives first 
 								
-				log::info<1, true>("BrokerBuy2: report {} does belong to given cl_ord_id={}", report.to_string(), cl_ord_id.getString());
-				return BrokerBuyError::OrderRejectedOrTimeout;
+				log::info<1, true>(
+					"BrokerBuy2: report {} does belong to given cl_ord_id={}", 
+					report.to_string(), cl_ord_id.getString()
+				);
+
+				return BrokerError::OrderRejectedOrTimeout;
 			}
 		}		
 	}
@@ -644,8 +689,9 @@ namespace zfix {
 								*profit = (close_order.avg_px - order.avg_px) * close_order.cum_qty;
 							}
 						}
-						trade_id;
+						return trade_id;
 					}
+
 					return 0;
 				}
 				else {
@@ -669,11 +715,14 @@ namespace zfix {
 						if (!success) {
 							log::error<true>("BrokerSell2 timeout while waiting for FIX exec report on order cancel!");
 
-							return BrokerBuyError::OrderRejectedOrTimeout;
+							return BrokerError::OrderRejectedOrTimeout;
 						} 
 						else {
 							auto ok = order_tracker.process(report);
-							log::debug<2, true>("BrokerSell2: exec report processed={}\n{}", report.to_string(), order_tracker.to_string());
+							log::debug<2, true>(
+								"BrokerSell2: exec report processed={}\n{}\n{}", 
+								report.to_string(), order_tracker.to_string(), order_mapping_string()
+							);
 						}
 
 						return trade_id;
@@ -698,11 +747,14 @@ namespace zfix {
 
 						if (!success) {
 							log::error<true>("BrokerSell2 timeout while waiting for FIX exec report on order cancel/replace!");
-							return BrokerBuyError::OrderRejectedOrTimeout;
+							return BrokerError::OrderRejectedOrTimeout;
 						}
 						else {
 							auto ok = order_tracker.process(report);
-							log::debug<2, true>("BrokerSell2: exec report processed \n{}", order_tracker.to_string());
+							log::debug<2, true>(
+								"BrokerSell2: exec report processed \n{}\n{}", 
+								order_tracker.to_string(), order_mapping_string()
+							);
 						}
 
 						return trade_id;
@@ -722,129 +774,238 @@ namespace zfix {
 
 	// https://zorro-project.com/manual/en/brokercommand.htm
 	DLLFUNC double BrokerCommand(int command, DWORD dw_parameter) {
-		log::debug<1, true>("BrokerCommand {}[{}]", broker_command_string(command), command);
+		switch (command) {
+			case GET_COMPLIANCE: {
+				auto result = 2;
+				log::debug<1, true>("BrokerCommand {}[{}] = {}", broker_command_string(command), command, result);
+				return result;
+			}
 
-		switch (command)
-		{
-		case GET_COMPLIANCE:
-			return 2;
+			case GET_BROKERZONE: {
+				log::debug<1, true>("BrokerCommand {}[{}] = {}", broker_command_string(command), command, 0);
+				return 0;   // historical data in UTC time
+			}
 
-		case GET_BROKERZONE:
-			return 0;   // historical data in UTC time
+			case GET_MAXTICKS: {
+				auto result = 1000;
+				log::debug<1, true>("BrokerCommand {}[{}] = {}", broker_command_string(command), command, result);
+				return result;
+			}
 
-		case GET_MAXTICKS:
-			return 1000;
+			case GET_MAXREQUESTS: {
+				log::debug<1, true>("BrokerCommand {}[{}] = {}", broker_command_string(command), command, 30);
+				return 30;
+			}
 
-		case GET_MAXREQUESTS:
-			return 30;
+			case GET_LOCK: {
+				log::debug<1, true>("BrokerCommand {}[{}] = {}", broker_command_string(command), command, 1);
+				return 1;
+			}
 
-		case GET_LOCK:
-			return 1;
+			case GET_NTRADES: {
+				auto result = get_num_orders();
+				log::debug<1, true>("BrokerCommand {}[{}] = {}", broker_command_string(command), command, result);
+				return result;
+			}
 
-		case GET_POSITION: {
-			return get_position_size((const char*)dw_parameter);
-			break;
-		}
+			case GET_POSITION: {
+				position_symbol = std::string((const char*)dw_parameter);
+				auto result = get_position_size(position_symbol);
+				log::debug<1, true>("BrokerCommand {}[{}] = {}", broker_command_string(command), command, result);
+				return result;
+			}
 
-		case SET_ORDERTEXT: {
-			return dw_parameter;
-		}
+			case GET_AVGENTRY: {
+				auto result = get_avg_entry_price(position_symbol);
+				log::debug<1, true>("BrokerCommand {}[{}] = {}", broker_command_string(command), command, result);
+				return result;
+			}
 
-		case SET_SYMBOL: {
-			auto s_asset = (char*)dw_parameter;
-			return 1;
-		}
+			case DO_CANCEL: {
+				int trade_id = (int)dw_parameter;
+				log::debug<1, true>("BrokerCommand {}[{}] trade_id={}", broker_command_string(command), command, trade_id);
 
-		case SET_MULTIPLIER: {
-			auto s_multiplier = (int)dw_parameter;
-			return 1;
-		}
+				auto it = order_id_by_internal_order_id.find(trade_id); if (it != order_id_by_internal_order_id.end()) {
+					auto [oit, success] = order_tracker.get_order(it->second);
 
-		// return 0 for not supported							
-		case SET_ORDERTYPE: {
-			switch ((int)dw_parameter) {
-			case 0:
-				return 0; 
-			case ORDERTYPE_IOC:
-				time_in_force = FIX::TimeInForce_IMMEDIATE_OR_CANCEL;
-				break;
-			case ORDERTYPE_GTC:
-				time_in_force = FIX::TimeInForce_GOOD_TILL_CANCEL;
-				break;
-			case ORDERTYPE_FOK:
-				time_in_force = FIX::TimeInForce_FILL_OR_KILL;
-				break;
-			case ORDERTYPE_DAY:
-				time_in_force = FIX::TimeInForce_DAY;
-				break;
-			default:
+					if (success) {
+						auto& order = oit->second;
+
+						log::debug<2, true>("BrokerCommand[DO_CANCEL]: found open order={}", order.to_string());
+
+						auto symbol = FIX::Symbol(order.symbol);
+						auto ord_id = FIX::OrderID(order.ord_id);
+						auto orig_cl_ord_id = FIX::OrigClOrdID(order.cl_ord_id);
+						auto cl_ord_id = FIX::ClOrdID(next_client_order_id());
+						auto side = FIX::Side(order.side);
+						auto ord_type = FIX::OrdType(order.ord_type);
+
+						log::debug<2, true>("BrokerCommand[DO_CANCEL]: cancel working order");
+
+						auto msg = fix_thread->fix_app().order_cancel_request(
+							symbol, ord_id, orig_cl_ord_id, cl_ord_id, side, FIX::OrderQty(order.leaves_qty)
+						);
+
+						ExecReport report;
+						bool success = exec_report_queue.pop(report, fix_exec_report_waiting_time);
+
+						if (!success) {
+							log::error<true>("BrokerCommand[DO_CANCEL] timeout while waiting for FIX exec report on order cancel!");
+
+							return 0;
+						}
+						else {
+							auto ok = order_tracker.process(report);
+							log::debug<2, true>(
+								"BrokerCommand[DO_CANCEL]: exec report processed={}\n{}\n{}",
+								report.to_string(), order_tracker.to_string(), order_mapping_string()
+							);
+
+							return 1;
+						}
+
+					}
+				}
+
 				return 0;
 			}
 
-			// additional stop order 
-			if ((int)dw_parameter >= 8) {
-				return 0; 
+			case SET_ORDERTEXT: {
+				order_text = std::string((char*)dw_parameter); 
+				log::debug<1, true>("BrokerCommand {}[{}] order_text={}", broker_command_string(command), command, order_text);
+				return 1;
 			}
 
-			log::debug<2, true>("SET_ORDERTYPE: {}", (int)dw_parameter);
-			return (int)dw_parameter;
-		}
-
-		case GET_PRICETYPE:
-			return 0;
-
-		case SET_PRICETYPE: {
-			auto s_priceType = (int)dw_parameter;
-			log::debug<2, true>("SET_PRICETYPE: {}", s_priceType);
-			return dw_parameter;
-		}
-
-		case GET_VOLTYPE:
-			return 0;
-
-		case SET_AMOUNT: {
-			auto s_amount = *(double*)dw_parameter;
-			log::debug<2, true>("SET_AMOUNT: {}", s_amount);
-			break;
-		}
-
-		case SET_DIAGNOSTICS: {
-			if ((int)dw_parameter == 1 || (int)dw_parameter == 0) {
-				spdlog::set_level((int)dw_parameter ? spdlog::level::debug : spdlog::level::info);
-				return dw_parameter;
+			case SET_SYMBOL: {
+				asset = std::string((char*)dw_parameter);
+				log::debug<1, true>("BrokerCommand {}[{}] symbol={}", broker_command_string(command), command, asset);
+				return 1;
 			}
-			break;
+
+			case SET_MULTIPLIER: {
+				multiplier = (int)dw_parameter;
+				log::debug<1, true>("BrokerCommand {}[{}] multiplier={}", broker_command_string(command), command, multiplier);
+				return 1;
+			}
+				
+			case SET_ORDERTYPE: {
+				auto order_type = (int)dw_parameter;
+				switch (order_type) {
+				case 0:
+					return 0; 
+				case ORDERTYPE_IOC:
+					time_in_force = FIX::TimeInForce_IMMEDIATE_OR_CANCEL;
+					break;
+				case ORDERTYPE_GTC:
+					time_in_force = FIX::TimeInForce_GOOD_TILL_CANCEL;
+					break;
+				case ORDERTYPE_FOK:
+					time_in_force = FIX::TimeInForce_FILL_OR_KILL;
+					break;
+				case ORDERTYPE_DAY:
+					time_in_force = FIX::TimeInForce_DAY;
+					break;
+				default:
+					return 0; // return 0 for not supported	
+				}
+
+				// additional stop order 
+				if (order_type >= 8) {
+					return 0; // return 0 for not supported	
+				}
+
+				log::debug<1, true>("BrokerCommand {}[{}] multiplier={}", broker_command_string(command), command, order_type);
+
+				return 1;
+			}
+
+			case GET_PRICETYPE: {
+				log::debug<1, true>("BrokerCommand {}[{}] = {}", broker_command_string(command), command, price_type);
+				return price_type;
+			}
+
+			case SET_PRICETYPE: {
+				price_type = (int)dw_parameter;
+				log::debug<1, true>("BrokerCommand {}[{}] price_type={}", broker_command_string(command), command, price_type);
+				return 1;
+			}
+
+			case GET_VOLTYPE: {
+				vol_type = (int)dw_parameter;
+				log::debug<1, true>("BrokerCommand {}[{}] price_type={}", broker_command_string(command), command, vol_type);
+				return vol_type;
+			}
+
+			case SET_AMOUNT: {
+				amount = *(double*)dw_parameter;
+				log::debug<1, true>("BrokerCommand {}[{}] amount={}", broker_command_string(command), command, amount);
+				return 1;
+			}
+
+			case SET_DIAGNOSTICS: {
+				auto diagnostics = (int)dw_parameter;
+				log::debug<1, true>("BrokerCommand {}[{}] diagnostics={}", broker_command_string(command), command, diagnostics);
+				if (diagnostics == 1 || diagnostics == 0) {
+					spdlog::set_level(diagnostics ? spdlog::level::debug : spdlog::level::info);
+					return 1;
+				}
+				break;
+			}
+
+			// The window handle can be used by another application or process for triggering events or sending messages to a Zorro window. 
+			// The message WM_APP+1 triggers a price quote request, WM_APP+2 triggers a script-supplied callback function, and WM_APP+3 
+			// triggers a plugin-supplied callback function set by the GET_CALLBACK command.
+			// The window handle is automatically sent to broker plugins with the SET_HWND command.
+			// For asynchronously triggering a price quote request, send a WM_APP+1 message to the window handle received by the SET_HWND command. 
+			// For triggering the callback function, send a WM_APP+2 message. This can be used for prices streamed by another thread. 
+			// See https://zorro-project.com/manual/en/hwnd.htm
+			case SET_HWND: {
+				window_handle = (HWND)dw_parameter;
+				log::debug<1, true>("BrokerCommand {}[{}] window_handle={}", broker_command_string(command), command, (long)window_handle);
+				break;
+			}
+
+			case GET_CALLBACK: {
+				auto ptr = (void*)plugin_callback;
+				log::debug<1, true>("BrokerCommand {}[{}] = {}", broker_command_string(command), command, ptr);
+				break;
+			}
+
+			case SET_CCY: {
+				currency = std::string((char*)dw_parameter);
+				log::debug<1, true>("BrokerCommand {}[{}] currency={}", broker_command_string(command), command, currency);
+				break;
+			}
+
+			case GET_HEARTBEAT: {
+				log::debug<1, true>("BrokerCommand {}[{}] = {}", broker_command_string(command), command, 500);
+				return 500;
+			}
+
+			case SET_LEVERAGE: {
+				leverage = (int)dw_parameter;
+				log::debug<1, true>("BrokerCommand {}[{}] diagnostics={}", broker_command_string(command), command, leverage);
+				break;
+			}
+
+			case SET_LIMIT: {
+				limit = *(double*)dw_parameter;
+				log::debug<1, true>("BrokerCommand {}[{}] limit={}", broker_command_string(command), command, limit);
+				break;
+			}
+
+			case SET_FUNCTIONS: {
+				log::debug<1, true>("BrokerCommand {}[{}]", broker_command_string(command), command);
+				break;
+			}
+
+			default: {
+				log::debug<1, true>("BrokerCommand {}[{}]", broker_command_string(command), command);
+				break;
+			}
 		}
 
-		case SET_HWND:
-		case GET_CALLBACK:
-		case SET_CCY:
-			break;
-
-		case GET_HEARTBEAT:
-			return 500;
-
-		case SET_LEVERAGE: {
-			log::debug<2, true>("BrokerCommand: SET_LEVERAGE param={}", (int)dw_parameter);
-			break;
-		}
-
-		case SET_LIMIT: {
-			auto limit = *(double*)dw_parameter;
-			log::debug<2, true>("BrokerCommand: SET_LIMIT param={}", limit);
-			break;
-		}
-
-		case SET_FUNCTIONS:
-			log::debug<2, true>("BrokerCommand: SET_FUNCTIONS param={}", (int)dw_parameter);
-			break;
-
-		default:
-			log::debug<2, true>("BrokerCommand: unhandled command {} param={}", command, dw_parameter);
-			break;
-		}
-
-		return 0.;
+		return 0;
 	}
 }
 

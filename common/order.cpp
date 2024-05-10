@@ -83,7 +83,7 @@ namespace common {
 	}
 
 	std::string Order::to_string() const {
-		return
+		return std::string("Order[") +
 			"symbol=" + symbol + ", " +
 			"ord_id=" + ord_id + ", " +
 			"cl_ord_id=" + cl_ord_id + ", " +
@@ -97,7 +97,8 @@ namespace common {
 			"executed_quantity=" + std::to_string(executed_quantity) + ", " +
 			"avg_executed_price=" + std::to_string(avg_executed_price) + ", " +
 			"last_executed_price=" + std::to_string(last_executed_price) + ", " +
-			"last_executed_quantity=" + std::to_string(last_executed_quantity);
+			"last_executed_quantity=" + std::to_string(last_executed_quantity) +
+			"]";
 	}
 
 	std::string to_string(const Order::Side& side) {

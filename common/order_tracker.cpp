@@ -55,17 +55,19 @@ namespace common {
 	}
 
 	std::string OrderReport::to_string() const {
-		return "symbol=" + symbol + ", "
+		return std::string("OrderReport[") +
+			"symbol=" + symbol + ", "
 			"ord_id=" + ord_id + ", "
 			"cl_ord_id=" + cl_ord_id + ", "
-			"ord_status=" + std::to_string(ord_status) + ", "
-			"ord_type=" + std::to_string(ord_type) + ", "
-			"side=" + std::to_string(side) + ", "
+			"ord_status=" + ord_status_string(ord_status) + ", "
+			"ord_type=" + ord_type_string(ord_type) + ", "
+			"side=" + side_string(side) + ", "
 			"price=" + std::to_string(price) + ", "
 			"avg_px=" + std::to_string(avg_px) + ", "
 			"order_qty=" + std::to_string(order_qty) + ", "
 			"cum_qty=" + std::to_string(cum_qty) + ", "
-			"leaves_qty=" + std::to_string(leaves_qty);
+			"leaves_qty=" + std::to_string(leaves_qty) +
+			"]";
 	}
 
 	std::ostream& operator<<(std::ostream& ostream, const OrderReport& report)
@@ -81,11 +83,13 @@ namespace common {
 	{}
 
 	std::string Position::to_string() const {
-		return "account=" + account + ", "
+		return std::string("Position[") +
+			"account=" + account + ", "
 			"symbol=" + symbol + ", "
 			"avg_px=" + std::to_string(avg_px) + ", "
 			"qty_long=" + std::to_string(qty_long) + ", "
-			"qty_short=" + std::to_string(qty_short);
+			"qty_short=" + std::to_string(qty_short) +
+			"]";
 	}
 
 	double Position::net_qty() const {
@@ -101,7 +105,7 @@ namespace common {
 		const std::string& account,
 		const std::string& symbol
 	) : account(account)
-		, symbol(symbol)
+	  , symbol(symbol)
 	{}
 
 	std::string NetPosition::to_string() const {
@@ -136,6 +140,10 @@ namespace common {
 		return std::make_pair(it, it != orders_by_ord_id.end());
 	}
 
+	int OrderTracker::num_orders() const {
+		return orders_by_ord_id.size();
+	}
+
 	bool OrderTracker::process(const ExecReport& report) {
 		if (report.exec_type == 'I') {
 			return false;
@@ -164,7 +172,12 @@ namespace common {
 			case FIX::ExecType_TRADE: {
 				orders_by_ord_id.insert_or_assign(report.ord_id, std::move(OrderReport(report)));
 				auto& position = net_position(report.symbol);
-				position.qty += report.last_qty;
+				if (report.side == FIX::Side_BUY) {
+					position.qty += report.last_qty;
+				}
+				else if (report.side == FIX::Side_SELL) {
+					position.qty -= report.last_qty;
+				}
 				position.avg_px = report.avg_px;
 				return true;
 			}
@@ -193,7 +206,6 @@ namespace common {
 				spdlog::error(" OrderTracker::process: invalid FIX::ExecType {}", report.exec_type);
 				return false;
 			}
-
 		}
 	}
 
