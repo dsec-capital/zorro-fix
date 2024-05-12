@@ -19,34 +19,45 @@ namespace common {
 
     OrderMatcher::OrderMatcher(std::mutex& mutex) : mutex(mutex) {}
 
-    OrderInsertResult OrderMatcher::insert(const Order& order_ins)
+    OrderInsertResult OrderMatcher::insert(const Order& order)
     {
         std::lock_guard<std::mutex> ul(mutex);
         auto error = false;
-        auto order = order_ins;
+        auto order_processed = order;
         std::vector<Order> matched;
-        const auto& price = order.get_price();
         std::optional<Order> resting_order;
-        if (order.get_side() == Order::buy) {
-            auto it = ask_orders.begin();
-            if (it != ask_orders.end() && price >= it->second.get_price()) {
-                match(order, matched);
+
+        if (order_processed.get_type() == Order::Type::market) {
+            auto vwap = vwap_price(order.get_side(), order.get_open_quantity(), order.get_owner());
+            order_processed.execute(vwap, order.get_open_quantity());
+            matched.push_back(order_processed);
+
+            spdlog::debug("OrderMatcher::insert: matched market order: vwap={} order_processed={}", vwap, order_processed.to_string());
+        }
+        else if (order_processed.get_type() == Order::Type::limit) {
+            const auto& price = order_processed.get_price();
+            if (order_processed.get_side() == Order::buy) {
+                auto it = ask_orders.begin();
+                if (it != ask_orders.end() && price >= it->second.get_price()) {
+                    match(order_processed, matched);
+                }
+                if (!order_processed.is_closed()) {
+                    bid_orders.insert(std::make_pair(price, order_processed));
+                    resting_order = std::make_optional(order_processed);
+                }
             }
-            if (!order.is_closed()) {
-                bid_orders.insert(std::make_pair(price, order));
-                resting_order = std::make_optional(order);
+            else {
+                auto it = bid_orders.begin();
+                if (it != bid_orders.end() && price <= it->second.get_price()) {
+                    match(order_processed, matched);
+                }
+                if (!order_processed.is_closed()) {
+                    ask_orders.insert(std::make_pair(price, order_processed));
+                    resting_order = std::make_optional(order_processed);
+                }
             }
         }
-        else {
-            auto it = bid_orders.begin();
-            if (it != bid_orders.end() && price <= it->second.get_price()) {
-                match(order, matched);
-            }
-            if (!order.is_closed()) {
-                ask_orders.insert(std::make_pair(price, order));
-                resting_order = std::make_optional(order);
-            }
-        }
+
         return OrderInsertResult(resting_order, std::move(matched));
     }
 
@@ -91,7 +102,7 @@ namespace common {
                 orders.push_back(ask);
                 orders.push_back(order);
 
-                spdlog::debug("OrderMatcher::match: ask side match: ask={} order={}", ask.to_string(), order.to_string());
+                spdlog::debug("OrderMatcher::match: ask side match: ask={} order_processed={}", ask.to_string(), order.to_string());
 
                 if (ask.is_closed())
                     it = ask_orders.erase(it);
@@ -110,7 +121,7 @@ namespace common {
                 orders.push_back(bid);
                 orders.push_back(order);
 
-                spdlog::debug("OrderMatcher::match: bid side match: ask={} order={}", bid.to_string(), order.to_string());
+                spdlog::debug("OrderMatcher::match: bid side match: ask={} order_processed={}", bid.to_string(), order.to_string());
 
                 if (bid.is_closed())
                     it = bid_orders.erase(it);
@@ -119,6 +130,43 @@ namespace common {
             }
         }
     }
+
+    double OrderMatcher::vwap_price(const Order::Side& side, long total_quantity, const std::string& owner) {
+        double vwap = 0;
+        long cum_quantity = 0;
+        if (side == Order::Side::buy) {
+            auto it = ask_orders.begin();
+            while (it != ask_orders.end() && cum_quantity < total_quantity) {
+                if (it->second.get_owner() != owner) {
+                    auto price = it->second.get_price();
+                    long missing_quantity = total_quantity - cum_quantity;
+                    long quantity = std::min(it->second.get_open_quantity(), missing_quantity);
+                    vwap =
+                        ((quantity * price) + (vwap * cum_quantity))
+                        / (quantity + cum_quantity);
+                    cum_quantity += quantity;
+                }
+                ++it;
+            }
+        }
+        else {
+            auto it = bid_orders.begin();
+            while (it != bid_orders.end() && cum_quantity < total_quantity) {
+                if (it->second.get_owner() != owner) {
+                    auto price = it->second.get_price();
+                    long missing_quantity = total_quantity - cum_quantity;
+                    long quantity = std::min(it->second.get_open_quantity(), missing_quantity);
+                    vwap =
+                        ((quantity * price) + (vwap * cum_quantity))
+                        / (quantity + cum_quantity);
+                    cum_quantity += quantity;
+                }
+                ++it;
+            }
+        }
+        return vwap;
+    }
+
 
     std::optional<Order> OrderMatcher::find(const std::string& ord_id, Order::Side side)
     {
@@ -137,7 +185,7 @@ namespace common {
         }
         return std::optional<Order>();
         throw std::runtime_error(std::format(
-            "OrderMatcher::find: could not find order with ord_id={}, side={}",
+            "OrderMatcher::find: could not find order_processed with ord_id={}, side={}",
             ord_id, side == Order::buy ? "buy" : "sell"
         ));
     }
@@ -206,7 +254,7 @@ namespace common {
             const auto& o = ait->second;
             auto side = o.get_side() == Order::Side::buy ? "bid" : "ask";
             rows += std::format(
-                "[{}] : symbol={}, owner={}, ord_id={}, cl_ord_id={}, price={:8.5f}, side={}, quantity={}, open_quantity={}, executed_quantity={}, avg_executed_price=={:8.5f}, last_executed_price=={:8.5f}, last_executed_quantity={}\n",
+                "[{}] : symbol={}, owner={}, ord_id={}, cl_ord_id={}, price={:8.5f}, side={}, quantity={}, open_quantity={}, executed_quantity={}, avg_executed_price={:8.5f}, last_executed_price={:8.5f}, last_executed_quantity={}\n",
                 ait->first, o.get_symbol(), o.get_owner(), o.get_ord_id(), o.get_cl_ord_id(), o.get_price(), side, o.get_quantity(), o.get_open_quantity(), o.get_executed_quantity(), o.get_avg_executed_price(), o.get_last_executed_price(), o.get_last_executed_quantity()
             );
         }
@@ -215,7 +263,7 @@ namespace common {
             const auto& o = bit->second;
             auto side = o.get_side() == Order::Side::buy ? "bid" : "ask";
             rows += std::format(
-                "[{}] : symbol={}, owner={}, ord_id={}, cl_ord_id={}, price={:8.5f}, side={}, quantity={}, open_quantity={}, executed_quantity={}, avg_executed_price=={:8.5f}, last_executed_price=={:8.5f}, last_executed_quantity={}\n",
+                "[{}] : symbol={}, owner={}, ord_id={}, cl_ord_id={}, price={:8.5f}, side={}, quantity={}, open_quantity={}, executed_quantity={}, avg_executed_price={:8.5f}, last_executed_price={:8.5f}, last_executed_quantity={}\n",
                 bit->first, o.get_symbol(), o.get_owner(), o.get_ord_id(), o.get_cl_ord_id(), o.get_price(), side, o.get_quantity(), o.get_open_quantity(), o.get_executed_quantity(), o.get_avg_executed_price(), o.get_last_executed_price(), o.get_last_executed_quantity()
             );
         }

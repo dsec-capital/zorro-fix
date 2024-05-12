@@ -43,6 +43,8 @@ namespace common {
 
 		std::optional<Order> erase(const std::string& ord_id, const Order::Side& side);
 
+		double vwap_price(const Order::Side& side, long quantity, const std::string& owner);
+
 		std::pair<bid_order_map_t, ask_order_map_t> get_orders() const;
 
 		bid_map_t bid_map(const std::function<double(const Order&)> &f) const;

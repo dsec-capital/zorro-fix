@@ -213,23 +213,6 @@ void Application::onMessage(const FIX44::NewOrderSingle& message, const FIX::Ses
 	if (ord_type == FIX::OrdType_LIMIT) {
 		message.get(price);
 	}
-	else if (ord_type == FIX::OrdType_MARKET) {
-		ord_type = FIX::OrdType_LIMIT;
-		auto top = markets.get_current_top_of_book(symbol.getString());
-		double aggressive_price;
-		if (top) {
-			aggressive_price = side == FIX::Side_BUY ? top.value().ask_price * 100.0 : top.value().bid_price / 100.0;
-		}
-		else {
-			aggressive_price = side == FIX::Side_BUY ? 100000000.0 : 0.0;
-		}
-		price = FIX::Price(aggressive_price);
-
-		spdlog::info(
-			"Application::onMessage[NewOrderSingle]: converging market order {} to limit order with aggressive price {}", 
-			FIX::Side_BUY ? "buy" : "sell", aggressive_price
-		);
-	}
 	message.get(orderQty);
 	message.getFieldIfSet(timeInForce);
 
@@ -490,6 +473,9 @@ void Application::update_order(const Order& order, char exec_status, char ord_st
 	fixOrder.set(FIX::OrdType(order.get_type() == Order::Type::limit ? FIX::OrdType_LIMIT : FIX::OrdType_MARKET));
 	if (order.get_type() == Order::Type::limit) {
 		fixOrder.set(FIX::Price(order.get_price()));
+	}
+	if (order.get_type() == Order::Type::market) {
+		fixOrder.set(FIX::Price(order.get_avg_executed_price()));
 	}
 	if (ord_status == FIX::OrdStatus_FILLED || 
 		ord_status == FIX::OrdStatus_PARTIALLY_FILLED || 

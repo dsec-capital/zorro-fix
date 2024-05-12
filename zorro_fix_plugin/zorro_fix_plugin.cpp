@@ -984,7 +984,7 @@ namespace zfix {
 
 			case SET_LEVERAGE: {
 				leverage = (int)dw_parameter;
-				log::debug<1, true>("BrokerCommand {}[{}] diagnostics={}", broker_command_string(command), command, leverage);
+				log::debug<1, true>("BrokerCommand {}[{}] leverage={}", broker_command_string(command), command, leverage);
 				break;
 			}
 
