@@ -904,11 +904,6 @@ namespace zfix {
 
 						log::debug<2, true>("BrokerCommand[DO_CANCEL]: found open order={}", order.to_string());
 
-						if (order.ord_status == FIX::OrdStatus_FILLED) {
-							log::debug<2, true>("BrokerCommand[DO_CANCEL]: order already filled");
-							return 0;
-						}
-
 						if (order.ord_status == FIX::OrdStatus_CANCELED || order.ord_status == FIX::OrdStatus_REJECTED) {
 							log::debug<2, true>("BrokerCommand[DO_CANCEL]: order rejected or already cancelled");
 							return 0;
