@@ -891,6 +891,7 @@ namespace zfix {
 				return result;
 			}
 
+			// Returns 1 when the order was cancelled, or 0 when the order was not found or could not be cancelled.						
 			case DO_CANCEL: {
 				int trade_id = (int)dw_parameter;
 				log::debug<1, true>("BrokerCommand {}[{}] trade_id={}", broker_command_string(command), command, trade_id);
@@ -902,6 +903,11 @@ namespace zfix {
 						auto& order = oit->second;
 
 						log::debug<2, true>("BrokerCommand[DO_CANCEL]: found open order={}", order.to_string());
+
+						if (order.ord_status == FIX::OrdStatus_CANCELED || order.ord_status == FIX::OrdStatus_REJECTED) {
+							log::debug<2, true>("BrokerCommand[DO_CANCEL]: order rejected or already cancelled");
+							return 0;
+						}
 
 						auto symbol = FIX::Symbol(order.symbol);
 						auto ord_id = FIX::OrderID(order.ord_id);
@@ -957,7 +963,13 @@ namespace zfix {
 				log::debug<1, true>("BrokerCommand {}[{}] multiplier={}", broker_command_string(command), command, multiplier);
 				return 1;
 			}
-				
+			
+			// Switch between order types and return the type if supported by the broker plugin, otherwise 0
+			//	- 0 Broker default (highest fill probability)
+			//	- 1 AON (all or nothing) prevents partial fills
+			//	- 2 GTC (good - till - cancelled) order stays open until completely filled
+			//	- 3 AON + GTC
+			//  - 8 - STOP; add a stop order at distance Stop* StopFactor on NFA accounts
 			case SET_ORDERTYPE: {
 				auto order_type = (int)dw_parameter;
 				switch (order_type) {
@@ -984,7 +996,7 @@ namespace zfix {
 					return 0; // return 0 for not supported	
 				}
 
-				log::debug<1, true>("BrokerCommand {}[{}] multiplier={}", broker_command_string(command), command, order_type);
+				log::debug<1, true>("BrokerCommand {}[{}] order_type={}", broker_command_string(command), command, order_type);
 
 				return 1;
 			}
