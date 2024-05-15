@@ -523,32 +523,18 @@ namespace zfix {
 	}
 
 	/*
-	 * BrokerBuy2
-	 * 
-	 * Sends an order to open a long or short position, either at market, or at a price limit. Also used for NFA compliant accounts to close a position by 
-	 * opening a new position in the opposite direction. The order type (FOK, IOC, GTC) can be set with SET_ORDERTYPE before. Orders other than GTC are 
-	 * cancelled when they are not completely filled within the wait time (usually 30 seconds).
-	 * 
-	 * Parameters:
-     *	Asset	  Input, asset symbol for trading (see Symbols).
-	 *	Amount	  Input, number of contracts, positive for a long trade and negative for a short trade. For currencies or CFDs, the number of contracts is the number of Lots multiplied with the LotAmount. 
-	 *            If LotAmount is < 1 (f.i. for a CFD or a fractional share with 0.1 contracts lot size), the number of lots is given here instead of the number of contracts.
-	 *	StopDist  Optional input, 'safety net' stop loss distance to the opening price when StopFactor was set, or 0 for no stop, or -1 for indicating that this function was called for closing a position. 
-	 *            This is not the real stop loss, which is handled by Zorro. Can be ignored if the API is NFA compliant and does not support a stop loss in a buy/sell order.
-	 *	Limit	  Optional input, fill price for limit orders, set up by OrderLimit, or 0 for market orders. Can be ignored if limit orders are not supported by the API.
-	 *	pPrice	  Optional output, the average fill price if the position was partially or fully filled.
-	 *	pFill	  Optional output, the fill amount, always positive.
-	 * 
-	 * Returns see BrokerBuyStatus
-	 *  if successful 
-	 *    Trade or order id 
-	 *  or on error
-	 *	 0 when the order was rejected or a FOK or IOC order was unfilled within the wait time (adjustable with the SET_WAIT command). The order must then be cancelled by the plugin.
-	 *	   Trade or order ID number when the order was successfully placed. If the broker API does not provide trade or order IDs, the plugin should generate a unique 6-digit number, f.i. from a counter, and return it as a trade ID.
-	 *	-1 when the trade or order identifier is a UUID that is then retrieved with the GET_UUID command.
-	 *	-2 when the broker API did not respond at all within the wait time. The plugin must then attempt to cancel the order. Zorro will display a "possible orphan" warning.
-	 *	-3 when the order was accepted, but got no ID yet. The ID is then taken from the next subsequent BrokerBuy call that returned a valid ID. This is used for combo positions that require several orders.
-	 */
+	* BrokerBuy2
+	* 
+	* Returns see BrokerBuyStatus
+	*  if successful 
+	*    Trade or order id 
+	*  or on error
+	*	 0 when the order was rejected or a FOK or IOC order was unfilled within the wait time (adjustable with the SET_WAIT command). The order must then be cancelled by the plugin.
+	*	   Trade or order ID number when the order was successfully placed. If the broker API does not provide trade or order IDs, the plugin should generate a unique 6-digit number, f.i. from a counter, and return it as a trade ID.
+	*	-1 when the trade or order identifier is a UUID that is then retrieved with the GET_UUID command.
+	*	-2 when the broker API did not respond at all within the wait time. The plugin must then attempt to cancel the order. Zorro will display a "possible orphan" warning.
+	*	-3 when the order was accepted, but got no ID yet. The ID is then taken from the next subsequent BrokerBuy call that returned a valid ID. This is used for combo positions that require several orders.
+	*/
 	DLLFUNC_C int BrokerBuy2(char* Asset, int amount, double stop, double limit, double* av_fill_price, int* fill_qty) {
 		log::debug<2, true>("BrokerBuy2: {} amount={} limit={}", Asset, amount, limit);
 
@@ -629,25 +615,6 @@ namespace zfix {
 		}		
 	}
 
-	/* BrokerTrade
-	 *
-	 * Optional function that returns the order fill state (for brokers that support only orders and positions) or the trade 
-	 * state (for brokers that support individual trades). Called by Zorro for any open trade when the price moved by more than 1 pip, 
-	 * or when contractUpdate or contractPrice is called for an option or future trade.
-	 * 
-	 * Parameters:
-     *	nTradeID	Input, order/trade ID as returned by BrokerBuy, or -1 when the trade UUID was set before with a SET_UUID command.
-	 *	pOpen	Optional output, the average fill price if the trade was partially or fully filled. If not available by the API, Zorro will estimate the values based on last price and asset parameters.
-	 *	pClose	Optional output, current bid or ask close price of the trade. If not available, Zorro will estimale the value based on current ask price and ask-bid spread.
-	 *	pCost	Optional output, total rollover fee (swap fee) of the trade so far. If not available, Zorro will estimate the swap from the asset parameters.
-	 *	pProfit	Optional output, current profit or loss of the trade in account currency units, without rollover and commission. If not available, Zorro will estimate the profit from the difference of current price and fill price.
-	 * 
-	 * Returns:
-	 *	Number of contracts or lots (as in BrokerBuy2) currently filled for the trade.
-	 *	  - -1 when the trade was completely closed.
-	 *	  - NAY (defined in trading.h) when the order or trade state was unavailable. Zorro will then assume that the order was completely filled, and keep the trade open.
-	 *	  - NAY-1 when the order was cancelled or removed by the broker. Zorro will then cancel the trade and book the profit or loss based on the current price and the last fill amount.
-	 */
 	DLLFUNC int BrokerTrade(int trade_id, double* open, double* close, double* cost, double* profit) {
 		log::debug<1, true>("BrokerTrade: {}", trade_id);
 
@@ -684,26 +651,6 @@ namespace zfix {
 		return 0;
 	}
 
-	/* BrokerSell2
-	 *
-	 * Optional function; closes a trade - completely or partially - at market or at a limit price.If partial closing is not supported,
-	 * nAmount is ignored and the trade is completely closed.Only used for not NFA compliant accounts that support individual closing of trades.
-	 * If this function is not provided or if the NFA flag is set, Zorro closes the trade by calling BrokerBuy2 with the negative amount and with StopDist at - 1.
-	 * 
-	 * Parameters:
-	 *	nTradeID	Input, trade/order ID as returned by BrokerBuy2, or -1 for a UUID to be set before with a SET_UUID command.
-	 *	nAmount	Input, number of contracts resp. lots to be closed, positive for a long trade and negative for a short trade (see BrokerBuy). If less than the original size of the trade, the trade is partially closed.
-	 *	Limit	Optional input, fill price for a limit order, set up by OrderLimit, or 0 for closing at market. Can be ignored if limit orders are not supported by the API. 
-	 *	pClose	Optional output, close price of the trade.
-	 *	pCost	Optional output, total rollover fee (swap fee) of the trade.
-	 *	pProfit	Optional output, total profit or loss of the trade in account currency units.
-	 *	pFill	Optional output, the amount that was closed from the position, always positive.
-	 * 
-	 * Returns:
-	 *	  - New trade ID when the trade was partially closed and the broker assigned a different ID to the remaining position.
-	 *	  - nTradeID when the ID did not change or the trade was fully closed.
-	 *	  - 0 when the trade was not found or could not be closed.
-	 */
 	DLLFUNC_C int BrokerSell2(int trade_id, int amount, double limit, double* close, double* cost, double* profit, int* fill) {
 		log::debug<1, true>("BrokerSell2 nTradeID={} nAmount={} limit={}", trade_id, amount, limit);
 
