@@ -4,10 +4,11 @@
 #define ORDERTYPE_GTC 2
 
 static var startTime;
-static bool Quoting = false;
-static bool Inventory = false;
-TRADE* BidTrade;
-TRADE* AskTrade;
+static var AskQuote = 0;
+static var BidQuote = 0;
+static TRADE* BidTrade = 0;
+static TRADE* AskTrade = 0;
+
 
 var round_up(var in, var multiple) {
 	var m = fmod(in, multiple);
@@ -77,10 +78,12 @@ function run() {
 
 	if (is(INITRUN)) {
 		startTime = timer();
+		printf("\nInitRun: Asset=%s, PIP=%.5f", Asset, PIP);
 	}
 
 	var Close = priceClose();
-	var DepthPIPs = 2;
+	var DepthPIPs = 1;
+	var TolPIPs = 1;
 	var TopAsk = Close;
 	var TopBid = Close - Spread;
 	var LimitAsk = round_up(TopAsk + DepthPIPs * PIP, PIP);
@@ -88,7 +91,7 @@ function run() {
 
 	if (!is(LOOKBACK)) {
 		var Position = brokerCommand(GET_POSITION, Asset);
-		printf("\n======> %s bar at %s, limit ask=%.5f top ask=%.5f top bid=%.5f limit bid=%.5f\n  Position %.2f, LotsPool %.2f",
+		printf("\n======> %s bar at %s, limit ask=%.5f top ask=%.5f top bid=%.5f limit bid=%.5f\n  Position %.2f, BidQuote %.5f, AskQuote %.5f",
 			Asset,
 			strdate(HMS, 0),
 			LimitAsk,
@@ -96,31 +99,44 @@ function run() {
 			TopBid,
 			LimitBid,
 			Position,
-			(var)LotsPool
+			BidQuote,
+			AskQuote
 		);
 	}
 
 	MaxLong = 10;
 	MaxShort = 10;
-	if (!is(LOOKBACK) && !Quoting) {
+	if (!is(LOOKBACK)) {
 		brokerCommand(SET_ORDERTYPE, ORDERTYPE_GTC);
 		Lots = 5;
-		OrderLimit = LimitAsk;
-		enterShort(tmf);
-		printf("\nenterShort: OrderLimit=%.5f", OrderLimit);
 
-		OrderLimit = LimitBid;
-		enterLong(tmf);
-		printf("\nenterLong: OrderLimit=%.5f", OrderLimit);
+		var BidTol = abs(LimitBid - BidQuote);
+		var AskTol = abs(LimitAsk - AskQuote);
+		printf("\n======> quoting tol bid=%.5f ask=%.5f", BidTol, AskTol);
 
-		Quoting = true;
-	}
+		if (AskTol > TolPIPs * PIP) {
+			if (AskTrade) {
+				printf("\n======> cancelling ask quote %d", AskTrade->nID);
+				brokerCommand(DO_CANCEL, AskTrade->nID);
+			}
+			OrderLimit = LimitAsk;
+			AskTrade = enterShort(tmf);
+			printf("\n======> enterShort: OrderLimit=%.5f prev quote=%.5f", OrderLimit, AskQuote);
+			AskQuote = LimitAsk;
+			OrderLimit = 0;
+		}
 
-	if (!is(LOOKBACK) && !Inventory) {
-		Lots = 2;
-		enterLong(tmf);
-
-		Inventory = true;
+		if (BidTol > TolPIPs * PIP) {
+			if (BidTrade) {
+				printf("\n======> cancelling ask quote %d", BidTrade->nID);
+				brokerCommand(DO_CANCEL, BidTrade->nID);
+			}
+			OrderLimit = LimitBid;
+			BidTrade = enterLong(tmf);
+			printf("\n======> enterLong: OrderLimit=%.5f prev quote=%.5f", OrderLimit, BidQuote);
+			BidQuote = LimitBid;
+			OrderLimit = 0;
+		}
 	}
 
 	for (open_trades)

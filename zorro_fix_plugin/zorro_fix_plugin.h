@@ -44,7 +44,13 @@ namespace zfix
 				return "GET_LOCK";
 			case GET_POSITION: 
 				return "GET_POSITION";
-			case SET_ORDERTEXT: 
+			case GET_NTRADES:
+				return "GET_NTRADES";
+			case GET_AVGENTRY:
+				return "GET_AVGENTRY";
+			case DO_CANCEL:
+				return "DO_CANCEL";
+			case SET_ORDERTEXT:
 				return "SET_ORDERTEXT";
 			case SET_SYMBOL: 
 				return "SET_SYMBOL";
@@ -58,7 +64,9 @@ namespace zfix
 				return "SET_PRICETYPE";
 			case GET_VOLTYPE:
 				return "GET_VOLTYPE";
-			case SET_AMOUNT: 
+			case SET_VOLTYPE:
+				return "SET_VOLTYPE";
+			case SET_AMOUNT:
 				return "SET_AMOUNT";
 			case SET_DIAGNOSTICS:
 				return "SET_DIAGNOSTICS";

@@ -38,6 +38,17 @@ namespace common {
 		}
 	}
 
+	std::optional<TopOfBook> Markets::get_current_top_of_book(const std::string& symbol) const
+	{
+		auto it = markets.find(symbol);
+		if (it != markets.end()) {
+			return it->second.get_current_top_of_book();
+		}
+		else {
+			return std::optional<TopOfBook>();
+		}
+	}
+
 	std::string Markets::to_string(std::string symbol) const
 	{
 		auto it = markets.find(symbol);

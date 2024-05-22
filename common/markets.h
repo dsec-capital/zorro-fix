@@ -23,6 +23,8 @@ namespace common {
 
 		std::optional<Order> erase(const std::string& symbol, const std::string& ord_id, Order::Side side);
 
+		std::optional<TopOfBook> get_current_top_of_book(const std::string& symbol) const;
+
 		std::string to_string(std::string symbol) const;
 
 		void display() const;

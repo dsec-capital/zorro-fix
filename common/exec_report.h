@@ -7,6 +7,14 @@
 
 namespace common {
 
+	std::string exec_type_string(const char exec_type);
+
+	std::string ord_type_string(const char ord_type);
+
+	std::string ord_status_string(const char ord_status);
+
+	std::string side_string(const char side);
+
 	class ExecReport
 	{
 		friend std::ostream& operator<<(std::ostream&, const ExecReport&);

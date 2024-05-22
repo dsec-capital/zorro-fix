@@ -1,5 +1,7 @@
 #include "pch.h"
 
+#include "spdlog/spdlog.h"
+
 #include "order.h"
 
 namespace common {
@@ -67,6 +69,12 @@ namespace common {
 
 	void Order::execute(double price, long quantity)
 	{
+		if (quantity + executed_quantity <= 0) {
+			auto msg = std::format("Order::execute: {} resulting in avg_executed_price=NAN for quantity={}", to_string(), quantity);
+			spdlog::error(msg);
+			throw std::runtime_error(msg);
+		}
+
 		avg_executed_price =
 			((quantity * price) + (avg_executed_price * executed_quantity))
 			/ (quantity + executed_quantity);
@@ -75,6 +83,8 @@ namespace common {
 		executed_quantity += quantity;
 		last_executed_price = price;
 		last_executed_quantity = quantity;
+
+		spdlog::debug("Order::execute: avg_executed_price={}, executed_quantity={}, open_quantity={}", avg_executed_price, executed_quantity, open_quantity);
 	}
 
 	void Order::cancel()
@@ -83,7 +93,7 @@ namespace common {
 	}
 
 	std::string Order::to_string() const {
-		return
+		return std::string("Order[") +
 			"symbol=" + symbol + ", " +
 			"ord_id=" + ord_id + ", " +
 			"cl_ord_id=" + cl_ord_id + ", " +
@@ -97,7 +107,8 @@ namespace common {
 			"executed_quantity=" + std::to_string(executed_quantity) + ", " +
 			"avg_executed_price=" + std::to_string(avg_executed_price) + ", " +
 			"last_executed_price=" + std::to_string(last_executed_price) + ", " +
-			"last_executed_quantity=" + std::to_string(last_executed_quantity);
+			"last_executed_quantity=" + std::to_string(last_executed_quantity) +
+			"]";
 	}
 
 	std::string to_string(const Order::Side& side) {

@@ -40,7 +40,9 @@ namespace common {
 
 		void simulate_next();
 
-		std::pair<TopOfBook, TopOfBook> get_top_of_book() const;
+		TopOfBook get_current_top_of_book() const;
+
+		std::pair<TopOfBook, TopOfBook> get_current_and_previous_top_of_book() const;
 
 		void extend_bar_history(const std::chrono::nanoseconds& until_past);
 

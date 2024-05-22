@@ -157,7 +157,7 @@ namespace zfix {
 
 			// publish this one before next in case a new symbol starts
 			if (it != books.end() && it->first != symbol) {
-				spdlog::info("Application::onMessage[MarketDataIncrementalRefresh]: (a) updated symbol={}", symbol.getString());
+				spdlog::debug("Application::onMessage[MarketDataIncrementalRefresh]: (a) updated symbol={}", symbol.getString());
 				top_of_book_queue.push(it->second.top(it->first));
 				it = books.end();
 			}
@@ -181,7 +181,7 @@ namespace zfix {
 		}
 
 		if (it != books.end()) {
-			spdlog::info("Application::onMessage[MarketDataIncrementalRefresh]: (b) updated symbol={}", symbol.getString());
+			spdlog::debug("Application::onMessage[MarketDataIncrementalRefresh]: (b) updated symbol={}", symbol.getString());
 			top_of_book_queue.push(it->second.top(it->first)); // publish if only one or last
 		}
 	}
@@ -247,10 +247,12 @@ namespace zfix {
 	}
 	
 	void Application::onMessage(const FIX44::OrderCancelReject&, const FIX::SessionID&) 
-	{}
+	{
+	}
 
 	void Application::onMessage(const FIX44::BusinessMessageReject&, const FIX::SessionID&)
-	{}
+	{
+	}
 
 	FIX::Message Application::market_data_request(
 		const FIX::Symbol& symbol, 
@@ -373,7 +375,7 @@ namespace zfix {
 		header.setField(FIX::SenderCompID(sender_comp_id));
 		header.setField(FIX::TargetCompID(target_comp_id));
 
-		spdlog::debug("orderCancelRequest: {}", fix_string(request));
+		spdlog::debug("orderCancelReplaceRequest: {}", fix_string(request));
 
 		FIX::Session::sendToTarget(request);
 
