@@ -107,6 +107,7 @@ copy /y "$(ProjectDir)zorro_fix_client.cfg" "$(SolutionDir)$(Configuration)"
 copy /y "$(ProjectDir)zorro_fix_client.cfg" "%ZorroInstallDir%\Plugin"
 copy /y "$(SolutionDir)Test_FIX.c" "%ZorroInstallDir%\Strategy"
 copy /y "$(SolutionDir)Test_Requote_FIX.c" "%ZorroInstallDir%\Strategy"
+copy /y "$(SolutionDir)Test_Requote_TMF_FIX.c" "%ZorroInstallDir%\Strategy"
 robocopy "$(SolutionDir)spec" "%ZorroInstallDir%\Plugin\spec"  /MIR</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
@@ -139,6 +140,7 @@ copy /y "$(ProjectDir)zorro_fix_client.cfg" "$(SolutionDir)$(Configuration)"
 copy /y "$(ProjectDir)zorro_fix_client.cfg" "%ZorroInstallDir%\Plugin"
 copy /y "$(SolutionDir)Test_FIX.c" "%ZorroInstallDir%\Strategy"
 copy /y "$(SolutionDir)Test_Requote_FIX.c" "%ZorroInstallDir%\Strategy"
+copy /y "$(SolutionDir)Test_Requote_TMF_FIX.c" "%ZorroInstallDir%\Strategy"
 robocopy "$(SolutionDir)spec" "%ZorroInstallDir%\Plugin\spec"  /MIR</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
