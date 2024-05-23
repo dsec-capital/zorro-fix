@@ -22,7 +22,7 @@
     <VCProjectVersion>17.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
     <ProjectGuid>{f36886a3-3c65-4ec2-9684-dd12573413d6}</ProjectGuid>
-    <RootNamespace>zorrofixplugin</RootNamespace>
+    <RootNamespace>zorro_sim_fix_plugin</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -71,16 +71,16 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <TargetName>zorrofixplugin</TargetName>
+    <TargetName>zorro_sim_fix_plugin</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <TargetName>zorrofixplugin</TargetName>
+    <TargetName>zorro_sim_fix_plugin</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <TargetName>zorrofixplugin</TargetName>
+    <TargetName>zorro_sim_fix_plugin</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <TargetName>zorrofixplugin</TargetName>
+    <TargetName>zorro_sim_fix_plugin</TargetName>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -98,13 +98,13 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
       <AdditionalLibraryDirectories>$(SolutionDir)$(Configuration);$(SolutionDir)third-parties\quickfix\$(LibrariesArchitecture)-$(Configuration)\lib</AdditionalLibraryDirectories>
-      <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);quickfixd.lib;ws2_32.lib;common.lib</AdditionalDependencies>
+      <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);quickfixd.lib;ws2_32.lib;common.lib;zorro_common.lib</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>echo %ZorroInstallDir%
-copy /y "$(SolutionDir)$(Configuration)\zorrofixplugin.dll" "%ZorroInstallDir%\Plugin\_FixPlugin.dll"
-copy /y "$(ProjectDir)zorro_fix_client.cfg" "$(SolutionDir)$(Configuration)"
-copy /y "$(ProjectDir)zorro_fix_client.cfg" "%ZorroInstallDir%\Plugin"
+copy /y "$(SolutionDir)$(Configuration)\zorro_sim_fix_plugin.dll" "%ZorroInstallDir%\Plugin\SimFixPlugin.dll"
+copy /y "$(ProjectDir)zorro_sim_fix_client.cfg" "$(SolutionDir)$(Configuration)"
+copy /y "$(ProjectDir)zorro_sim_fix_client.cfg" "%ZorroInstallDir%\Plugin"
 copy /y "$(SolutionDir)Test_FIX.c" "%ZorroInstallDir%\Strategy"
 copy /y "$(SolutionDir)Test_Requote_FIX.c" "%ZorroInstallDir%\Strategy"
 copy /y "$(SolutionDir)Test_Requote_TMF_FIX.c" "%ZorroInstallDir%\Strategy"
@@ -131,13 +131,13 @@ robocopy "$(SolutionDir)spec" "%ZorroInstallDir%\Plugin\spec"  /MIR</Command>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
       <AdditionalLibraryDirectories>$(SolutionDir)$(Configuration);$(SolutionDir)third-parties\quickfix\$(LibrariesArchitecture)-$(Configuration)\lib</AdditionalLibraryDirectories>
-      <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);quickfix.lib;ws2_32.lib;common.lib</AdditionalDependencies>
+      <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);quickfix.lib;ws2_32.lib;common.lib;zorro_common.lib</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>echo %ZorroInstallDir%
-copy /y "$(SolutionDir)$(Configuration)\zorrofixplugin.dll" "%ZorroInstallDir%\Plugin\AAFixPlugin.dll"
-copy /y "$(ProjectDir)zorro_fix_client.cfg" "$(SolutionDir)$(Configuration)"
-copy /y "$(ProjectDir)zorro_fix_client.cfg" "%ZorroInstallDir%\Plugin"
+copy /y "$(SolutionDir)$(Configuration)\zorro_sim_fix_plugin.dll" "%ZorroInstallDir%\Plugin\AAFixPlugin.dll"
+copy /y "$(ProjectDir)zorro_sim_fix_client.cfg" "$(SolutionDir)$(Configuration)"
+copy /y "$(ProjectDir)zorro_sim_fix_client.cfg" "%ZorroInstallDir%\Plugin"
 copy /y "$(SolutionDir)Test_FIX.c" "%ZorroInstallDir%\Strategy"
 copy /y "$(SolutionDir)Test_Requote_FIX.c" "%ZorroInstallDir%\Strategy"
 copy /y "$(SolutionDir)Test_Requote_TMF_FIX.c" "%ZorroInstallDir%\Strategy"
@@ -180,15 +180,14 @@ robocopy "$(SolutionDir)spec" "%ZorroInstallDir%\Plugin\spec"  /MIR</Command>
   </ItemDefinitionGroup>
   <ItemGroup>
     <None Include="cpp.hint" />
-    <None Include="zorro_fix_client.cfg" />
+    <None Include="zorro_sim_fix_client.cfg" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="application.h" />
-    <ClInclude Include="broker_commands.h" />
     <ClInclude Include="fix_thread.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="pch.h" />
-    <ClInclude Include="zorro_fix_plugin.h" />
+    <ClInclude Include="zorro_sim_fix_plugin.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="application.cpp" />
@@ -199,7 +198,7 @@ robocopy "$(SolutionDir)spec" "%ZorroInstallDir%\Plugin\spec"  /MIR</Command>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="zorro_fix_plugin.cpp" />
+    <ClCompile Include="zorro_sim_fix_plugin.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

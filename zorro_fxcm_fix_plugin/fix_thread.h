@@ -23,9 +23,7 @@
 #include "common/blocking_queue.h"
 #include "common/time_utils.h"
 
-#include "broker_commands.h"
-
-namespace zfix {
+namespace zorro {
 
 	using namespace common;
 
@@ -36,7 +34,7 @@ namespace zfix {
 		FIX::FileStoreFactory store_factory;
 		FIX::ScreenLogFactory log_factory;
 		std::unique_ptr<FIX::Initiator> initiator;
-		std::unique_ptr<zfix::Application> application;
+		std::unique_ptr<zorro::Application> application;
 		std::thread thread;
 
 		void run() {
@@ -56,7 +54,7 @@ namespace zfix {
 			store_factory(settings),
 			log_factory(settings)
 		{
-			application = std::unique_ptr<zfix::Application>(new Application(
+			application = std::unique_ptr<zorro::Application>(new Application(
 				settings, 
 				exec_report_queue,
 				top_of_book_queue
@@ -112,7 +110,7 @@ namespace zfix {
 			spdlog::debug("FixThread: FIX initiator stopped - joined");
 		}
 
-		zfix::Application& fix_app() {
+		zorro::Application& fix_app() {
 			return *application;
 		}
 	};

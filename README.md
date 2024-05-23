@@ -1,10 +1,42 @@
 # Zorro FIX Plugin
 
-This project provides a [Zorro](https://zorro-project.com/) plugin for 
-[FIX (version 4.4)](https://www.fixtrading.org/). 
+This project provides plugins for [Zorro](https://zorro-project.com/) to connect to brokers and simulators via the 
+[FIX (version 4.4)](https://www.fixtrading.org/) API. Currently supported are: 
+  
+  - FXCM FIX Plugin: connecting to FXCM via [FXCM FIX API](https://github.com/fxcm/FIXAPI)
+  - FIX Simulator Plugin: connecting to a market data simulator and matching engine via FIX
 
-The project is work in progress. More testing is required. Also only a limited set of the
-standard FIX functionality is implemented:
+The project depends on the [QuickFix](https://quickfixengine.org) open source library.
+Performance-wise it is not as fast as commercial FIX implementations but provides a straightforward
+API and application framework to develop FIX based server and client applications. 
+Some of the core building blocks and `fix_sumulation_server` are inspired from their examples. 
+
+Contributions and feedback are very welcome. 
+
+
+## Version History
+
+  - v1.0.1 Improving order cancellation and many smaller bug fixing
+  - v1.0.0 First official release
+  - v2.0.0 First FXCM FIX plugin, separated and updated Simulation FIX plugin 
+
+
+
+## FXCM FIX Plugin  
+
+### Information
+
+  - [FIX Specification](https://apiwiki.fxcorporate.com/api/fix/docs/FXCM-FIX-BSI.pdf)
+  - [FXCM data dictionary](https://apiwiki.fxcorporate.com/api/fix/docs/FIXFXCM10.xml)
+  - [FIX Conformance Test](https://apiwiki.fxcorporate.com/api/fix/Retail_FIX_Conformance_Test.xlsx)
+  - [FXCM FIX API Examples](https://github.com/fxcm/FIXAPI)
+
+
+
+## Simulation FIX Plugin 
+
+The goal of the FIX Simulator plugin is to provide a market data simulator and connect to it via FIX. 
+Currently the the following standard FIX functionality is implemented:
 
   - Subscribe to (simulated) market data
     - MarketDataRequest (out)
@@ -16,31 +48,9 @@ standard FIX functionality is implemented:
     - OrderCancelReplaceRequest (out)
     - ExecReport (in) 
 
-The project depends on the [QuickFix](https://quickfixengine.org) open source library.
-Performance-wise it is not as fast as commercial FIX implementations but provides a straightforward
-API and application framework to develop FIX based server and client applications. 
-Some of the core building blocks and `fix_sumulation_server` are inspired from their examples. 
+### TODO
 
-Neither the FIX client plugin nor the FIX server are yet complete. More work is required. See the TODO list below. 
-
-The long term reasons for developing a FIX plugin for Zorro is that more and more professional brokerage firms provide FIX access.
-This is also a trend in crypto currency prime brokerage, see for example the work (full disclosure - I am one of the co-authors):  
-
-  - [Phoenix Prime FIX Client Examples Package](https://github.com/mtxpt/phx-fix-examples)
-  - [Phoenix Prime FIX Foundation Package](https://github.com/mtxpt/phx-fix-base)
-
-Contributions and feedback are very welcome. 
-
-
-## Version History
-
-  - v1.0.1 Improving order cancellation and many smaller bug fixing
-  - v1.0.0 First official release
-
-
-## TODO
-
-Some tasks on the roadmap:
+Neither the Simulation FIX client plugin nor the FIX simulation server are yet complete. More work is required, current tasks on the roadmap are:
 
   - [fix_sumulation_server]: cancel automatically market data subscription on logout and test multiple connects from `zorro_fix_plugin`.
   - [fix_sumulation_server]: account functionality to support `BrokerAccount`
@@ -56,9 +66,7 @@ Currently the market simulators only handle top of book. Eventually we want a fu
 or any other suitable order book simulation model. 
 
 
-## Quick Start Tutorial
-
-### FIX Server
+### FIX Simulation Server
 
 The `fix_sumulation_server` implements FIX 4.4 protocol for order execution against a model driven market.
 It also provides a REST server to get historical market data, simulated from the model. 
@@ -103,28 +111,7 @@ Check also the project configurations where the QuickFix libraries are expecrted
 
 First make sure that the environment variable `ZorroInstallDir` is set and points to the `Zorro` install location. 
 
-To make the development process more efficiently, the following post build steps are added to the projects. 
-For project `zorro_fix_plugin`:
-
-```
-echo %ZorroInstallDir%
-copy /y "$(SolutionDir)$(Configuration)\zorrofixplugin.dll" "%ZorroInstallDir%\Plugin\_FixPlugin.dll"
-copy /y "$(ProjectDir)zorro_fix_client.cfg" "$(SolutionDir)$(Configuration)"
-copy /y "$(ProjectDir)zorro_fix_client.cfg" "%ZorroInstallDir%\Plugin"
-robocopy "$(SolutionDir)spec" "%ZorroInstallDir%\Plugin\spec"  /MIR
-``` 
-
-For project `fix_simulation_server`:
-
-```
-copy /y "$(ProjectDir)session.cfg" "$(SolutionDir)$(Configuration)"
-```
-
-For project `common`:
-
-```
-copy /y "$(ProjectDir)market_config.toml" "$(SolutionDir)$(Configuration)"
-``` 
+To make the development process more efficiently, the post build steps are added to the projects. Check the project properties for details.
 
 
 ## Build Issues
