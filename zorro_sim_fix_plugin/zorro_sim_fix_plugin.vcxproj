@@ -105,10 +105,10 @@
 copy /y "$(SolutionDir)$(Configuration)\zorro_sim_fix_plugin.dll" "%ZorroInstallDir%\Plugin\SimFixPlugin.dll"
 copy /y "$(ProjectDir)zorro_sim_fix_client.cfg" "$(SolutionDir)$(Configuration)"
 copy /y "$(ProjectDir)zorro_sim_fix_client.cfg" "%ZorroInstallDir%\Plugin"
-copy /y "$(SolutionDir)Test_FIX.c" "%ZorroInstallDir%\Strategy"
-copy /y "$(SolutionDir)Test_Requote_FIX.c" "%ZorroInstallDir%\Strategy"
-copy /y "$(SolutionDir)Test_Requote_TMF_FIX.c" "%ZorroInstallDir%\Strategy"
-robocopy "$(SolutionDir)spec" "%ZorroInstallDir%\Plugin\spec"  /MIR</Command>
+copy /y "$(SolutionDir)zorro_scripts\Test_FIX.c" "%ZorroInstallDir%\Strategy"
+copy /y "$(SolutionDir)zorro_scripts\Test_Requote_FIX.c" "%ZorroInstallDir%\Strategy"
+copy /y "$(SolutionDir)zorro_scripts\Test_Requote_TMF_FIX.c" "%ZorroInstallDir%\Strategy"
+robocopy "$(SolutionDir)spec" "%ZorroInstallDir%\Plugin\spec"   </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -138,10 +138,10 @@ robocopy "$(SolutionDir)spec" "%ZorroInstallDir%\Plugin\spec"  /MIR</Command>
 copy /y "$(SolutionDir)$(Configuration)\zorro_sim_fix_plugin.dll" "%ZorroInstallDir%\Plugin\AAFixPlugin.dll"
 copy /y "$(ProjectDir)zorro_sim_fix_client.cfg" "$(SolutionDir)$(Configuration)"
 copy /y "$(ProjectDir)zorro_sim_fix_client.cfg" "%ZorroInstallDir%\Plugin"
-copy /y "$(SolutionDir)Test_FIX.c" "%ZorroInstallDir%\Strategy"
-copy /y "$(SolutionDir)Test_Requote_FIX.c" "%ZorroInstallDir%\Strategy"
-copy /y "$(SolutionDir)Test_Requote_TMF_FIX.c" "%ZorroInstallDir%\Strategy"
-robocopy "$(SolutionDir)spec" "%ZorroInstallDir%\Plugin\spec"  /MIR</Command>
+copy /y "$(SolutionDir)zorro_scripts\Test_FIX.c" "%ZorroInstallDir%\Strategy"
+copy /y "$(SolutionDir)zorro_scripts\Test_Requote_FIX.c" "%ZorroInstallDir%\Strategy"
+copy /y "$(SolutionDir)zorro_scripts\Test_Requote_TMF_FIX.c" "%ZorroInstallDir%\Strategy"
+robocopy "$(SolutionDir)spec" "%ZorroInstallDir%\Plugin\spec"   </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">

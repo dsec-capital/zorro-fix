@@ -52,17 +52,18 @@ namespace zorro
 
 		bool is_logged_in() const;
 
+		const std::set<std::string>& get_account_ids() const;
+
 		// Sends TradingSessionStatusRequest message in order to receive a TradingSessionStatus message
 		FIX::Message trading_session_status_request();
 
 		// Sends the CollateralInquiry message in order to receive a CollateralReport message.
 		FIX::Message collateral_inquiry();
 
-		// Sends RequestForPositions which will return PositionReport messages if positions
+		// Sends RequestForPositions in order to receive a PositionReport messages if positions
 		// matching the requested criteria exist; otherwise, a RequestForPositionsAck will be
-		// sent with the acknowledgement that no positions exist. In our example, we request
-		// positions for all accounts under our login
-		FIX::Message request_for_positions();
+		// sent with the acknowledgement that no positions exist. 
+		FIX::Message request_for_positions(const std::string& account_id);
 
 		std::optional<FIX::Message> subscribe_market_data(
 			const FIX::Symbol& symbol,

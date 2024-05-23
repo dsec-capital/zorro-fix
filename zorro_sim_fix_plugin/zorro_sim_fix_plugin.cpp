@@ -37,7 +37,7 @@ namespace zorro {
 
 	int max_snaphsot_waiting_iterations = 10; 
 	std::chrono::milliseconds fix_exec_report_waiting_time = 500ms;
-	std::string settings_cfg_file = "Plugin/zorro_fix_client.cfg";
+	std::string settings_cfg_file = "Plugin/zorro_sim_fix_client.cfg";
 
 	int client_order_id = 0;
 	int internal_order_id = 1000;

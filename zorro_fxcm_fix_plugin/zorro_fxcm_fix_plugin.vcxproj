@@ -103,9 +103,9 @@
     <PostBuildEvent>
       <Command>echo %ZorroInstallDir%
 copy /y "$(SolutionDir)$(Configuration)\zorro_fxcm_fix_plugin.dll" "%ZorroInstallDir%\Plugin\FXCMFixPlugin.dll"
-copy /y "$(ProjectDir)zorro_fxcm_fix_client.cfg" "$(SolutionDir)$(Configuration)"
-copy /y "$(ProjectDir)zorro_fxcm_fix_client.cfg" "%ZorroInstallDir%\Plugin"
-robocopy "$(SolutionDir)spec" "%ZorroInstallDir%\Plugin\spec"  /MIR</Command>
+robocopy "$(SolutionDir)spec" "%ZorroInstallDir%\Plugin\spec"  
+"$(SolutionDir)scripts\generate_fxcm_fix_client_cfg.bat" "$(ProjectDir)zorro_fxcm_fix_client_template.cfg" "%ZorroInstallDir%\Plugin\zorro_fxcm_fix_client.cfg"
+</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -133,9 +133,9 @@ robocopy "$(SolutionDir)spec" "%ZorroInstallDir%\Plugin\spec"  /MIR</Command>
     <PostBuildEvent>
       <Command>echo %ZorroInstallDir%
 copy /y "$(SolutionDir)$(Configuration)\zorro_fxcm_fix_plugin.dll" "%ZorroInstallDir%\Plugin\AAFixPlugin.dll"
-copy /y "$(ProjectDir)zorro_fxcm_fix_client.cfg" "$(SolutionDir)$(Configuration)"
-copy /y "$(ProjectDir)zorro_fxcm_fix_client.cfg" "%ZorroInstallDir%\Plugin"
-robocopy "$(SolutionDir)spec" "%ZorroInstallDir%\Plugin\spec"  /MIR</Command>
+robocopy "$(SolutionDir)spec" "%ZorroInstallDir%\Plugin\spec"
+"$(SolutionDir)scripts\generate_fxcm_fix_client_cfg.bat" "$(ProjectDir)zorro_fxcm_fix_client_template.cfg" "%ZorroInstallDir%\Plugin\zorro_fxcm_fix_client.cfg"
+</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -174,7 +174,7 @@ robocopy "$(SolutionDir)spec" "%ZorroInstallDir%\Plugin\spec"  /MIR</Command>
   </ItemDefinitionGroup>
   <ItemGroup>
     <None Include="cpp.hint" />
-    <None Include="zorro_fxcm_fix_client.cfg" />
+    <None Include="zorro_fxcm_fix_client_template.cfg" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="application.h" />

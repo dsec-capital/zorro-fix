@@ -16,7 +16,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="cpp.hint" />
-    <None Include="zorro_fxcm_fix_client.cfg" />
+    <None Include="zorro_fxcm_fix_client_template.cfg" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="framework.h">

@@ -39,6 +39,11 @@ namespace zorro {
 		return logged_in;
 	}
 
+	const std::set<std::string>& Application::get_account_ids() const {
+		return account_ids;
+	}
+
+
 	void Application::onCreate(const FIX::SessionID& sess_id) {
 		// FIX Session created. We must now logon. QuickFIX will automatically send the Logon(A) message
 		session_id = sess_id;
@@ -54,8 +59,6 @@ namespace zorro {
 	{
 		logged_in = true;
 		spdlog::debug("Application::onLogon sessionID={}", sessionID.toString());
-		auto request = trading_session_status_request();
-		spdlog::debug("Application::onLogon trading status request={}", fix_string(request));
 	}
 
 	void Application::onLogout(const FIX::SessionID& sessionID)
@@ -457,6 +460,8 @@ namespace zorro {
 			spdlog::debug("unsubscribe_market_data: {}", fix_string(request));
 
 			FIX::Session::sendToTarget(request, session_id);
+
+			return std::optional<FIX::Message>(request);
 		}
 		else {
 			spdlog::error("unsubscribe_market_data: error - market data not subscribed for symbol {}", symbol.getString());
@@ -472,6 +477,8 @@ namespace zorro {
 		request.setField(FIX::TradingSessionID("FXCM"));
 		request.setField(FIX::SubscriptionRequestType(FIX::SubscriptionRequestType_SNAPSHOT));
 		
+		spdlog::debug("trading_session_status_request: {}", fix_string(request));
+
 		FIX::Session::sendToTarget(request, session_id);
 
 		return request;
@@ -489,52 +496,41 @@ namespace zorro {
 		return request;
 	}
 
-	// Sends RequestForPositions which will return PositionReport messages if positions
-	// matching the requested criteria exist; otherwise, a RequestForPositionsAck will be
-	// sent with the acknowledgement that no positions exist. In our example, we request
-	// positions for all accounts under our login
-	FIX::Message Application::request_for_positions()
+	FIX::Message Application::request_for_positions(const std::string& account_id)
 	{
-		// Here we will get positions for each account under our login. To do this,
-		// we will send a RequestForPositions message that contains the accountID 
-		// associated with our request. For each account in our list, we send
-		// RequestForPositions. 
-		int total_accounts = account_ids.size();
+		FIX44::RequestForPositions request;
+		request.setField(FIX::PosReqID(id_generator.genID()));
+		request.setField(FIX::PosReqType(FIX::PosReqType_POSITIONS));
+		// AccountID for the request. This must be set for routing purposes. We must
+		// also set the Parties AccountID field in the NoPartySubIDs group
+		request.setField(FIX::Account(account_id));
+		request.setField(FIX::SubscriptionRequestType(FIX::SubscriptionRequestType_SNAPSHOT));
+		request.setField(FIX::AccountType(FIX::AccountType_CARRIED_NON_CUSTOMER_SIDE_CROSS_MARGINED));
+		request.setField(FIX::TransactTime());
+		request.setField(FIX::ClearingBusinessDate());
+		request.setField(FIX::TradingSessionID("FXCM"));
+		// Set NoPartyIDs group. These values are always as seen below
+		request.setField(FIX::NoPartyIDs(1));
+		FIX44::RequestForPositions::NoPartyIDs parties_group;
+		parties_group.setField(FIX::PartyID("FXCM ID"));
+		parties_group.setField(FIX::PartyIDSource('D'));
+		parties_group.setField(FIX::PartyRole(3));
+		parties_group.setField(FIX::NoPartySubIDs(1));
+		// Set NoPartySubIDs group
+		FIX44::RequestForPositions::NoPartyIDs::NoPartySubIDs sub_parties;
+		sub_parties.setField(FIX::PartySubIDType(FIX::PartySubIDType_SECURITIES_ACCOUNT_NUMBER));
+		// Set Parties AccountID
+		sub_parties.setField(FIX::PartySubID(account_id));
+		// Add NoPartySubIds group
+		parties_group.addGroup(sub_parties);
+		// Add NoPartyIDs group
+		request.addGroup(parties_group);
 
-		for (auto it = account_ids.begin(); it != account_ids.end(); ++it) {
-			const auto& account_id = *it;
-			FIX44::RequestForPositions request;
-			request.setField(FIX::PosReqID(id_generator.genID()));
-			request.setField(FIX::PosReqType(FIX::PosReqType_POSITIONS));
-			// AccountID for the request. This must be set for routing purposes. We must
-			// also set the Parties AccountID field in the NoPartySubIDs group
-			request.setField(FIX::Account(account_id));
-			request.setField(FIX::SubscriptionRequestType(FIX::SubscriptionRequestType_SNAPSHOT));
-			request.setField(FIX::AccountType(FIX::AccountType_CARRIED_NON_CUSTOMER_SIDE_CROSS_MARGINED));
-			request.setField(FIX::TransactTime());
-			request.setField(FIX::ClearingBusinessDate());
-			request.setField(FIX::TradingSessionID("FXCM"));
-			// Set NoPartyIDs group. These values are always as seen below
-			request.setField(FIX::NoPartyIDs(1));
-			FIX44::RequestForPositions::NoPartyIDs parties_group;
-			parties_group.setField(FIX::PartyID("FXCM ID"));
-			parties_group.setField(FIX::PartyIDSource('D'));
-			parties_group.setField(FIX::PartyRole(3));
-			parties_group.setField(FIX::NoPartySubIDs(1));
-			// Set NoPartySubIDs group
-			FIX44::RequestForPositions::NoPartyIDs::NoPartySubIDs sub_parties;
-			sub_parties.setField(FIX::PartySubIDType(FIX::PartySubIDType_SECURITIES_ACCOUNT_NUMBER));
-			// Set Parties AccountID
-			sub_parties.setField(FIX::PartySubID(account_id));
-			// Add NoPartySubIds group
-			parties_group.addGroup(sub_parties);
-			// Add NoPartyIDs group
-			request.addGroup(parties_group);
-		 	
-			FIX::Session::sendToTarget(request, session_id);
+		spdlog::debug("request_for_positions: {}", fix_string(request));
 
-			return request;
-		}
+		FIX::Session::sendToTarget(request, session_id);
+
+		return request;
 	}
 
 	FIX::Message Application::new_order_single(
