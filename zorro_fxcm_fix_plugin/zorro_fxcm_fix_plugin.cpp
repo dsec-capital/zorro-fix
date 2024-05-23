@@ -241,15 +241,8 @@ namespace zorro {
 		{
 			if (!spd_logger) {
 				auto postfix = timestamp_posfix();
-				spd_logger = spdlog::basic_logger_mt(
-					"standard_logger",
-					std::format("Log/zorro-fix-bridge_spdlog_{}.log", postfix)
-				);
-				spd_logger->set_level(spdlog::level::debug);
-				spdlog::set_default_logger(spd_logger);
-				spdlog::set_level(spdlog::level::debug);
-				spdlog::flush_every(std::chrono::seconds(2));
-				log::debug<2, true>("Logging started, level={}, cwd={}", (int)spd_logger->level(), cwd);
+				auto logger_name = std::format("Log/zorro_fxcm_fix_plugin_spdlog_{}.log", postfix);
+				spd_logger = create_file_logger(logger_name);
 			}
 		}
 		catch (const spdlog::spdlog_ex& ex)
@@ -316,9 +309,8 @@ namespace zorro {
 			// subscribe to Asset market data
 			if (!price) {  
 				FIX::Symbol symbol(Asset);
-				fix_app.market_data_request(
+				fix_app.subscribe_market_data(
 					symbol,
-					FIX::MarketDepth(1),
 					FIX::SubscriptionRequestType_SNAPSHOT_AND_UPDATES
 				);
 

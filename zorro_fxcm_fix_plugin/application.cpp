@@ -39,23 +39,29 @@ namespace zorro {
 		return logged_in;
 	}
 
-	void Application::onCreate(const FIX::SessionID&) {}
+	void Application::onCreate(const FIX::SessionID& sess_id) {
+		// FIX Session created. We must now logon. QuickFIX will automatically send the Logon(A) message
+		session_id = sess_id;
+		sender_comp_id = session_settings.get(sess_id).getString("SenderCompID");
+		target_comp_id = session_settings.get(sess_id).getString("TargetCompID");
+		spdlog::debug(
+			"Application::onCreate sessionID={}, senderCompID={}, targetCompID={}",
+			sess_id.toString(), sender_comp_id, target_comp_id
+		);
+	}
 
 	void Application::onLogon(const FIX::SessionID& sessionID)
 	{
 		logged_in = true;
-		sender_comp_id = session_settings.get(sessionID).getString("SenderCompID");
-		target_comp_id = session_settings.get(sessionID).getString("TargetCompID");
-		spdlog::debug(
-			"Application::onLogon sessionID={}, senderCompID={}, targetCompID={}", 
-			sessionID.toString(), sender_comp_id, target_comp_id
-		);
+		spdlog::debug("Application::onLogon sessionID={}", sessionID.toString());
+		auto request = trading_session_status_request();
+		spdlog::debug("Application::onLogon trading status request={}", fix_string(request));
 	}
 
 	void Application::onLogout(const FIX::SessionID& sessionID)
 	{
 		logged_in = false;
-		spdlog::debug("Application::onLogout {}", sessionID.toString());
+		spdlog::debug("Application::onLogout sessionID={}", sessionID.toString());
 	}
 
 	void Application::fromAdmin(
@@ -68,6 +74,20 @@ namespace zorro {
 	void Application::toAdmin(FIX::Message& message, const FIX::SessionID& sessionID) 
 	{
 		spdlog::debug("Application::toAdmin OUT <{}> {}", sessionID.toString(), fix_string(message));
+
+		// Logon (A) requires to set the Username and Password fields
+		const auto& msg_type = message.getHeader().getField(FIX::FIELD::MsgType);
+		if (msg_type == "A") {
+			// get both username and password from settings file
+			auto user = session_settings.get().getString("Username");
+			auto pass = session_settings.get().getString("Password");
+			message.setField(FIX::Username(user));
+			message.setField(FIX::Password(pass));
+		}
+
+		// all messages sent to FXCM must contain the TargetSubID field (both Administrative and Application messages) 
+		auto sub_ID = session_settings.get().getString("TargetSubID");
+		message.getHeader().setField(FIX::TargetSubID(sub_ID));
 	}
 
 	void Application::fromApp(const FIX::Message& message, const FIX::SessionID& sessionID)
@@ -77,8 +97,7 @@ namespace zorro {
 		crack(message, sessionID);
 	}
 
-	void Application::toApp(FIX::Message& message, const FIX::SessionID& sessionID)
-		EXCEPT(FIX::DoNotSend)
+	void Application::toApp(FIX::Message& message, const FIX::SessionID& sessionID) EXCEPT(FIX::DoNotSend)
 	{
 		try
 		{
@@ -91,7 +110,122 @@ namespace zorro {
 		spdlog::debug("Application::toApp OUT <{}> {}", sessionID.toString(), fix_string(message));
 	}
 
-	void Application::onMessage(const FIX44::MarketDataSnapshotFullRefresh& message, const FIX::SessionID&)
+	// The TradingSessionStatus message is used to provide an update on the status of the market. Furthermore, 
+	// this message contains useful system parameters as well as information about each trading security (embedded SecurityList).
+	// TradingSessionStatus should be requested upon successful Logon and subscribed to. The contents of the
+	// TradingSessionStatus message, specifically the SecurityList and system parameters, should dictate how fields
+	// are set when sending messages to FXCM.
+	void Application::onMessage(const FIX44::TradingSessionStatus& message, const FIX::SessionID& session_ID)
+	{
+		// Check TradSesStatus field to see if the trading desk is open or closed
+		//	2 = Open
+		//	3 = Closed
+		auto trad_status = message.getField(FIX::FIELD::TradSesStatus);
+
+		// Within the TradingSessionStatus message is an embeded SecurityList. From SecurityList we can see
+		// the list of available trading securities and information relevant to each; e.g., point sizes,
+		// minimum and maximum order quantities by security, etc. 
+		
+		//cout << "  SecurityList via TradingSessionStatus -> " << endl;
+
+		int symbols_count = FIX::IntConvertor::convert(message.getField(FIX::FIELD::NoRelatedSym));
+		for (int i = 1; i <= symbols_count; i++) {
+			// Get the NoRelatedSym group and for each, print out the Symbol value
+			FIX44::SecurityList::NoRelatedSym symbols_group;
+			message.getGroup(i, symbols_group);
+			auto symbol = symbols_group.getField(FIX::FIELD::Symbol);
+			//cout << "    Symbol -> " << symbol << endl;
+		}
+		
+		// Also within TradingSessionStatus are FXCM system parameters. This includes important information
+		// such as account base currency, server time zone, the time at which the trading day ends, and more.
+		
+		//cout << "  System Parameters via TradingSessionStatus -> " << endl;
+		
+		// Read field FXCMNoParam (9016) which shows us how many system parameters are 
+		// in the message
+		int params_count = FIX::IntConvertor::convert(message.getField(FXCM_NO_PARAMS)); // FXCMNoParam (9016)
+		for (int i = 1; i < params_count; i++) {
+			// For each paramater, print out both the name of the paramater and the value of the 
+			// paramater. FXCMParamName (9017) is the name of the paramater and FXCMParamValue(9018)
+			// is of course the paramater value
+			FIX::FieldMap field_map = message.getGroupRef(i, FXCM_NO_PARAMS);
+
+			std::cout << "    Param Name -> " << field_map.getField(FXCM_PARAM_NAME)
+				<< " - Param Value -> " << field_map.getField(FXCM_PARAM_VALUE) << std::endl;
+		}
+
+		// Request accounts under our login
+		//GetAccounts();
+
+		// ** Note on Text(58) ** 
+		// You will notice that Text(58) field is always set to "Market is closed. Any trading
+		// functionality is not available." This field is always set to this value; therefore, do not 
+		// use this field value to determine if the trading desk is open. As stated above, use TradSesStatus for this purpose
+	}
+
+	void Application::onMessage(const FIX44::CollateralInquiryAck& message, const FIX::SessionID& session_ID)
+	{
+
+	}
+
+	// CollateralReport is a message containing important information for each account under the login. It is returned
+	// as a response to CollateralInquiry. You will receive a CollateralReport for each account under your login.
+	// Notable fields include Account(1) which is the AccountID and CashOutstanding(901) which is the account balance
+	void Application::onMessage(const FIX44::CollateralReport& message, const FIX::SessionID& session_ID)
+	{
+		const auto& account_id = message.getField(FIX::FIELD::Account);
+		account_ids.insert(account_id);
+
+		// account balance, which is the cash balance in the account, not including any profit or losses on open trades
+		const auto& balance = message.getField(FIX::FIELD::CashOutstanding);
+
+		//cout << "  AccountID -> " << accountID << endl;
+		//cout << "  Balance -> " << balance << endl;
+		 
+		// CollateralReport NoPartyIDs group can be inspected for additional account information such as AccountName or HedgingStatus
+		FIX44::CollateralReport::NoPartyIDs group;
+		message.getGroup(1, group); // CollateralReport will only have 1 NoPartyIDs group
+		
+		// Get the number of NoPartySubIDs repeating groups
+		int number_subID = FIX::IntConvertor::convert(group.getField(FIX::FIELD::NoPartySubIDs));
+		// For each group, print out both the PartySubIDType and the PartySubID (the value)
+		for (int u = 1; u <= number_subID; u++) {
+			FIX44::CollateralReport::NoPartyIDs::NoPartySubIDs sub_group;
+			group.getGroup(u, sub_group);
+
+			const auto& sub_type = sub_group.getField(FIX::FIELD::PartySubIDType);
+			const auto& sub_value = sub_group.getField(FIX::FIELD::PartySubID);
+			std::cout << "    " << sub_type << " -> " << sub_value << std::endl;
+		}
+	}
+
+	void Application::onMessage(const FIX44::RequestForPositionsAck& message, const FIX::SessionID& session_ID)
+	{
+		std::string pos_reqID = message.getField(FIX::FIELD::PosReqID);
+
+		// if a PositionReport is requested and no positions exist for that request, the Text field will
+		// indicate that no positions matched the requested criteria 
+		if (message.isSetField(FIX::FIELD::Text))
+			spdlog::debug("onMessage[FIX44::RequestForPositionsAck]: text={}", message.getField(FIX::FIELD::Text));
+	}
+
+	void Application::onMessage(const FIX44::PositionReport& message, const FIX::SessionID& session_ID)
+	{
+		// Print out important position related information such as accountID and symbol 
+		std::string accountID = message.getField(FIX::FIELD::Account);
+
+		//string symbol = pr.getField(FIELD::Symbol);
+		//string positionID = pr.getField(FXCM_POS_ID);
+		//string pos_open_time = pr.getField(FXCM_POS_OPEN_TIME);
+		//cout << "PositionReport -> " << endl;
+		//cout << "   Account -> " << accountID << endl;
+		//cout << "   Symbol -> " << symbol << endl;
+		//cout << "   PositionID -> " << positionID << endl;
+		//cout << "   Open Time -> " << pos_open_time << endl;
+	}
+
+	void Application::onMessage(const FIX44::MarketDataSnapshotFullRefresh& message, const FIX::SessionID& session_ID)
 	{
 		FIX::Symbol symbol;
 		FIX::NoMDEntries noMDEntries;
@@ -254,31 +388,153 @@ namespace zorro {
 	{
 	}
 
-	FIX::Message Application::market_data_request(
+	void Application::onMessage(const FIX44::MarketDataRequestReject& message, const FIX::SessionID& session_ID)
+	{
+		spdlog::error("onMessage[FIX44::MarketDataRequestReject]: {}", fix_string(message));
+	}
+
+	std::optional<FIX::Message> Application::subscribe_market_data(
 		const FIX::Symbol& symbol, 
-		const FIX::MarketDepth& markeDepth,
 		const FIX::SubscriptionRequestType& subscriptionRequestType
 	) {
-		FIX::MDReqID mdReqID(id_generator.genID());
-		FIX44::MarketDataRequest request(mdReqID, subscriptionRequestType, markeDepth);
-		FIX44::MarketDataRequest::NoRelatedSym noRelatedSymGroup;
-		noRelatedSymGroup.set(symbol);
-		request.addGroup(noRelatedSymGroup);
-		FIX44::MarketDataRequest::NoMDEntryTypes noMDEntryTypesGroup;
-		noMDEntryTypesGroup.set(FIX::MDEntryType_BID);
-		noMDEntryTypesGroup.set(FIX::MDEntryType_OFFER);
-		noMDEntryTypesGroup.set(FIX::MDEntryType_TRADE);
-		request.addGroup(noMDEntryTypesGroup);
+		auto it = market_data_subscriptions.find(symbol.getString());
 
-		auto& header = request.getHeader();
-		header.setField(FIX::SenderCompID(sender_comp_id));
-		header.setField(FIX::TargetCompID(target_comp_id));
+		if (it != market_data_subscriptions.end()) {
+			spdlog::error("subscribe_market_data: error - market data already subscribed for symbol {}", symbol.getString());
+			return std::optional<FIX::Message>();
+		}
+		else {
+			auto request_id = std::format("{}_{}", symbol.getString(), id_generator.genID());
 
-		spdlog::debug("marketDataRequest: {}", fix_string(request));
+			FIX::MDReqID mdReqID(request_id);
+			FIX44::MarketDataRequest request(mdReqID, subscriptionRequestType, FIX::MarketDepth(0));
+			FIX44::MarketDataRequest::NoRelatedSym symbols_group;
+			symbols_group.set(symbol);
+			request.addGroup(symbols_group);
+			FIX44::MarketDataRequest::NoMDEntryTypes entry_types;
+			entry_types.set(FIX::MDEntryType_BID);
+			entry_types.set(FIX::MDEntryType_OFFER);
+			entry_types.set(FIX::MDEntryType_TRADING_SESSION_HIGH_PRICE);
+			entry_types.set(FIX::MDEntryType_TRADING_SESSION_LOW_PRICE);
+			request.addGroup(entry_types);
 
-		FIX::Session::sendToTarget(request);
+			spdlog::debug("subscribe_market_data: {}", fix_string(request));
+
+			FIX::Session::sendToTarget(request, session_id);
+
+			market_data_subscriptions.emplace(symbol.getString(), request_id);
+
+			return std::optional<FIX::Message>(request);
+		}
+	}
+
+	std::optional<FIX::Message> Application::unsubscribe_market_data(const FIX::Symbol& symbol)
+	{
+		// Unsubscribe from EUR/USD. Note that our request_ID is the exact same
+		// that was sent for our request to subscribe. This is necessary to 
+		// unsubscribe. This request below is identical to our request to subscribe
+		// with the exception that SubscriptionRequestType is set to
+		// "SubscriptionRequestType_DISABLE_PREVIOUS_SNAPSHOT_PLUS_UPDATE_REQUEST"
+		auto it = market_data_subscriptions.find(symbol.getString());
+
+		if (it != market_data_subscriptions.end()) {
+			const auto& request_id = it->second;
+			FIX44::MarketDataRequest request;
+			request.setField(FIX::MDReqID(request_id));
+			request.setField(FIX::SubscriptionRequestType(FIX::SubscriptionRequestType_DISABLE_PREVIOUS_SNAPSHOT));
+			request.setField(FIX::MarketDepth(0));
+			request.setField(FIX::NoRelatedSym(1));
+			FIX44::MarketDataRequest::NoRelatedSym symbols_group;
+			symbols_group.setField(symbol);
+			request.addGroup(symbols_group);
+			FIX44::MarketDataRequest::NoMDEntryTypes entry_types;
+			entry_types.setField(FIX::MDEntryType(FIX::MDEntryType_BID));
+			entry_types.setField(FIX::MDEntryType(FIX::MDEntryType_OFFER));
+			entry_types.setField(FIX::MDEntryType(FIX::MDEntryType_TRADING_SESSION_HIGH_PRICE));
+			entry_types.setField(FIX::MDEntryType(FIX::MDEntryType_TRADING_SESSION_LOW_PRICE));
+			request.addGroup(entry_types);
+
+			spdlog::debug("unsubscribe_market_data: {}", fix_string(request));
+
+			FIX::Session::sendToTarget(request, session_id);
+		}
+		else {
+			spdlog::error("unsubscribe_market_data: error - market data not subscribed for symbol {}", symbol.getString());
+			return std::optional<FIX::Message>();
+		}
+	}
+
+	FIX::Message Application::trading_session_status_request()
+	{
+		// Request TradingSessionStatus message 
+		FIX44::TradingSessionStatusRequest request;
+		request.setField(FIX::TradSesReqID(id_generator.genID()));
+		request.setField(FIX::TradingSessionID("FXCM"));
+		request.setField(FIX::SubscriptionRequestType(FIX::SubscriptionRequestType_SNAPSHOT));
+		
+		FIX::Session::sendToTarget(request, session_id);
 
 		return request;
+	}
+
+	FIX::Message Application::collateral_inquiry()
+	{
+		// request CollateralReport message. We will receive a CollateralReport for each account under our login
+		FIX44::CollateralInquiry request;
+		request.setField(FIX::CollInquiryID(id_generator.genID()));
+		request.setField(FIX::TradingSessionID("FXCM"));
+		request.setField(FIX::SubscriptionRequestType(FIX::SubscriptionRequestType_SNAPSHOT));
+		FIX::Session::sendToTarget(request, session_id);
+
+		return request;
+	}
+
+	// Sends RequestForPositions which will return PositionReport messages if positions
+	// matching the requested criteria exist; otherwise, a RequestForPositionsAck will be
+	// sent with the acknowledgement that no positions exist. In our example, we request
+	// positions for all accounts under our login
+	FIX::Message Application::request_for_positions()
+	{
+		// Here we will get positions for each account under our login. To do this,
+		// we will send a RequestForPositions message that contains the accountID 
+		// associated with our request. For each account in our list, we send
+		// RequestForPositions. 
+		int total_accounts = account_ids.size();
+
+		for (auto it = account_ids.begin(); it != account_ids.end(); ++it) {
+			const auto& account_id = *it;
+			FIX44::RequestForPositions request;
+			request.setField(FIX::PosReqID(id_generator.genID()));
+			request.setField(FIX::PosReqType(FIX::PosReqType_POSITIONS));
+			// AccountID for the request. This must be set for routing purposes. We must
+			// also set the Parties AccountID field in the NoPartySubIDs group
+			request.setField(FIX::Account(account_id));
+			request.setField(FIX::SubscriptionRequestType(FIX::SubscriptionRequestType_SNAPSHOT));
+			request.setField(FIX::AccountType(FIX::AccountType_CARRIED_NON_CUSTOMER_SIDE_CROSS_MARGINED));
+			request.setField(FIX::TransactTime());
+			request.setField(FIX::ClearingBusinessDate());
+			request.setField(FIX::TradingSessionID("FXCM"));
+			// Set NoPartyIDs group. These values are always as seen below
+			request.setField(FIX::NoPartyIDs(1));
+			FIX44::RequestForPositions::NoPartyIDs parties_group;
+			parties_group.setField(FIX::PartyID("FXCM ID"));
+			parties_group.setField(FIX::PartyIDSource('D'));
+			parties_group.setField(FIX::PartyRole(3));
+			parties_group.setField(FIX::NoPartySubIDs(1));
+			// Set NoPartySubIDs group
+			FIX44::RequestForPositions::NoPartyIDs::NoPartySubIDs sub_parties;
+			sub_parties.setField(FIX::PartySubIDType(FIX::PartySubIDType_SECURITIES_ACCOUNT_NUMBER));
+			// Set Parties AccountID
+			sub_parties.setField(FIX::PartySubID(account_id));
+			// Add NoPartySubIds group
+			parties_group.addGroup(sub_parties);
+			// Add NoPartyIDs group
+			request.addGroup(parties_group);
+		 	
+			FIX::Session::sendToTarget(request, session_id);
+
+			return request;
+		}
 	}
 
 	FIX::Message Application::new_order_single(

@@ -14,6 +14,7 @@
 #endif
 #include "quickfix/SessionSettings.h"
 #include "quickfix/Log.h"
+#include "quickfix/FileLog.h"
 
 #include "spdlog/spdlog.h"
 
@@ -30,11 +31,11 @@ namespace zorro {
 	class FixThread {
 		bool started;
 		std::string settings_cfg_file;
-		FIX::SessionSettings settings;
-		FIX::FileStoreFactory store_factory;
-		FIX::ScreenLogFactory log_factory;
-		std::unique_ptr<FIX::Initiator> initiator;
-		std::unique_ptr<zorro::Application> application;
+		FIX::SessionSettings *settings;
+		FIX::FileStoreFactory *store_factory;
+		FIX::FileLogFactory *log_factory;
+		FIX::Initiator* initiator;
+		zorro::Application* application;
 		std::thread thread;
 
 		void run() {
@@ -49,47 +50,44 @@ namespace zorro {
 			BlockingTimeoutQueue<TopOfBook>& top_of_book_queue
 		) :
 			started(false),
-			settings_cfg_file(settings_cfg_file),
-			settings(settings_cfg_file),
-			store_factory(settings),
-			log_factory(settings)
+			settings_cfg_file(settings_cfg_file)
 		{
-			application = std::unique_ptr<zorro::Application>(new Application(
-				settings, 
-				exec_report_queue,
-				top_of_book_queue
-			));
-			initiator = std::unique_ptr<FIX::Initiator>(
-				new FIX::SocketInitiator(*application, store_factory, settings, log_factory)
-			);
+			create_factories();
+			application = new Application(*settings, exec_report_queue, top_of_book_queue);
+			initiator = new FIX::SocketInitiator(*application, *store_factory, *settings, *log_factory);
 			spdlog::debug("FixThread: FIX application and FIX initiator created");
+		}
+
+		~FixThread() {
+			if (!initiator->isStopped()) {
+				initiator->stop();
+			}
+			delete initiator;
+			delete settings;
+			delete store_factory;
+			delete log_factory;
 		}
 
 #ifdef HAVE_SSL
 		FixThread(
-			const std::string& settingsCfgFile,
-			std::function<void(const char*)> brokerError,
+			const std::string& settings_cfg_file,
+			BlockingTimeoutQueue<ExecReport>& exec_report_queue,
+			BlockingTimeoutQueue<TopOfBook>& top_of_book_queue
 			const std::string& isSSL
 		) :
 			started(false),
-			settingsCfgFile(settingsCfgFile),
-			settings(settingsCfgFile),
-			storeFactory(settings),
-			logFactory(settings),
-			brokerError(brokerError)
+			settings_cfg_file(settings_cfg_file)
 		{
-			application = std::unique_ptr<zfix::Application>(new Application(settings));
-
+			create_factories();
+			application = new Application(*settings, exec_report_queue, top_of_book_queue);
 			if (isSSL.compare("SSL") == 0)
-				initiator = std::unique_ptr<FIX::Initiator>(
-					new FIX::ThreadedSSLSocketInitiator(application, storeFactory, settings, logFactory));
+				initiator = new FIX::ThreadedSSLSocketInitiator(*application, *store_factory, *settings, *log_factory);
 			else if (isSSL.compare("SSL-ST") == 0)
-				initiator = std::unique_ptr<FIX::Initiator>(
-					new FIX::SSLSocketInitiator(application, storeFactory, settings, logFactory));
+				initiator = new FIX::SSLSocketInitiator(*application, *store_factory, *settings, *log_factory);
 			else
-				initiator = std::unique_ptr<FIX::Initiator>(
-					new FIX::SocketInitiator(*application, storeFactory, settings, logFactory)
-				);
+				initiator = new FIX::SocketInitiator(*application, *store_factory, *settings, *log_factory);
+
+			spdlog::debug("FixThread: FIX application and FIX initiator created");
 		}
 #endif
 
@@ -112,6 +110,19 @@ namespace zorro {
 
 		zorro::Application& fix_app() {
 			return *application;
+		}
+
+	private:
+
+		void create_factories() {
+			try {
+				settings = new FIX::SessionSettings(settings_cfg_file);
+				store_factory = new FIX::FileStoreFactory(*settings);
+				log_factory = new FIX::FileLogFactory(*settings);
+			}
+			catch (FIX::ConfigError error) {
+				spdlog::error("FixThread: config error {}", error.what());
+			}
 		}
 	};
 }
