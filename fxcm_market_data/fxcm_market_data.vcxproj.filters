@@ -30,13 +30,7 @@
     <ClInclude Include="LocalFormat.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="LoginParams.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="ResponseListener.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="SampleParams.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="SessionStatusListener.h">
@@ -62,16 +56,10 @@
     <ClCompile Include="LocalFormat.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="LoginParams.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="fxcm_market_data.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="ResponseListener.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="SampleParams.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="SessionStatusListener.cpp">

@@ -203,10 +203,8 @@
     <ClInclude Include="framework.h" />
     <ClInclude Include="fxcm_market_data.h" />
     <ClInclude Include="LocalFormat.h" />
-    <ClInclude Include="LoginParams.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="ResponseListener.h" />
-    <ClInclude Include="SampleParams.h" />
     <ClInclude Include="SessionStatusListener.h" />
     <ClInclude Include="ThreadSafeAddRefImpl.h" />
   </ItemGroup>
@@ -214,14 +212,12 @@
     <ClCompile Include="CommonSources.cpp" />
     <ClCompile Include="CommunicatorStatusListener.cpp" />
     <ClCompile Include="LocalFormat.cpp" />
-    <ClCompile Include="LoginParams.cpp" />
     <ClCompile Include="fxcm_market_data.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="ResponseListener.cpp" />
-    <ClCompile Include="SampleParams.cpp" />
     <ClCompile Include="SessionStatusListener.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

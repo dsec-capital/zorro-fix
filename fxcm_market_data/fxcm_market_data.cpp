@@ -4,8 +4,6 @@
 
 #include "ResponseListener.h"
 #include "SessionStatusListener.h"
-#include "LoginParams.h"
-#include "SampleParams.h"
 #include "CommonSources.h"
 #include "CommunicatorStatusListener.h"
 #include "LocalFormat.h"
@@ -253,8 +251,7 @@ namespace fxcm {
         pricehistorymgr::IPriceHistoryCommunicator* communicator,
         pricehistorymgr::IPriceHistoryCommunicatorResponse* response,
         const char* instrument,
-        const char* outputFile,
-        bool utcMode)
+        const char* outputFile)
     {
         std::fstream fs;
         fs.open(outputFile, std::fstream::out | std::fstream::trunc);
@@ -293,9 +290,6 @@ namespace fxcm {
             {
                 DATE dt = reader->getDate(i);
 
-                if (!utcMode)
-                    dt = hptools::date::DateConvertTz(dt, hptools::date::UTC, hptools::date::EST);
-
                 std::string time = localFormat.formatDate(dt);
                 if (reader->isBar())
                 {
@@ -322,243 +316,6 @@ namespace fxcm {
         }
 
         fs.close();
-    }
-
-    /** Print sample parameters data.
-
-        @param sProcName
-            The sample process name.
-        @param loginParams
-            The LoginParams instance pointer.
-        @param sampleParams
-            The LoginParams instance pointer.
-     */
-    void print_sample_params(std::string& sProcName, LoginParams* loginParams, SampleParams* sampleParams)
-    {
-        std::cout << "Running " << sProcName << " with arguments:" << std::endl;
-
-        LocalFormat localFormat;
-
-        // login (common) information
-        if (loginParams)
-        {
-            std::cout << loginParams->getLogin() << " * "
-                << loginParams->getURL() << " "
-                << loginParams->getConnection() << " "
-                << loginParams->getSessionID() << " "
-                << loginParams->getPin() << std::endl;
-        }
-
-        // sample specific information
-        if (sampleParams)
-        {
-            std::cout << "Instrument='" << sampleParams->getInstrument() << "', "
-                << "Timeframe='" << sampleParams->getTimeframe() << "', ";
-
-            const char* timezone = sampleParams->getTimezone();
-            if (isNaN(sampleParams->getDateFrom()))
-                std::cout << "DateFrom='', ";
-            else
-            {
-                auto dateFrom = sampleParams->getDateFrom();
-
-                if (strcmp(timezone, "EST") == 0)
-                    dateFrom = hptools::date::DateConvertTz(dateFrom, hptools::date::UTC, hptools::date::EST);
-
-                std::cout << "DateFrom='" << localFormat.formatDate(dateFrom) << "' (" << timezone << "), ";
-            }
-
-            if (isNaN(sampleParams->getDateTo()))
-                std::cout << "DateTo='', ";
-            else
-            {
-                auto dateTo = sampleParams->getDateTo();
-
-                if (strcmp(timezone, "EST") == 0)
-                    dateTo = hptools::date::DateConvertTz(dateTo, hptools::date::UTC, hptools::date::EST);
-
-                std::cout << "DateTo='" << localFormat.formatDate(dateTo) << "' (" << timezone << "), ";
-            }
-
-            std::cout << "QuotesCount='" << sampleParams->getQuotesCount() << "'";
-
-            std::cout << std::endl;
-        }
-    }
-
-    /** Print expected sample-login parameters and their description.
-
-        @param sProcName
-            The sample process name.
-     */
-    void print_help(std::string& sProcName)
-    {
-        std::cout << sProcName << " sample parameters:" << std::endl << std::endl;
-
-        std::cout << "/login | --login | /l | -l" << std::endl;
-        std::cout << "Your user name." << std::endl << std::endl;
-
-        std::cout << "/password | --password | /p | -p" << std::endl;
-        std::cout << "Your password." << std::endl << std::endl;
-
-        std::cout << "/url | --url | /u | -u" << std::endl;
-        std::cout << "The server URL. For example, http://www.fxcorporate.com/Hosts.jsp." << std::endl << std::endl;
-
-        std::cout << "/connection | --connection | /c | -c" << std::endl;
-        std::cout << "The connection name. For example, \"Demo\" or \"Real\"." << std::endl << std::endl;
-
-        std::cout << "/sessionid | --sessionid " << std::endl;
-        std::cout << "The database name. Required only for users who have accounts in more than one database. "
-            "Optional parameter." << std::endl << std::endl;
-
-        std::cout << "/pin | --pin " << std::endl;
-        std::cout << "Your pin code. Required only for users who have a pin. "
-            "Optional parameter." << std::endl << std::endl;
-
-        std::cout << "/instrument | --instrument | /i | -i" << std::endl;
-        std::cout << "An instrument which you want to use in sample. "
-            "For example, \"EUR/USD\"." << std::endl << std::endl;
-
-        std::cout << "/timeframe | --timeframe " << std::endl;
-        std::cout << "Time period which forms a single candle. "
-            "For example, m1 - for 1 minute, H1 - for 1 hour." << std::endl << std::endl;
-
-        std::cout << "/datefrom | --datefrom " << std::endl;
-        std::cout << "Date/time from which you want to receive historical prices. "
-            "If you leave this argument as it is, it will mean from last trading day. "
-            "Format is \"m.d.Y H:M:S\". Optional parameter." << std::endl << std::endl;
-
-        std::cout << "/dateto | --dateto " << std::endl;
-        std::cout << "Date/time until which you want to receive historical prices. "
-            "If you leave this argument as it is, it will mean to now. Format is \"m.d.Y H:M:S\". "
-            "Optional parameter." << std::endl << std::endl;
-
-        std::cout << "/tz | --tz " << std::endl;
-        std::cout << "Timezone for /datefrom and /dateto parameters: EST or UTC "
-            "Optional parameter. Default: EST" << std::endl << std::endl;
-
-        std::cout << "/count | --count " << std::endl;
-        std::cout << "Count of historical prices you want to receive. If you "
-            << "leave this argument as it is, it will mean -1 (use some default "
-            << "value or ignore if datefrom is specified)" << std::endl << std::endl;
-
-        std::cout << "/output | --output " << std::endl;
-        std::cout << "The output file name." << std::endl;
-    }
-
-    inline std::tm gmtime_xp(const std::time_t& t) {
-        std::tm bt{};
-#if defined(_MSC_VER)
-        gmtime_s(&bt, &t);
-#else
-        bt = *std::gmtime(&t);
-#endif 
-        return bt;
-    }
-
-    /** Check parameters for correct values.
-
-        @param loginParams
-            The LoginParams instance pointer.
-        @param sampleParams
-            The SampleParams instance pointer.
-        @return
-            true if parameters are correct.
-     */
-    bool check_obligatory_params(LoginParams* loginParams, SampleParams* sampleParams)
-    {
-        // check login parameters
-        if (strlen(loginParams->getLogin()) == 0)
-        {
-            std::cout << LoginParams::Strings::loginNotSpecified << std::endl;
-            return false;
-        }
-        if (strlen(loginParams->getPassword()) == 0)
-        {
-            std::cout << LoginParams::Strings::passwordNotSpecified << std::endl;
-            return false;
-        }
-        if (strlen(loginParams->getURL()) == 0)
-        {
-            std::cout << LoginParams::Strings::urlNotSpecified << std::endl;
-            return false;
-        }
-        if (strlen(loginParams->getConnection()) == 0)
-        {
-            std::cout << LoginParams::Strings::connectionNotSpecified << std::endl;
-            return false;
-        }
-
-        // check other parameters
-        if (strlen(sampleParams->getInstrument()) == 0)
-        {
-            std::cout << SampleParams::Strings::instrumentNotSpecified << std::endl;
-            return false;
-        }
-        if (strlen(sampleParams->getTimeframe()) == 0)
-        {
-            std::cout << SampleParams::Strings::timeframeNotSpecified << std::endl;
-            return false;
-        }
-        if (strlen(sampleParams->getOutputFile()) == 0)
-        {
-            std::cout << SampleParams::Strings::outputFileNotSpecified << std::endl;
-            return false;
-        }
-
-        const char* timezone = sampleParams->getTimezone();
-        if (strcmp(timezone, "EST") != 0 && strcmp(timezone, "UTC") != 0)
-        {
-            std::cout << SampleParams::Strings::timezoneNotSupported << ": " << timezone << std::endl;
-            return false;
-        }
-
-        bool bIsDateFromNotSpecified = false;
-        bool bIsDateToNotSpecified = false;
-        DATE dtFrom = sampleParams->getDateFrom();
-        DATE dtTo = sampleParams->getDateTo();
-
-        time_t tNow = time(NULL); // get time now
-
-        //struct tm *tmNow = gmtime(&tNow);
-        std::tm tmNow = gmtime_xp(tNow);
-
-        DATE dtNow = 0;
-        CO2GDateUtils::CTimeToOleTime(&tmNow, &dtNow);
-        LocalFormat localFormat;
-
-        if (isNaN(dtFrom))
-        {
-            bIsDateFromNotSpecified = true;
-            dtFrom = 0;
-            sampleParams->setDateFrom(dtFrom);
-        }
-        else
-        {
-            if (dtFrom - dtNow > 0.0001)
-            {
-                std::cout << "Sorry, 'DateFrom' value " << localFormat.formatDate(dtFrom) << " should be in the past" << std::endl;
-                return false;
-            }
-        }
-
-        if (isNaN(dtTo))
-        {
-            bIsDateToNotSpecified = true;
-            dtTo = 0;
-            sampleParams->setDateTo(dtTo);
-        }
-        else
-        {
-            if (!bIsDateFromNotSpecified && dtFrom - dtTo > 0.001)
-            {
-                std::cout << "Sorry, 'DateTo' value " << localFormat.formatDate(dtTo) << " should be later than 'DateFrom' value "
-                    << localFormat.formatDate(dtFrom) << std::endl;
-                return false;
-            }
-        }
-
-        return true;
     }
 
 }

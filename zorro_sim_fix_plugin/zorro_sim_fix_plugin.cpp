@@ -23,7 +23,7 @@
 #include "spdlog/sinks/basic_file_sink.h"
 
 #define PLUGIN_VERSION 2
-#define PLUGIN_NAME "SimFixPlugin"
+#define PLUGIN_NAME "ZorroSimFixPlugin"
 
 namespace zorro {
 

@@ -24,7 +24,7 @@
 #include "spdlog/sinks/basic_file_sink.h"
 
 #define PLUGIN_VERSION 2
-#define PLUGIN_NAME "FXCMFixPlugin"
+#define PLUGIN_NAME "ZorroFXCMFixPlugin"
 
 namespace zorro {
 

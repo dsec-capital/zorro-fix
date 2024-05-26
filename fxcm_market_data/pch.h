@@ -20,7 +20,6 @@
 #include <ForexConnect.h>
 
 #include "CommonSources.h"
-#include "hptools.h"
 
 #define _TIMEOUT 30000
 
