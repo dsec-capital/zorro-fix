@@ -102,7 +102,7 @@
     </Link>
     <PostBuildEvent>
       <Command>echo %ZorroInstallDir%
-copy /y "$(SolutionDir)$(Configuration)\zorro_sim_fix_plugin.dll" "%ZorroInstallDir%\Plugin\SimFixPlugin.dll"
+copy /y "$(SolutionDir)$(Configuration)\zorro_sim_fix_plugin.dll" "%ZorroInstallDir%\Plugin\zorro_sim_fix_plugin.dll"
 copy /y "$(ProjectDir)zorro_sim_fix_client.cfg" "$(SolutionDir)$(Configuration)"
 copy /y "$(ProjectDir)zorro_sim_fix_client.cfg" "%ZorroInstallDir%\Plugin"
 copy /y "$(SolutionDir)zorro_scripts\Test_FIX.c" "%ZorroInstallDir%\Strategy"
@@ -135,7 +135,7 @@ robocopy "$(SolutionDir)spec" "%ZorroInstallDir%\Plugin\spec"   </Command>
     </Link>
     <PostBuildEvent>
       <Command>echo %ZorroInstallDir%
-copy /y "$(SolutionDir)$(Configuration)\zorro_sim_fix_plugin.dll" "%ZorroInstallDir%\Plugin\AAFixPlugin.dll"
+copy /y "$(SolutionDir)$(Configuration)\zorro_sim_fix_plugin.dll" "%ZorroInstallDir%\Plugin\zorro_sim_fix_plugin.dll"
 copy /y "$(ProjectDir)zorro_sim_fix_client.cfg" "$(SolutionDir)$(Configuration)"
 copy /y "$(ProjectDir)zorro_sim_fix_client.cfg" "%ZorroInstallDir%\Plugin"
 copy /y "$(SolutionDir)zorro_scripts\Test_FIX.c" "%ZorroInstallDir%\Strategy"

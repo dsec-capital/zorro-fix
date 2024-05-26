@@ -252,7 +252,7 @@ namespace zorro {
 		(FARPROC&)BrokerProgress = fpProgress;
 
 		std::string cwd = std::filesystem::current_path().string();
-		log::info<1, true>("BrokerOpen: FIX plugin opened in {}", cwd);
+		log::info<1, true>("BrokerOpen: FXCM FIX plugin opened in {}", cwd);
 
 		try
 		{

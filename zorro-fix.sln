@@ -34,6 +34,10 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_market", "test_market\
 	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "zorro_fxcm_fix_plugin", "zorro_fxcm_fix_plugin\zorro_fxcm_fix_plugin.vcxproj", "{DD575D78-D9D5-4B98-8A95-6E6788778DC6}"
+	ProjectSection(ProjectDependencies) = postProject
+		{ABB7F9C6-3F3A-4ED3-800F-1E4974FD7B98} = {ABB7F9C6-3F3A-4ED3-800F-1E4974FD7B98}
+		{BC8C0499-93B9-40C8-B600-9771DF2875A7} = {BC8C0499-93B9-40C8-B600-9771DF2875A7}
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "zorro_common", "zorro_common\zorro_common.vcxproj", "{572D925E-AE28-497D-96E4-9FA70174344A}"
 EndProject
