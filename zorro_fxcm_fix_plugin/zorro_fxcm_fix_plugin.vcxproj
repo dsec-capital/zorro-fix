@@ -105,6 +105,8 @@
 copy /y "$(SolutionDir)$(Configuration)\zorro_fxcm_fix_plugin.dll" "%ZorroInstallDir%\Plugin\zorro_fxcm_fix_plugin.dll"
 robocopy "$(SolutionDir)spec" "%ZorroInstallDir%\Plugin\spec"  
 "$(SolutionDir)scripts\generate_fxcm_fix_client_cfg.bat" "$(ProjectDir)zorro_fxcm_fix_client_template.cfg" "%ZorroInstallDir%\Plugin\zorro_fxcm_fix_client.cfg"
+echo "Checking FXCM dlls"
+"$(SolutionDir)scripts\check_fxcm_dlls.bat"  
 </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
@@ -135,7 +137,8 @@ robocopy "$(SolutionDir)spec" "%ZorroInstallDir%\Plugin\spec"
 copy /y "$(SolutionDir)$(Configuration)\zorro_fxcm_fix_plugin.dll" "%ZorroInstallDir%\Plugin\zorro_fxcm_fix_plugin.dll"
 robocopy "$(SolutionDir)spec" "%ZorroInstallDir%\Plugin\spec"
 "$(SolutionDir)scripts\generate_fxcm_fix_client_cfg.bat" "$(ProjectDir)zorro_fxcm_fix_client_template.cfg" "%ZorroInstallDir%\Plugin\zorro_fxcm_fix_client.cfg"
-</Command>
+"$(SolutionDir)scripts\check_fxcm_dlls.bat"
+ </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">

@@ -5,6 +5,7 @@ VisualStudioVersion = 17.8.34408.163
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "zorro_sim_fix_plugin", "zorro_sim_fix_plugin\zorro_sim_fix_plugin.vcxproj", "{F36886A3-3C65-4EC2-9684-DD12573413D6}"
 	ProjectSection(ProjectDependencies) = postProject
+		{572D925E-AE28-497D-96E4-9FA70174344A} = {572D925E-AE28-497D-96E4-9FA70174344A}
 		{BC8C0499-93B9-40C8-B600-9771DF2875A7} = {BC8C0499-93B9-40C8-B600-9771DF2875A7}
 	EndProjectSection
 EndProject
@@ -35,6 +36,7 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_market", "test_market\
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "zorro_fxcm_fix_plugin", "zorro_fxcm_fix_plugin\zorro_fxcm_fix_plugin.vcxproj", "{DD575D78-D9D5-4B98-8A95-6E6788778DC6}"
 	ProjectSection(ProjectDependencies) = postProject
+		{572D925E-AE28-497D-96E4-9FA70174344A} = {572D925E-AE28-497D-96E4-9FA70174344A}
 		{ABB7F9C6-3F3A-4ED3-800F-1E4974FD7B98} = {ABB7F9C6-3F3A-4ED3-800F-1E4974FD7B98}
 		{BC8C0499-93B9-40C8-B600-9771DF2875A7} = {BC8C0499-93B9-40C8-B600-9771DF2875A7}
 	EndProjectSection
@@ -43,6 +45,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "zorro_common", "zorro_commo
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "scripts", "scripts", "{83DE7AF6-9DBF-4607-8C46-BA9E12782D54}"
 	ProjectSection(SolutionItems) = preProject
+		scripts\check_fxcm_dlls.bat = scripts\check_fxcm_dlls.bat
+		scripts\exist_in_path.bat = scripts\exist_in_path.bat
 		scripts\generate_fxcm_fix_client_cfg.bat = scripts\generate_fxcm_fix_client_cfg.bat
 		scripts\replace_str.bat = scripts\replace_str.bat
 	EndProjectSection
@@ -55,6 +59,11 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "zorro_scripts", "zorro_scri
 	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_fxcm_market_data", "test_fxcm_market_data\test_fxcm_market_data.vcxproj", "{298BFC0F-AF3A-4205-983F-AEBD6F362BE3}"
+	ProjectSection(ProjectDependencies) = postProject
+		{572D925E-AE28-497D-96E4-9FA70174344A} = {572D925E-AE28-497D-96E4-9FA70174344A}
+		{ABB7F9C6-3F3A-4ED3-800F-1E4974FD7B98} = {ABB7F9C6-3F3A-4ED3-800F-1E4974FD7B98}
+		{BC8C0499-93B9-40C8-B600-9771DF2875A7} = {BC8C0499-93B9-40C8-B600-9771DF2875A7}
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "fxcm_market_data", "fxcm_market_data\fxcm_market_data.vcxproj", "{ABB7F9C6-3F3A-4ED3-800F-1E4974FD7B98}"
 EndProject
