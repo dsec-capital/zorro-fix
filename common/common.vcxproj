@@ -149,6 +149,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="bar.h" />
     <ClInclude Include="bar_builder.h" />
     <ClInclude Include="blocking_queue.h" />
     <ClInclude Include="book.h" />

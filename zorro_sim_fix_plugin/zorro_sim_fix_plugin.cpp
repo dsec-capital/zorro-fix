@@ -91,12 +91,12 @@ namespace zorro {
 	}
 
 	int get_position_size(const std::string& symbol) {
-		auto np = order_tracker.net_position(symbol);
+		auto& np = order_tracker.net_position(symbol);
 		return (int)np.qty;
 	}
 
 	double get_avg_entry_price(const std::string& symbol) {
-		auto np = order_tracker.net_position(symbol);
+		auto& np = order_tracker.net_position(symbol);
 		return np.avg_px;
 	}
 
@@ -374,10 +374,10 @@ namespace zorro {
 					count, zorro_date_to_string(time), bar.open, bar.high, bar.low, bar.close
 				);
 				
-				ticks->fOpen = (float)bar.open;
-				ticks->fClose = (float)bar.close;
-				ticks->fHigh = (float)bar.high;
-				ticks->fLow = (float)bar.low;
+				ticks->fOpen = static_cast<float>(bar.open);
+				ticks->fClose = static_cast<float>(bar.close);
+				ticks->fHigh = static_cast<float>(bar.high);
+				ticks->fLow = static_cast<float>(bar.low);
 				ticks->time = time;
 				++ticks;
 				++count;

@@ -97,8 +97,8 @@
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
-      <AdditionalLibraryDirectories>$(SolutionDir)$(Configuration);$(SolutionDir)third-parties\quickfix\$(LibrariesArchitecture)-$(Configuration)\lib</AdditionalLibraryDirectories>
-      <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);quickfixd.lib;ws2_32.lib;common.lib;zorro_common.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)$(Configuration);$(SolutionDir)third-parties\quickfix\$(LibrariesArchitecture)-$(Configuration)\lib;$(SolutionDir)third-parties\fxcm\forex_connect\$(LibrariesArchitecture)\lib;$(SolutionDir)third-parties\fxcm\hptools\$(LibrariesArchitecture)\lib</AdditionalLibraryDirectories>
+      <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);quickfixd.lib;ws2_32.lib;common.lib;zorro_common.lib;fxcm_market_data.lib;hptools.lib;pricehistorymgr.lib;ForexConnect.lib</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>echo %ZorroInstallDir%
@@ -127,8 +127,8 @@ robocopy "$(SolutionDir)spec" "%ZorroInstallDir%\Plugin\spec"
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
-      <AdditionalLibraryDirectories>$(SolutionDir)$(Configuration);$(SolutionDir)third-parties\quickfix\$(LibrariesArchitecture)-$(Configuration)\lib</AdditionalLibraryDirectories>
-      <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);quickfix.lib;ws2_32.lib;common.lib;zorro_common.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)$(Configuration);$(SolutionDir)third-parties\quickfix\$(LibrariesArchitecture)-$(Configuration)\lib;$(SolutionDir)third-parties\fxcm\forex_connect\$(LibrariesArchitecture)\lib;$(SolutionDir)third-parties\fxcm\hptools\$(LibrariesArchitecture)\lib</AdditionalLibraryDirectories>
+      <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);quickfix.lib;ws2_32.lib;common.lib;zorro_common.lib;fxcm_market_data.lib;hptools.lib;pricehistorymgr.lib;ForexConnect.lib</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>echo %ZorroInstallDir%

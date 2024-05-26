@@ -7,41 +7,11 @@
 
 #include "nlohmann/json.h"
 
+#include "bar.h"
 #include "utils.h"
 #include "time_utils.h"
 
 namespace common {
-
-    class Bar {
-    public:
-        Bar(
-            const std::chrono::nanoseconds& end,
-            double open,
-            double high,
-            double low,
-            double close
-        ) : end(end)
-            , open(open)
-            , high(high)
-            , low(low)
-            , close(close)
-        {}
-
-        std::chrono::nanoseconds end;
-        double open;
-        double high;
-        double low;
-        double close;
-
-        std::string to_string() const {
-            return
-                "end=" + common::to_string(end) + ", " +
-                "open=" + std::to_string(open) + ", " +
-                "high=" + std::to_string(high) + ", " +
-                "low=" + std::to_string(low) + ", " +
-                "close=" + std::to_string(close);
-        }
-    };
 
     class BarBuilder {
         std::chrono::nanoseconds bar_period;

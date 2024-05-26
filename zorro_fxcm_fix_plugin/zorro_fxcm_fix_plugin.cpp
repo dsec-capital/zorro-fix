@@ -16,6 +16,8 @@
 #include "zorro_common/enums.h"
 #include "zorro_common/broker_commands.h"
 
+#include "fxcm_market_data/fxcm_market_data.h"
+
 #include "nlohmann/json.h"
 #include "httplib/httplib.h"
 #include "spdlog/spdlog.h"
@@ -40,6 +42,11 @@ namespace zorro {
 
 	int client_order_id = 0;
 	int internal_order_id = 1000;
+
+	std::string fxcm_login;
+	std::string fxcm_password;
+	std::string fxcm_account;
+	std::string fxcm_connection = "Demo";
 
 	std::string asset;
 	std::string currency;
@@ -90,12 +97,12 @@ namespace zorro {
 	}
 
 	int get_position_size(const std::string& symbol) {
-		auto np = order_tracker.net_position(symbol);
+		auto& np = order_tracker.net_position(symbol);
 		return (int)np.qty;
 	}
 
 	double get_avg_entry_price(const std::string& symbol) {
-		auto np = order_tracker.net_position(symbol);
+		auto& np = order_tracker.net_position(symbol);
 		return np.avg_px;
 	}
 
@@ -139,29 +146,6 @@ namespace zorro {
 		return res->status; 
 	}
 
-	int get_historical_bar_range(const char* Asset, std::chrono::nanoseconds& from, std::chrono::nanoseconds& to, size_t& num_bars, bool verbose=false) {
-		auto request = std::format("/bar_range?symbol={}", Asset);
-		auto res = rest_client.Get(request);
-		if (res->status == httplib::StatusCode::OK_200) {
-			auto j = json::parse(res->body);
-			from = std::chrono::nanoseconds(j["from"].template get<long long>());
-			to = std::chrono::nanoseconds(j["to"].template get<long long>());
-			num_bars = j["num_bars"].template get<size_t>();
-			auto from_str = common::to_string(from);
-			auto to_str = common::to_string(to);
-		
-			log::debug<4, true>( 
-				"get_historical_bar_range: Asset={} from={} to={} num bars={} body={}",
-				Asset, from_str, to_str, num_bars, res->body
-			);
-		}
-		else {
-			log::error<true>("get_historical_bar_range error: status={} Asset={} body={}", res->status, Asset, res->body);
-		}
-
-		return res->status;
-	}
-
 	void plugin_callback(void* address) {
 		show("plugin_callback called with address={}", address);
 	}
@@ -177,6 +161,23 @@ namespace zorro {
 		(FARPROC&)http_free = fp_free;
 	}
 
+	/*
+	 *  BrokerLogin
+	 * 
+	 * Login or logout to the broker's API server; called in [Trade] mode or for downloading historical price data. 
+	 * If the connection to the server was lost, f.i. due to to Internet problems or server weekend maintenance, 
+	 * Zorro calls this function repeatedly in regular intervals until it is logged in again. Make sure that the 
+	 * function internally detects the login state and returns safely when the user was still logged in.
+	 *
+	 * Parameters:
+	 *	User		Input, User name for logging in, or NULL for logging out.
+	 *	Pwd			Input, Password for logging in.
+	 *	Type		Input, account type for logging in; either "Real" or "Demo".
+	 *	Accounts	Input / optional output, char[1024] array, intially filled with the account id from the account list. Can be filled with all user's account numbers as subsequent zero-terminated strings, ending with "" for the last string. When a list is returned, the first account number is used by Zorro for subsequent BrokerAccount calls.
+	 * 
+	 * Returns:
+	 *	Login state: 1 when logged in, 0 otherwise.
+	 */
 	DLLFUNC int BrokerLogin(char* user, char* password, char* type, char* account) {
 		try {
 			if (fix_thread == nullptr) {
@@ -190,6 +191,22 @@ namespace zorro {
 			}
 
 			if (user) {
+				fxcm_login = std::string(user);
+				fxcm_password = std::string(password);
+				fxcm_account = std::string(account);
+
+				if (strcmp(type, "Real") == 0) {
+					fxcm_connection = fxcm::real_connection;
+				}
+				else {
+					fxcm_connection = fxcm::demo_connection;
+				}
+
+				log::info<1, true>(
+					"BrokerLogin: FXCM credentials login={} password={} connection={} account={}", 
+					fxcm_login, fxcm_password, fxcm_connection, fxcm_account
+				);
+
 				log::debug<1, true>("BrokerLogin: FIX service starting...");
 				fix_thread->start();
 				log::debug<1, true>("BrokerLogin: FIX service running");
@@ -350,42 +367,55 @@ namespace zorro {
 		}
 	}
 
-	DLLFUNC int BrokerHistory2(char* Asset, DATE tStart, DATE tEnd, int nTickMinutes, int nTicks, T6* ticks) {
-		auto seconds = nTicks * nTickMinutes * 60;
-		auto tStart2 = tEnd - seconds/SECONDS_PER_DAY;
-		auto from = zorro_date_to_string(tStart2);
-		auto to = zorro_date_to_string(tEnd);
+	DLLFUNC int BrokerHistory2(char* Asset, DATE t_start, DATE t_end, int n_tick_minutes, int n_ticks, T6* ticks) {
+		auto bar_seconds = n_tick_minutes * 60;
+		auto t_bar = bar_seconds / SECONDS_PER_DAY;
+		auto t_start2 = t_end - n_ticks * t_bar;
+		auto from = zorro_date_to_string(t_start2);
+		auto to = zorro_date_to_string(t_end);
 		
-		log::debug<2, true>("BrokerHistory2 {}: requesting {} ticks bar period {} minutes from {} to {}", Asset, nTicks, nTickMinutes, from, to);
+		log::debug<2, true>("BrokerHistory2 {}: requesting {} ticks bar period {} minutes from {} to {}", Asset, n_ticks, n_tick_minutes, from, to);
 
-		std::map<std::chrono::nanoseconds, Bar> bars;
-		auto status = get_historical_bars(Asset, tStart2, tEnd, bars);
+		std::vector<BidAskBar<DATE>> bars;
 
-		auto count = 0;		
-		if (status == httplib::StatusCode::OK_200) {
-			for (auto it = bars.rbegin(); it != bars.rend() && count <= nTicks; ++it) {
-				const auto& bar = it->second;
-				auto time = convert_time_chrono(bar.end);
+		int error = fxcm::get_historical_prices(
+			bars, 
+			fxcm_login.c_str(),
+			fxcm_password.c_str(), 
+			fxcm_connection.c_str(), 
+			fxcm::default_url, 
+			Asset, 
+			"1m", 
+			t_start, 
+			t_end
+		);
 
-				log::debug<5, false>(
-					"[{}] {} : open={:.5f} high={:.5f} low={:.5f} close={:.5f}", 
-					count, zorro_date_to_string(time), bar.open, bar.high, bar.low, bar.close
-				);
-				
-				ticks->fOpen = (float)bar.open;
-				ticks->fClose = (float)bar.close;
-				ticks->fHigh = (float)bar.high;
-				ticks->fLow = (float)bar.low;
-				ticks->time = time;
-				++ticks;
-				++count;
-			}
+		if (error < 0) {
+			log::debug<2, true>("BrokerHistory2 {}: get_historical_prices failed {}", Asset, error);
+			return 0;
 		}
-		else {
-			size_t num_bars;
-			std::chrono::nanoseconds from, to;
-			auto status = get_historical_bar_range(Asset, from, to, num_bars, false);
-			log::error<true>("BrokerHistory2 {}: error status={} bar range from={} to={}", Asset, status, common::to_string(from), common::to_string(to));
+
+		int count = 0;
+		for (auto it = bars.rbegin(); it != bars.rend() && count <= n_ticks; ++it) {
+			const auto& bar = *it;
+			DATE start = bar.timestamp;
+			DATE end = start + t_bar;
+			auto time = convert_time_chrono(bar.timestamp);
+
+			log::debug<5, false>(
+				"[{}] from={} to={} open={:.5f} high={:.5f} low={:.5f} close={:.5f}",
+				count, zorro_date_to_string(start), zorro_date_to_string(end), bar.ask_open, bar.ask_high, bar.ask_low, bar.ask_close
+			);
+
+			ticks->fOpen = static_cast<float>(bar.ask_open);
+			ticks->fClose = static_cast<float>(bar.ask_close);
+			ticks->fHigh = static_cast<float>(bar.ask_high);
+			ticks->fLow = static_cast<float>(bar.ask_low);
+			ticks->fVol = static_cast<float>(bar.volume);
+			ticks->fVal = static_cast<float>(bar.ask_close - bar.bid_close);
+			ticks->time = end;
+			++ticks;
+			++count;
 		}
 
 		return count;
