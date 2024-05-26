@@ -1,20 +1,69 @@
-// test_fxcm_market_data.cpp : This file contains the 'main' function. Program execution begins and ends there.
-//
 
+#include <string>
+#include <vector>
 #include <iostream>
+#include <cstdlib>
+#include <format>
 
-int main()
-{
-    std::cout << "Hello World!\n";
+#include "common/bar.h"
+#include "common/time_utils.h"
+#include "zorro_common/utils.h"
+#include "zorro_common/log.h"
+#include "fxcm_market_data/fxcm_market_data.h"
+
+namespace zorro {
+	int(__cdecl* BrokerError)(const char* txt);
 }
 
-// Run program: Ctrl + F5 or Debug > Start Without Debugging menu
-// Debug program: F5 or Debug > Start Debugging menu
+int show(const char* txt) {
+	std::cout << txt << std::endl;
+	return 0;
+}
 
-// Tips for Getting Started: 
-//   1. Use the Solution Explorer window to add/manage files
-//   2. Use the Team Explorer window to connect to source control
-//   3. Use the Output window to see build output and other messages
-//   4. Use the Error List window to view errors
-//   5. Go to Project > Add New Item to create new code files, or Project > Add Existing Item to add existing code files to the project
-//   6. In the future, to open this project again, go to File > Open > Project and select the .sln file
+int main(int argc, char* argv[])
+{
+	zorro::BrokerError = show;
+
+	zorro::create_file_logger("test_fxcm_market_data.log");
+
+	int n_tick_minutes = 1;
+	int n_ticks = 2 * 1440;
+	std::string instrument = "EUR/USD";
+	std::string timeframe = "m1";
+
+	std::vector<common::BidAskBar<fxcm::DATE>> bars;
+
+	size_t len = 0;
+	char fxcm_login[256];
+	char fxcm_password[256];
+	::getenv_s(&len, fxcm_login, sizeof(fxcm_login), "FIX_USER_NAME");
+	::getenv_s(&len, fxcm_password, sizeof(fxcm_password), "FIX_PASSWORD");
+
+
+	spdlog::debug("fxcm_login={} fxcm_password={}", fxcm_login, fxcm_password);
+
+	auto now = common::get_current_system_clock();
+	fxcm::DATE t_end = zorro::convert_time_chrono(now);
+	fxcm::DATE bar_seconds = n_tick_minutes * 60;
+	fxcm::DATE t_bar = bar_seconds / SECONDS_PER_DAY;
+	fxcm::DATE t_start = t_end - n_ticks * t_bar;
+
+	int error = fxcm::get_historical_prices(
+		bars,
+		fxcm_login,
+		fxcm_password,
+		"Demo",
+		fxcm::default_url,
+		instrument.c_str(),
+		timeframe.c_str(),
+		t_start,
+		t_end
+	);
+
+	spdlog::debug("{} bars read", bars.size());
+	for (auto it = bars.begin(); it != bars.end(); ++it) {
+		auto ts = zorro::zorro_date_to_string(it->timestamp, false);
+		spdlog::debug("begin {} bar {}", ts, it->to_string());
+	}
+}
+

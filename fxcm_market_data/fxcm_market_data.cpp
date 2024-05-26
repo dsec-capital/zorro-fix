@@ -124,6 +124,21 @@ namespace fxcm {
         }
     }
 
+    /*
+        Note:
+
+        typedef enum
+        {
+            Tick = 0,                   //!< tick
+            Min = 1,                    //!< 1 minute
+            Hour = 2,                   //!< 1 hour
+            Day = 3,                    //!< 1 day
+            Week = 4,                   //!< 1 week
+            Month = 5,                  //!< 1 month
+            Year = 6
+        } O2GTimeframeUnit;
+    
+    */
     int get_historical_prices(
         std::vector<common::BidAskBar<DATE>>& bars,
         const char* login,
@@ -189,7 +204,13 @@ namespace fxcm {
                     responseListener
                 );
 
-                std::cout << "Done!" << std::endl;
+                if (has_error) {
+                    spdlog::error("get_historical_prices: error in fetch_historical_prices");
+
+                }
+                else {
+                    spdlog::debug("get_historical_prices: done, read {} bars", bars.size());
+                }
 
                 communicator->removeListener(responseListener);
             }

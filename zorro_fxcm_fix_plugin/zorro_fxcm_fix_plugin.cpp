@@ -373,6 +373,9 @@ namespace zorro {
 		auto t_start2 = t_end - n_ticks * t_bar;
 		auto from = zorro_date_to_string(t_start2);
 		auto to = zorro_date_to_string(t_end);
+
+		// todo determing proper time frame
+		std::string timeframe = "m1";
 		
 		log::debug<2, true>("BrokerHistory2 {}: requesting {} ticks bar period {} minutes from {} to {}", Asset, n_ticks, n_tick_minutes, from, to);
 
@@ -385,7 +388,7 @@ namespace zorro {
 			fxcm_connection.c_str(), 
 			fxcm::default_url, 
 			Asset, 
-			"1m", 
+			timeframe.c_str(),
 			t_start, 
 			t_end
 		);
