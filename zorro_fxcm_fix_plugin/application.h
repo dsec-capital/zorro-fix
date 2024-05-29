@@ -52,6 +52,8 @@ namespace zorro
 
 		bool is_logged_in() const;
 
+		int log_in_count() const;
+
 		const std::set<std::string>& get_account_ids() const;
 
 		// Sends TradingSessionStatusRequest message in order to receive a TradingSessionStatus message
@@ -65,10 +67,9 @@ namespace zorro
 		// sent with the acknowledgement that no positions exist. 
 		FIX::Message request_for_positions(const std::string& account_id);
 
-		std::optional<FIX::Message> subscribe_market_data(
-			const FIX::Symbol& symbol,
-			const FIX::SubscriptionRequestType& subscriptionRequestType
-		);
+		FIX::Message market_data_snapshot(const FIX::Symbol& symbol);
+
+		std::optional<FIX::Message> subscribe_market_data(const FIX::Symbol& symbol, bool incremental);
 
 		std::optional<FIX::Message> unsubscribe_market_data(
 			const FIX::Symbol& symbol
@@ -109,6 +110,10 @@ namespace zorro
 
 	private:
 
+		bool is_trading_session(const FIX::SessionID& sess_id) const;
+
+		bool is_market_data_session(const FIX::SessionID& sess_id) const;
+
 		// custom FXCM FIX fields
 		enum FXCM_FIX_FIELDS
 		{
@@ -135,15 +140,17 @@ namespace zorro
 		FIX::SessionSettings session_settings;
 		BlockingTimeoutQueue<ExecReport>& exec_report_queue;
 		BlockingTimeoutQueue<TopOfBook>& top_of_book_queue;
-		std::string sender_comp_id;
-		std::string target_comp_id;
-		std::atomic<bool> done;
-		std::atomic<bool> logged_in;
-		IDGenerator id_generator;
-		FIX::SessionID session_id;
+
+		FIX::SessionID trading_session_id;
+		FIX::SessionID market_data_session_id;
 		std::set<std::string> account_ids;
+
+		std::atomic<bool> done;
+		std::atomic<int> logged_in;
+		IDGenerator id_generator;
+
 		std::unordered_map<std::string, std::string> market_data_subscriptions;
-		std::unordered_map<std::string, Book> books;
+		std::unordered_map<std::string, TopOfBook> top_of_books;
 		OrderTracker order_tracker;
 
 		// should not be used anymore, use the top_of_book_queue

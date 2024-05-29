@@ -39,7 +39,6 @@ int main(int argc, char* argv[])
 	::getenv_s(&len, fxcm_login, sizeof(fxcm_login), "FIX_USER_NAME");
 	::getenv_s(&len, fxcm_password, sizeof(fxcm_password), "FIX_PASSWORD");
 
-
 	spdlog::debug("fxcm_login={} fxcm_password={}", fxcm_login, fxcm_password);
 
 	auto now = common::get_current_system_clock();

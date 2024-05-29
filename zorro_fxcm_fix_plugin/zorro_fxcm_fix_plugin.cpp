@@ -213,19 +213,20 @@ namespace zorro {
 
 				auto count = 0;
 				auto start = std::chrono::system_clock::now();
-				auto logged_in = fix_thread->fix_app().is_logged_in();
-				while (!logged_in && count < 50) {
+				auto log_in_count = fix_thread->fix_app().log_in_count();
+				while (log_in_count < 2 && count < 50) {
 					std::this_thread::sleep_for(100ms);
-					logged_in = fix_thread->fix_app().is_logged_in();
+					log_in_count = fix_thread->fix_app().log_in_count();
+					log::info<1, true>("BrokerLogin: waiting for all session log in - login count={}", log_in_count);
 				}
 				auto dt = std::chrono::system_clock::now() - start;
 				auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(dt).count();
-				if (logged_in) {
+				if (log_in_count >= 2) {
 					log::info<1, true>("BrokerLogin: FIX login after {}ms", ms);
 					return BrokerLoginStatus::LoggedIn;
 				}
 				else {
-					throw std::runtime_error(std::format("login timeout after {}ms", ms));
+					throw std::runtime_error(std::format("login timeout after {}ms login count={}", ms, log_in_count));
 				}
 			}
 			else {
@@ -326,10 +327,7 @@ namespace zorro {
 			// subscribe to Asset market data
 			if (!price) {  
 				FIX::Symbol symbol(Asset);
-				fix_app.subscribe_market_data(
-					symbol,
-					FIX::SubscriptionRequestType_SNAPSHOT_AND_UPDATES
-				);
+				fix_app.subscribe_market_data(symbol, false);
 
 				log::info<1, true>("BrokerAsset: subscription request sent for symbol {}", Asset);
 
@@ -381,7 +379,7 @@ namespace zorro {
 
 		std::vector<BidAskBar<DATE>> bars;
 
-		int error = fxcm::get_historical_prices(
+		auto success = fxcm::get_historical_prices(
 			bars, 
 			fxcm_login.c_str(),
 			fxcm_password.c_str(), 
@@ -393,8 +391,8 @@ namespace zorro {
 			t_end
 		);
 
-		if (error < 0) {
-			log::debug<2, true>("BrokerHistory2 {}: get_historical_prices failed {}", Asset, error);
+		if (!success) {
+			log::debug<2, true>("BrokerHistory2 {}: get_historical_prices failed - check logs", Asset);
 			return 0;
 		}
 

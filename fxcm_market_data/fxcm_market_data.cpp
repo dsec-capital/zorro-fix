@@ -38,8 +38,9 @@ namespace fxcm {
         }
 
         // create and send a history request
-        O2G2Ptr<pricehistorymgr::IPriceHistoryCommunicatorRequest> request =
-            communicator->createRequest(instrument, timeframeObj, from, to, quotes_count, &error);
+        O2G2Ptr<pricehistorymgr::IPriceHistoryCommunicatorRequest> request = communicator->createRequest(
+            instrument, timeframeObj, from, to, quotes_count, &error
+        );
         if (!request)
         {
             spdlog::error("fetch_historical_prices error: failded creating request {}", error->getMessage());
@@ -139,7 +140,7 @@ namespace fxcm {
         } O2GTimeframeUnit;
     
     */
-    int get_historical_prices(
+    bool get_historical_prices(
         std::vector<common::BidAskBar<DATE>>& bars,
         const char* login,
         const char* password,
@@ -171,13 +172,13 @@ namespace fxcm {
         if (!communicator)
         {
             spdlog::error("get_historical_prices: error {}", error->getMessage());
-            return -1;
+            return false;
         }
 
         // log in to ForexConnect
         session->login(login, password, url, connection);
 
-        bool has_error = false;
+        bool success = false;
 
         if (statusListener->waitEvents() && statusListener->isConnected())
         {
@@ -188,12 +189,11 @@ namespace fxcm {
             if (communicator->isReady() ||
                 communicatorStatusListener->waitEvents() && communicatorStatusListener->isReady())
             {
-                // attach the instance of the class that implements the IPriceHistoryCommunicatorListener
-                // interface to the communicator
+                // attach the instance of the class that implements the IPriceHistoryCommunicatorListener interface to the communicator
                 O2G2Ptr<ResponseListener> responseListener(new ResponseListener());
                 communicator->addListener(responseListener);
 
-                has_error = fetch_historical_prices(
+                success = fetch_historical_prices(
                     bars,
                     communicator,
                     instrument,
@@ -204,11 +204,7 @@ namespace fxcm {
                     responseListener
                 );
 
-                if (has_error) {
-                    spdlog::error("get_historical_prices: error in fetch_historical_prices");
-
-                }
-                else {
+                if (success) {
                     spdlog::debug("get_historical_prices: done, read {} bars", bars.size());
                 }
 
@@ -221,13 +217,10 @@ namespace fxcm {
             session->logout();
             statusListener->waitEvents();
         }
-        else {
-            has_error = true;
-        }
 
         session->unsubscribeSessionStatus(statusListener);
 
-        return has_error ? -1 : 0;
+        return success;
     }
 
     /** Gets precision of a specified instrument.

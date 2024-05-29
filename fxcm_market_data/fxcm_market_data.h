@@ -15,7 +15,12 @@ namespace fxcm {
 
     typedef double DATE;
 
-    int get_historical_prices(
+    /*
+        Get historical prices
+
+        Returns true on success.
+    */
+    bool get_historical_prices(
         std::vector<common::BidAskBar<DATE>>& bars,
         const char* login,
         const char* password,

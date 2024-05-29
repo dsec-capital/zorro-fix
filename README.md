@@ -26,11 +26,14 @@ Contributions and feedback are very welcome.
 
 ### Information
 
-  - [FIX Specification](https://apiwiki.fxcorporate.com/api/fix/docs/FXCM-FIX-BSI.pdf)
+  - [FIX specification](https://apiwiki.fxcorporate.com/api/fix/docs/FXCM-FIX-BSI.pdf)
   - [FXCM data dictionary](https://apiwiki.fxcorporate.com/api/fix/docs/FIXFXCM10.xml)
-  - [FIX Conformance Test](https://apiwiki.fxcorporate.com/api/fix/Retail_FIX_Conformance_Test.xlsx)
-  - [FXCM FIX API Examples](https://github.com/fxcm/FIXAPI)
-
+  - [FIX conformance test](https://apiwiki.fxcorporate.com/api/fix/Retail_FIX_Conformance_Test.xlsx)
+  - [FXCM FIX API examples](https://github.com/fxcm/FIXAPI)
+  - [FXCM ForexConnect API](https://github.com/fxcm/ForexConnectAPI)
+  - [ForexConnect online documentation](https://fxcodebase.com/wiki/index.php/Main_Page)
+  - [ForexConnect online documentation](https://fxcodebase.com/bin/forexconnect/1.4.1/help/CPlusPlus/web-content.html#index.html)
+  - [FXCM market data](https://github.com/fxcm/MarketData)
 
 
 ## Simulation FIX Plugin 
