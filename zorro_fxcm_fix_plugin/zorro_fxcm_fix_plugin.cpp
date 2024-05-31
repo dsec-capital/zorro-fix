@@ -70,7 +70,8 @@ namespace zorro {
 	std::shared_ptr<spdlog::logger> spd_logger = nullptr;
 	std::unique_ptr<FixThread> fix_thread = nullptr;
 	BlockingTimeoutQueue<ExecReport> exec_report_queue;
-	BlockingTimeoutQueue<TopOfBook> top_of_book_queue;  
+	BlockingTimeoutQueue<TopOfBook> top_of_book_queue;
+	BlockingTimeoutQueue<FXCMCollateralReport> collateral_report_queue;
 	std::unordered_map<int, std::string> order_id_by_internal_order_id;
 	std::unordered_map<std::string, TopOfBook> top_of_books;
 	OrderTracker order_tracker("account");
@@ -237,7 +238,8 @@ namespace zorro {
 				fix_thread = std::unique_ptr<FixThread>(new FixThread(
 					settings_cfg_file,
 					exec_report_queue, 
-					top_of_book_queue
+					top_of_book_queue,
+					collateral_report_queue
 				));
 				log::debug<1, true>("BrokerLogin: FIX thread created");
 			}

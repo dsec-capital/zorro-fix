@@ -85,6 +85,29 @@ namespace zorro
 		FXCMTradingStatus fxcm_trading_status;
 	};
 
+	enum FXCMMarginCallStatus {
+		MarginCallStatus_Fine = 0,						// N: account has no problems
+		MarginCallStatus_MaintenanceMarginAleart = 1,	// W: maintenance margin alert, 
+		MarginCallStatus_LiquidationReached = 2, 		// Y : account reached liquidation margin call,
+		MarginCallStatus_EquityAlert = 3, 				// A: equity alert
+		MarginCallStatus_EquityStop = 4					// Q: equity stop, 
+	};
+
+	FXCMMarginCallStatus parse_fxcm_margin_call_status(const std::string& status);
+
+	struct FXCMCollateralReport {
+		std::string account_id;
+		std::chrono::nanoseconds sending_time;
+		double balance;
+		double start_cash;
+		double end_cash;
+		double margin_ratio;
+		double margin;
+		double maintenance_margin;
+		double cash_daily;
+		FXCMMarginCallStatus margin_call_status;
+		std::vector<std::pair<int, std::string>> party_sub_ids;
+	};
 
 	/*
 	 * FXCM FIX Client Application
@@ -96,7 +119,8 @@ namespace zorro
 		Application(
 			const FIX::SessionSettings& session_settings,
 			BlockingTimeoutQueue<ExecReport>& exec_report_queue,
-			BlockingTimeoutQueue<TopOfBook>& top_of_book_queue
+			BlockingTimeoutQueue<TopOfBook>& top_of_book_queue,
+			BlockingTimeoutQueue<FXCMCollateralReport>& collateral_report_queue
 		);
 
 		int login_count() const;
@@ -193,9 +217,9 @@ namespace zorro
 			FXCM_POS_CLOSE_TIME = 9044,			// UTCTimestamp Time when trading position was closed
 			FXCM_MARGIN_CALL = 9045,			// String Milestones status of account from risk management point of view 
 												// N: account has no problems, Y: account reached liquidation margin call, 
-												// W: aintenance margin alert, Q: equity stop, A: equity alert
+												// W: maintenance margin alert, Q: equity stop, A: equity alert
 			FXCM_USED_MARGIN3 = 9046,			// Float Amount of used margin nominated for an account or position (maintenance level)
-			FXCM_CASH_DAILY = 9047,				// Float Non - trade related daily activity on the account(uses for daily equity based risk management)
+			FXCM_CASH_DAILY = 9047,				// Float Non - trade related daily activity on the account (uses for daily equity based risk management)
 			FXCM_CLOSE_CL_ORD_ID = 9048,		// String ClOrdID of the order that closes a position
 			FXCM_CLOSE_SECONDARY_CL_ORD_ID = 9049, // String SecondaryClOrdID of the order that closes a position
 			FXCM_ORD_TYPE = 9050,				// String See documentation 
@@ -221,6 +245,7 @@ namespace zorro
 		FIX::SessionSettings session_settings;
 		BlockingTimeoutQueue<ExecReport>& exec_report_queue;
 		BlockingTimeoutQueue<TopOfBook>& top_of_book_queue;
+		BlockingTimeoutQueue<FXCMCollateralReport>& collateral_report_queue;
 
 		FIX::SessionID trading_session_id;
 		FIX::SessionID market_data_session_id;
@@ -236,8 +261,8 @@ namespace zorro
 
 		bool log_market_data;
 
-		common::fix::TradeSessionStatus trade_session_status;
-		int server_timezone;
+		common::fix::TradeSessionStatus trade_session_status{ common::fix::TradeSessionStatus::UNDEFINED };
+		int server_timezone{ 0 };
 		std::string server_timezone_name;
 		std::map<std::string, std::string> fxcm_parameters;
 		std::map<std::string, FXCMSecurityInformation> fxcm_security_informations;

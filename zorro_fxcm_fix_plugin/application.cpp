@@ -41,13 +41,29 @@ namespace zorro {
 		return std::chrono::duration_cast<std::chrono::nanoseconds>(tp.time_since_epoch());
 	}
 
+	FXCMMarginCallStatus parse_fxcm_margin_call_status(const std::string& status) {
+		if (status == "N")
+			return FXCMMarginCallStatus::MarginCallStatus_Fine;
+		if (status == "W")
+			return FXCMMarginCallStatus::MarginCallStatus_MaintenanceMarginAleart;
+		if (status == "Y")
+			return FXCMMarginCallStatus::MarginCallStatus_LiquidationReached;
+		if (status == "A")
+			return FXCMMarginCallStatus::MarginCallStatus_EquityAlert;
+		if (status == "Q")
+			return FXCMMarginCallStatus::MarginCallStatus_EquityStop;
+		throw std::runtime_error("unknown margin call status " + status);
+	}
+
 	Application::Application(
 		const FIX::SessionSettings& session_settings,
 		BlockingTimeoutQueue<ExecReport>& exec_report_queue,
-		BlockingTimeoutQueue<TopOfBook>& top_of_book_queue
+		BlockingTimeoutQueue<TopOfBook>& top_of_book_queue,
+		BlockingTimeoutQueue<FXCMCollateralReport>& collateral_report_queue
 	) : session_settings(session_settings)
 	  , exec_report_queue(exec_report_queue)
 	  , top_of_book_queue(top_of_book_queue)
+      , collateral_report_queue(collateral_report_queue)
 	  , done(false)
 	  , logged_in(0)
       , order_tracker("account")
@@ -290,31 +306,59 @@ namespace zorro {
 	// Notable fields include Account(1) which is the AccountID and CashOutstanding(901) which is the account balance
 	void Application::onMessage(const FIX44::CollateralReport& message, const FIX::SessionID& session_ID)
 	{
-		const auto& account_id = message.getField(FIX::FIELD::Account);
-		account_ids.insert(account_id);
+		try {
+			const auto& account_id = message.getField(FIX::FIELD::Account);
+			account_ids.insert(account_id);
 
-		spdlog::debug("Application::onMessage[CollateralReport]: inserted account id={}", account_id);
+			spdlog::debug("Application::onMessage[CollateralReport]: inserted account id={}", account_id);
 
-		// account balance, which is the cash balance in the account, not including any profit or losses on open trades
-		const auto& balance = message.getField(FIX::FIELD::CashOutstanding);
+			// account balance, which is the cash balance in the account, not including any profit or losses on open trades
+			double balance = FIX::DoubleConvertor::convert(message.getField(FIX::FIELD::CashOutstanding));
+			double start_cash = FIX::DoubleConvertor::convert(message.getField(FIX::FIELD::StartCash));
+			double end_cash = FIX::DoubleConvertor::convert(message.getField(FIX::FIELD::EndCash));
+			double margin_ratio = FIX::DoubleConvertor::convert(message.getField(FIX::FIELD::MarginRatio));
+			double margin = FIX::DoubleConvertor::convert(message.getField(FXCM_USED_MARGIN));
+			double maintenance_margin = FIX::DoubleConvertor::convert(message.getField(FXCM_USED_MARGIN3));
+			double cash_daily = FIX::DoubleConvertor::convert(message.getField(FXCM_CASH_DAILY));
+			auto margin_call_status = parse_fxcm_margin_call_status(message.getField(FXCM_MARGIN_CALL));
+			auto sending_time = parse_datetime(message, FIX::FIELD::SendingTime);
 
-		//cout << "  AccountID -> " << accountID << endl;
-		//cout << "  Balance -> " << balance << endl;
-		 
-		// CollateralReport NoPartyIDs group can be inspected for additional account information such as AccountName or HedgingStatus
-		FIX44::CollateralReport::NoPartyIDs group;
-		message.getGroup(1, group); // CollateralReport will only have 1 NoPartyIDs group
-		
-		// Get the number of NoPartySubIDs repeating groups
-		int number_subID = FIX::IntConvertor::convert(group.getField(FIX::FIELD::NoPartySubIDs));
-		// For each group, print out both the PartySubIDType and the PartySubID (the value)
-		for (int u = 1; u <= number_subID; u++) {
-			FIX44::CollateralReport::NoPartyIDs::NoPartySubIDs sub_group;
-			group.getGroup(u, sub_group);
+			// CollateralReport NoPartyIDs group can be inspected for additional account information such as AccountName or HedgingStatus
+			FIX44::CollateralReport::NoPartyIDs group;
+			message.getGroup(1, group); // CollateralReport will only have 1 NoPartyIDs group
 
-			const auto& sub_type = sub_group.getField(FIX::FIELD::PartySubIDType);
-			const auto& sub_value = sub_group.getField(FIX::FIELD::PartySubID);
-			std::cout << "    " << sub_type << " -> " << sub_value << std::endl;
+			// Get the number of NoPartySubIDs repeating groups
+			// For each group, get both the PartySubIDType and the PartySubID (the value)
+			std::vector<std::pair<int, std::string>> party_sub_ids;
+			int number_subID = FIX::IntConvertor::convert(group.getField(FIX::FIELD::NoPartySubIDs));
+			for (int u = 1; u <= number_subID; u++) {
+				FIX44::CollateralReport::NoPartyIDs::NoPartySubIDs sub_group;
+				group.getGroup(u, sub_group);
+
+				int sub_type = FIX::IntConvertor::convert(sub_group.getField(FIX::FIELD::PartySubIDType));
+				const auto& sub_value = sub_group.getField(FIX::FIELD::PartySubID);
+				party_sub_ids.emplace_back(std::make_pair(sub_type, sub_value));
+			}
+
+			FXCMCollateralReport collateral_report{
+				.account_id = account_id,
+				.sending_time = sending_time,
+				.balance = balance,
+				.start_cash = start_cash,
+				.end_cash = end_cash,
+				.margin_ratio = margin_ratio,
+				.margin = margin,
+				.maintenance_margin = maintenance_margin,
+				.cash_daily = cash_daily,
+				.margin_call_status = margin_call_status,
+				.party_sub_ids = party_sub_ids
+			};
+		}
+		catch (FIX::FieldNotFound& error) {
+			spdlog::error(
+				"Application::onMessage[FIX44::CollateralReport]: field not found {}",
+				error.what()
+			);
 		}
 	}
 

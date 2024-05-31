@@ -47,13 +47,14 @@ namespace zorro {
 		FixThread(
 			const std::string& settings_cfg_file,
 			BlockingTimeoutQueue<ExecReport>& exec_report_queue,
-			BlockingTimeoutQueue<TopOfBook>& top_of_book_queue
+			BlockingTimeoutQueue<TopOfBook>& top_of_book_queue,
+			BlockingTimeoutQueue<FXCMCollateralReport>& collateral_report_queue
 		) :
 			started(false),
 			settings_cfg_file(settings_cfg_file)
 		{
 			create_factories();
-			application = new Application(*settings, exec_report_queue, top_of_book_queue);
+			application = new Application(*settings, exec_report_queue, top_of_book_queue, collateral_report_queue);
 			initiator = new FIX::SocketInitiator(*application, *store_factory, *settings, *log_factory);
 			spdlog::debug("FixThread: FIX application and FIX initiator created");
 		}
