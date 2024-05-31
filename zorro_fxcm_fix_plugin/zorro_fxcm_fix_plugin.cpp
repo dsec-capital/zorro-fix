@@ -168,7 +168,6 @@ namespace zorro {
 		fs.close();
 	}
 
-	// std::fstream::trunc
 	void dump_bars(T6* ticks, int n_ticks, std::ios_base::openmode mode = std::fstream::app) {
 		bool skip_header = std::filesystem::exists(BAR_DUMP_FILE_NAME);
 		

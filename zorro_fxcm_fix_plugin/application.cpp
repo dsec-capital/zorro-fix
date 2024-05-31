@@ -172,53 +172,112 @@ namespace zorro {
 	// TradingSessionStatus should be requested upon successful Logon and subscribed to. The contents of the
 	// TradingSessionStatus message, specifically the SecurityList and system parameters, should dictate how fields
 	// are set when sending messages to FXCM.
+	// ** Note on Text(58) ** 
+	// You will notice that Text(58) field is always set to "Market is closed. Any trading
+	// functionality is not available." This field is always set to this value; therefore, do not 
+	// use this field value to determine if the trading desk is open. As stated above, use TradSesStatus for this purpose
 	void Application::onMessage(const FIX44::TradingSessionStatus& message, const FIX::SessionID& session_ID)
 	{
 		// Check TradSesStatus field to see if the trading desk is open or closed
 		//	2 = Open
 		//	3 = Closed
-		auto trad_status = message.getField(FIX::FIELD::TradSesStatus);
+		trade_session_status = static_cast<common::fix::TradeSessionStatus>(
+			FIX::IntConvertor::convert(message.getField(FIX::FIELD::TradSesStatus))
+		);
 
-		// Within the TradingSessionStatus message is an embeded SecurityList. From SecurityList we can see
-		// the list of available trading securities and information relevant to each; e.g., point sizes,
-		// minimum and maximum order quantities by security, etc. 
-		
-		//cout << "  SecurityList via TradingSessionStatus -> " << endl;
+		server_timezone = FIX::IntConvertor::convert(message.getField(FXCM_SERVER_TIMEZONE));
+		server_timezone_name = message.getField(FXCM_SERVER_TIMEZONE);
 
-		int symbols_count = FIX::IntConvertor::convert(message.getField(FIX::FIELD::NoRelatedSym));
-		for (int i = 1; i <= symbols_count; i++) {
-			// Get the NoRelatedSym group and for each, print out the Symbol value
-			FIX44::SecurityList::NoRelatedSym symbols_group;
-			message.getGroup(i, symbols_group);
-			auto symbol = symbols_group.getField(FIX::FIELD::Symbol);
-			//cout << "    Symbol -> " << symbol << endl;
+		try {
+			// Within the TradingSessionStatus message is an embeded SecurityList. From SecurityList we can see
+			// the list of available trading securities and information relevant to each; e.g., point sizes,
+			// minimum and maximum order quantities by security, etc. 
+			int num_symbols = FIX::IntConvertor::convert(message.getField(FIX::FIELD::NoRelatedSym));
+			for (int i = 1; i <= num_symbols; i++) {
+				// 55=LINK/USD|460=12|228=1|231=1|9001=3|9002=0.01|9005=8027|9080=9|15=USD|561=1|
+				// 9003=-0.027|9004=0|9076=D|9090=0|9091=0|9092=0|9093=0|9094=1000|9095=1|9096=O|
+				FIX44::SecurityList::NoRelatedSym group;
+				message.getGroup(i, group);
+
+				try {
+					const auto& symbol = group.getField(FIX::FIELD::Symbol);
+					int product = FIX::IntConvertor::convert(group.getField(FIX::FIELD::Product));
+					int factor = FIX::IntConvertor::convert(group.getField(FIX::FIELD::Factor));
+					int contract_multiplier = FIX::IntConvertor::convert(group.getField(FIX::FIELD::ContractMultiplier));
+					int pip_size = FIX::IntConvertor::convert(group.getField(FXCM_SYM_PRECISION));
+					double point_size = FIX::DoubleConvertor::convert(group.getField(FXCM_SYM_POINT_SIZE));
+					FXCMProductId prod_id = static_cast<FXCMProductId>(FIX::IntConvertor::convert(group.getField(FXCM_PRODUCT_ID)));
+					const auto& currency = group.getField(FIX::FIELD::Currency);
+					int round_lots = FIX::IntConvertor::convert(group.getField(FIX::FIELD::RoundLot));
+					double interest_buy = FIX::DoubleConvertor::convert(group.getField(FXCM_SYM_INTEREST_BUY));
+					double interest_sell = FIX::DoubleConvertor::convert(group.getField(FXCM_SYM_INTEREST_SELL));
+					const auto& subscription_status = group.getField(FXCM_SUBSCRIPTION_STATUS);
+					int sort_order = FIX::IntConvertor::convert(group.getField(FXCM_SYM_SORT_ORDER));
+					double cond_dist_stop = FIX::DoubleConvertor::convert(group.getField(FXCM_COND_DIST_STOP));
+					double cond_dist_limit = FIX::DoubleConvertor::convert(group.getField(FXCM_COND_DIST_LIMIT));
+					double cond_dist_entry_stop = FIX::DoubleConvertor::convert(group.getField(FXCM_COND_DIST_ENTRY_STOP));
+					double cond_dist_entry_limit = FIX::DoubleConvertor::convert(group.getField(FXCM_COND_DIST_ENTRY_LIMIT));
+					double max_quanity = FIX::DoubleConvertor::convert(group.getField(FXCM_MAX_QUANTITY));
+					double min_quantity = FIX::DoubleConvertor::convert(group.getField(FXCM_MIN_QUANTITY));
+					const auto& fxcm_trading_status = group.getField(FXCM_TRADING_STATUS);	
+					auto trade_status = FXCMTradingStatus::UnknownTradingStatus;
+					if (fxcm_trading_status == "O")
+						trade_status = FXCMTradingStatus::TradingOpen;
+					else if (fxcm_trading_status == "C") 
+						trade_status = FXCMTradingStatus::TradingClosed;
+
+					struct FXCMSecurityInformation security_info{
+						.symbol = symbol,
+						.currency = currency,
+						.product = product,
+						.pip_size = pip_size,
+						.point_size = point_size,
+						.max_quanity = max_quanity,
+						.min_quantity = min_quantity,
+						.round_lots = round_lots,
+						.factor = factor,
+						.contract_multiplier = contract_multiplier,
+						.prod_id = prod_id,
+						.interest_buy = interest_buy,
+						.interest_sell = interest_sell,
+						.subscription_status = subscription_status,
+						.sort_order = sort_order,
+						.cond_dist_stop = cond_dist_stop,
+						.cond_dist_limit = cond_dist_limit,
+						.cond_dist_entry_stop = cond_dist_entry_stop,
+						.cond_dist_entry_limit = cond_dist_entry_limit,
+						.fxcm_trading_status = trade_status,
+					};
+					fxcm_security_informations.emplace(symbol, std::move(security_info));
+				}
+				catch (FIX::FieldNotFound& error) {
+					spdlog::error(
+						"Application::onMessage[FIX44::TradingSessionStatus]: security list field not found {}",
+						error.what()
+					);
+				}
+			}
+
+			// Also within TradingSessionStatus are FXCM system parameters. This includes important information
+			// such as account base currency, server time zone, the time at which the trading day ends, and more.			
+			// Read field FXCMNoParam (9016) which shows us how many system parameters are in the message
+			int params_count = FIX::IntConvertor::convert(message.getField(FXCM_NO_PARAMS));
+			for (int i = 1; i <= params_count; i++) {
+				// For each paramater, print out both the name of the paramater and the value of the 
+				// paramater. FXCMParamName (9017) is the name of the paramater and FXCMParamValue(9018)
+				// is of course the paramater value
+				FIX::FieldMap field_map = message.getGroupRef(i, FXCM_NO_PARAMS);
+				fxcm_parameters.emplace(
+					field_map.getField(FXCM_PARAM_NAME),
+					field_map.getField(FXCM_PARAM_VALUE)
+				);
+			}
+		} catch(FIX::FieldNotFound &error) {
+			spdlog::error(
+				"Application::onMessage[FIX44::TradingSessionStatus]: field not found {}",
+				error.what()
+			);
 		}
-		
-		// Also within TradingSessionStatus are FXCM system parameters. This includes important information
-		// such as account base currency, server time zone, the time at which the trading day ends, and more.
-		
-		//cout << "  System Parameters via TradingSessionStatus -> " << endl;
-		
-		// Read field FXCMNoParam (9016) which shows us how many system parameters are 
-		// in the message
-		int params_count = FIX::IntConvertor::convert(message.getField(FXCM_NO_PARAMS)); // FXCMNoParam (9016)
-		for (int i = 1; i <= params_count; i++) {
-			// For each paramater, print out both the name of the paramater and the value of the 
-			// paramater. FXCMParamName (9017) is the name of the paramater and FXCMParamValue(9018)
-			// is of course the paramater value
-			FIX::FieldMap field_map = message.getGroupRef(i, FXCM_NO_PARAMS);
-
-			std::cout << "    Param Name -> " << field_map.getField(FXCM_PARAM_NAME)
-				<< " - Param Value -> " << field_map.getField(FXCM_PARAM_VALUE) << std::endl;
-		}
-
-		// Request accounts under our login
-		//GetAccounts();
-
-		// ** Note on Text(58) ** 
-		// You will notice that Text(58) field is always set to "Market is closed. Any trading
-		// functionality is not available." This field is always set to this value; therefore, do not 
-		// use this field value to determine if the trading desk is open. As stated above, use TradSesStatus for this purpose
 	}
 
 	void Application::onMessage(const FIX44::CollateralInquiryAck& message, const FIX::SessionID& session_ID)
