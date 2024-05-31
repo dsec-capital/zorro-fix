@@ -47,7 +47,11 @@ int main(int argc, char* argv[])
 	fxcm::DATE t_bar = bar_seconds / SECONDS_PER_DAY;
 	fxcm::DATE t_start = t_end - n_ticks * t_bar;
 
-	int error = fxcm::get_historical_prices(
+	// alternative range 
+	t_end = 45442.10972890354;
+	t_start = 45441.41528445909;
+
+	auto success = fxcm::get_historical_prices(
 		bars,
 		fxcm_login,
 		fxcm_password,

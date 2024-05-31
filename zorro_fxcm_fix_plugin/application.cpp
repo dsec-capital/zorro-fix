@@ -50,14 +50,19 @@ namespace zorro {
 	  , top_of_book_queue(top_of_book_queue)
 	  , done(false)
 	  , logged_in(0)
-     , order_tracker("account")
-	{}
-
-	bool Application::is_logged_in() const {
-		return logged_in.load() >= 2;
+      , order_tracker("account")
+	  , log_market_data(false)
+	{
+		if (session_settings.get().has("AccountId")) {
+			auto account_id = session_settings.get().getString("AccountId");
+			account_ids.insert(account_id);
+			spdlog::info(
+				"Application::Application account id from session settings={}", account_id
+			);
+		}
 	}
 
-	int Application::log_in_count() const {
+	int Application::login_count() const {
 		return logged_in.load();
 	}
 
@@ -71,6 +76,11 @@ namespace zorro {
 
 	bool Application::is_market_data_session(const FIX::SessionID& sess_id) const {
 		return sess_id.getSenderCompID().getString().starts_with("MD_");
+	}
+
+	bool Application::is_market_data_message(const FIX::Message& message) const {
+		const auto& msg_type = message.getHeader().getField(FIX::FIELD::MsgType);
+		return msg_type == FIX::MsgType_MarketDataSnapshotFullRefresh || msg_type == FIX::MsgType_MarketDataIncrementalRefresh;
 	}
 
 	void Application::onCreate(const FIX::SessionID& sess_id) {
@@ -94,7 +104,8 @@ namespace zorro {
 		spdlog::debug("Application::onLogon sessionID={} login count={}", sess_id.toString(), logged_in.load());
 
 		if (is_trading_session(sess_id)) {
-
+			trading_session_status_request();
+			collateral_inquiry();
 		}
 	}
 
@@ -115,7 +126,7 @@ namespace zorro {
 	{
 		// Logon (A) requires to set the Username and Password fields
 		const auto& msg_type = message.getHeader().getField(FIX::FIELD::MsgType);
-		if (msg_type == "A") {
+		if (msg_type == FIX::MsgType_Logon) {
 			// get both username and password from settings file
 			auto user = session_settings.get().getString("Username");
 			auto pass = session_settings.get().getString("Password");
@@ -133,7 +144,10 @@ namespace zorro {
 	void Application::fromApp(const FIX::Message& message, const FIX::SessionID& sessionID)
 		EXCEPT(FIX::FieldNotFound, FIX::IncorrectDataFormat, FIX::IncorrectTagValue, FIX::UnsupportedMessageType)
 	{
-		spdlog::debug("Application::fromApp IN <{}> {}", sessionID.toString(), fix_string(message));
+		auto mkt = is_market_data_message(message);
+		if (!mkt || (mkt && log_market_data)) {
+			spdlog::debug("Application::fromApp IN <{}> {}", sessionID.toString(), fix_string(message));
+		}
 		crack(message, sessionID);
 	}
 
@@ -274,7 +288,7 @@ namespace zorro {
 	{
 		auto& symbol = message.getField(FIX::FIELD::Symbol);
 
-		auto& top_of_book = top_of_books.insert_or_assign(symbol, TopOfBook()).first->second;
+		auto& top_of_book = top_of_books.insert_or_assign(symbol, TopOfBook(symbol)).first->second;
 		double session_high_price;
 		double session_low_price;
 		std::chrono::nanoseconds timestamp;
@@ -320,7 +334,9 @@ namespace zorro {
 			}
 		}
 
-		spdlog::debug("Application::onMessage[FIX44::MarketDataSnapshotFullRefresh]: top={}", top_of_book.to_string());
+		if (log_market_data) {
+			spdlog::debug("Application::onMessage[FIX44::MarketDataSnapshotFullRefresh]: top={}", top_of_book.to_string());
+		}
 
 		top_of_book_queue.push(top_of_book); // publish snapshot related top of book
 	}
@@ -383,6 +399,10 @@ namespace zorro {
 		}
 
 		for (auto top_of_book : change_set) {
+			if (log_market_data) {
+				spdlog::debug("Application::onMessage[FIX44::MarketDataIncrementalRefresh]: top={}", top_of_book->to_string());
+			}
+
 			top_of_book_queue.push(*top_of_book); // publish snapshot related top of book
 		}
 	}
@@ -421,7 +441,7 @@ namespace zorro {
 		message.get(leaves_qty);
 		message.get(last_px);
 		message.get(cum_qty);
-		message.get(text);
+		message.getIfSet(text);
 
 		ExecReport report(
 			symbol.getString(),
@@ -501,7 +521,7 @@ namespace zorro {
 			auto md_update_type = incremental ? FIX::MDUpdateType_INCREMENTAL_REFRESH : FIX::MDUpdateType_FULL_REFRESH;
 			FIX44::MarketDataRequest request;
 			request.setField(FIX::MDReqID(request_id));
-			request.setField(FIX::SubscriptionRequestType(FIX::SubscriptionRequestType_SNAPSHOT));
+			request.setField(FIX::SubscriptionRequestType(subscription_request_type));
 			request.setField(FIX::MDUpdateType(md_update_type));
 			request.setField(FIX::MarketDepth(0));
 			request.setField(FIX::NoRelatedSym(1));
@@ -627,93 +647,128 @@ namespace zorro {
 		return request;
 	}
 
-	FIX::Message Application::new_order_single(
+	std::optional<FIX::Message> Application::new_order_single(
 		const FIX::Symbol& symbol, 
-		const FIX::ClOrdID& clOrdId, 
+		const FIX::ClOrdID& cl_ord_id, 
 		const FIX::Side& side, 
-		const FIX::OrdType& ordType, 
+		const FIX::OrdType& ord_type, 
 		const FIX::TimeInForce& tif,
-		const FIX::OrderQty& orderQty, 
+		const FIX::OrderQty& order_qty, 
 		const FIX::Price& price, 
-		const FIX::StopPx& stopPrice
+		const FIX::StopPx& stop_price, 
+		const std::optional<FIX::Account>& account_id
 	) const {
 		FIX44::NewOrderSingle order(
-			clOrdId,
+			cl_ord_id,
 			side,
 			FIX::TransactTime(),
-			ordType);
+			ord_type);
 
 		order.set(FIX::HandlInst('1'));
 		order.set(symbol);
-		order.set(orderQty);
+		order.set(order_qty);
 		order.set(tif);
+		
+		order.setField(FIX::TradingSessionID("FXCM"));  // TODO do it via group
 
-		if (ordType == FIX::OrdType_LIMIT || ordType == FIX::OrdType_STOP_LIMIT)
+		if (account_id.has_value()) {
+			order.set(account_id.value());
+		}
+		else if (!account_ids.empty()) {
+			order.set(FIX::Account(*account_ids.begin()));
+		}
+		else {
+			return std::optional<FIX::Message>();
+		}
+		 
+		if (ord_type == FIX::OrdType_LIMIT || ord_type == FIX::OrdType_STOP_LIMIT)
 			order.set(price);
 
-		if (ordType == FIX::OrdType_STOP || ordType == FIX::OrdType_STOP_LIMIT)
-			order.set(stopPrice);
+		if (ord_type == FIX::OrdType_STOP || ord_type == FIX::OrdType_STOP_LIMIT)
+			order.set(stop_price);
 
-		spdlog::debug("Application::newOrderSingle: {}" , fix_string(order));
+		spdlog::debug("Application::newOrderSingle[{}]: {}" , trading_session_id.toString(), fix_string(order));
 
 		FIX::Session::sendToTarget(order, trading_session_id);
 
-		return order;
+		return std::optional<FIX::Message>(order);
 	}	
 
-	FIX::Message Application::order_cancel_request(
+	std::optional<FIX::Message> Application::order_cancel_request(
 		const FIX::Symbol& symbol,
-		const FIX::OrderID& ordID,
-		const FIX::OrigClOrdID& origClOrdID,
-		const FIX::ClOrdID& clOrdID,
+		const FIX::OrderID& ord_id,
+		const FIX::OrigClOrdID& orig_cl_ord_iD,
+		const FIX::ClOrdID& cl_ord_id,
 		const FIX::Side& side,
-		const FIX::OrderQty& orderQty		
+		const FIX::OrderQty& order_qty,
+		const std::optional<FIX::Account>& account_id
 	) const {
 		FIX44::OrderCancelRequest request(
-			origClOrdID,
-			clOrdID, 
+			orig_cl_ord_iD,
+			cl_ord_id, 
 			side, 
 			FIX::TransactTime());
 
 		request.set(symbol);
-		request.set(ordID);
-		request.set(orderQty);
+		request.set(ord_id);
+		request.set(order_qty);
 
-		spdlog::debug("Application::orderCancelRequest: {}", fix_string(request));
+		if (account_id.has_value()) {
+			request.set(account_id.value());
+		}
+		else if (!account_ids.empty()) {
+			request.set(FIX::Account(*account_ids.begin()));
+		}
+		else {
+			return std::optional<FIX::Message>();
+		}
+
+		spdlog::debug("Application::orderCancelRequest[{}]: {}", trading_session_id.toString(), fix_string(request));
 
 		FIX::Session::sendToTarget(request, trading_session_id);
 
-		return request;
+		return std::optional<FIX::Message>(request);
 	}
 
-	FIX::Message Application::order_cancel_replace_request(
+	std::optional<FIX::Message> Application::order_cancel_replace_request(
 		const FIX::Symbol& symbol,
-		const FIX::OrderID& ordID,
-		const FIX::OrigClOrdID& origClOrdID,
-		const FIX::ClOrdID& clOrdID,
+		const FIX::OrderID& ord_id,
+		const FIX::OrigClOrdID& orig_cl_ord_id,
+		const FIX::ClOrdID& cl_ord_id,
 		const FIX::Side& side,
-		const FIX::OrdType& ordType,
-		const FIX::OrderQty& orderQty,
-		const FIX::Price& price
+		const FIX::OrdType& ord_type,
+		const FIX::OrderQty& order_qty,
+		const FIX::Price& price,
+		const std::optional<FIX::Account>& account_id
 	) const {
 		FIX44::OrderCancelReplaceRequest request(
-			origClOrdID, 
-			clOrdID,
+			orig_cl_ord_id, 
+			cl_ord_id,
 			side, 
 			FIX::TransactTime(),
-			ordType);
+			ord_type);
 
 		request.set(FIX::HandlInst('1'));
 		request.set(symbol);
-		request.set(ordID);
+		request.set(ord_id);
 		request.set(price);
-		request.set(orderQty);
+		request.set(order_qty);
 
-		spdlog::debug("Application::orderCancelReplaceRequest: {}", fix_string(request));
+		if (account_id.has_value()) {
+			request.set(account_id.value());
+		}
+		else if (!account_ids.empty()) {
+			request.set(FIX::Account(*account_ids.begin()));
+		}
+		else {
+			return std::optional<FIX::Message>();
+		}
+
+		spdlog::debug("Application::orderCancelReplaceRequest[{}]: {}", trading_session_id.toString(), fix_string(request));
 
 		FIX::Session::sendToTarget(request, trading_session_id);
 
-		return request;
+		return std::optional<FIX::Message>(request);
 	}
 
 	bool Application::has_book(const std::string& symbol) {

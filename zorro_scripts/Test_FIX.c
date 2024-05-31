@@ -66,10 +66,10 @@ function run() {
 	Verbose = 7 + DIAG + ALERT;
 	Hedge = 2;
 
-	asset("EUR/USD");
-
 	BarPeriod = 1;
-	LookBack = 60;
+	LookBack = 300;
+
+	asset("EUR/USD");
 
 	Capital = 10000;
 

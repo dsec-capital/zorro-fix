@@ -26,6 +26,10 @@
 #define PLUGIN_VERSION 2
 #define PLUGIN_NAME "ZorroFXCMFixPlugin"
 
+#define BAR_DUMP_FILE_NAME "Log/bar_dump.csv"
+#define BAR_DUMP_FILE_SEP ","
+#define BAR_DUMP_FILE_PREC 5  // FX is point precision 
+
 namespace zorro {
 
 	using namespace common;
@@ -47,6 +51,7 @@ namespace zorro {
 	std::string fxcm_password;
 	std::string fxcm_account;
 	std::string fxcm_connection = "Demo";
+	int num_fix_sessions = 2; // trading and market data
 
 	std::string asset;
 	std::string currency;
@@ -56,10 +61,11 @@ namespace zorro {
 	int price_type = 0;
 	int vol_type = 0;
 	int leverage = 1;
-	double amount = 1;
+	double lot_amount = 1;
 	double limit = 0;
 	char time_in_force = FIX::TimeInForce_GOOD_TILL_CANCEL;
 	HWND window_handle;
+	bool dump_bars_to_file = true;
 
 	std::shared_ptr<spdlog::logger> spd_logger = nullptr;
 	std::unique_ptr<FixThread> fix_thread = nullptr;
@@ -120,38 +126,85 @@ namespace zorro {
 		return internal_order_id;
 	}
 
-	// get historical data - note time is in UTC
-	// http://localhost:8080/bars?symbol=EUR/USD&from=2024-03-30 12:00:00&to=2024-03-30 16:00:00
-	int get_historical_bars(const char* Asset, DATE from, DATE to, std::map<std::chrono::nanoseconds, Bar>& bars) {
-		auto from_str = zorro_date_to_string(from);
-		auto to_str = zorro_date_to_string(to);
-		auto request = std::format("/bars?symbol={}&from={}&to={}", Asset, from_str, to_str);
-		auto res = rest_client.Get(request);
-		if (res->status == httplib::StatusCode::OK_200) {
-			auto j = json::parse(res->body);
-			from_json(j, bars);
-
-			log::debug<4, true>(
-				"get_historical_bars: Asset={} from={} to={} num bars={}",
-				Asset, from_str, to_str, bars.size()
-			);
-		}
-		else {
-			log::error<true>(
-				"get_historical_bars error: status={} Asset={} from={} to={} body={}", 
-				res->status, Asset, from_str, to_str, res->body
-			);
-		}
-
-		return res->status; 
-	}
-
 	void plugin_callback(void* address) {
 		show("plugin_callback called with address={}", address);
 	}
 
 	void trigger_price_quote_request() {
 		PostMessage(window_handle, WM_APP + 1, 0, 0);
+	}
+
+	template<typename T>
+	std::string format_fp(T value, int precision)
+	{
+		char format[16];
+		char buffer[64];
+
+		sprintf_s(format, 16, "%%.%if", precision);
+		sprintf_s(buffer, 64, format, value);
+		char* point = strchr(buffer, '.');
+		if (point != 0)
+			*point = '.';
+
+		return std::string(buffer);
+	}
+
+	void write_to_file(const std::string filename, const std::string& text, const std::string& header, std::ios_base::openmode mode = std::fstream::app) {
+		bool skip_header = std::filesystem::exists(filename);
+
+		std::fstream fs;
+		fs.open(filename, std::fstream::out | mode);
+		if (!fs.is_open())
+		{
+			log::error<true>("write_to_file: could not open file {}", filename);
+			return;
+		}
+
+		if (!skip_header) {
+			fs << header << std::endl;
+		}
+		fs << text << std::endl;
+
+		fs.close();
+	}
+
+	// std::fstream::trunc
+	void dump_bars(T6* ticks, int n_ticks, std::ios_base::openmode mode = std::fstream::app) {
+		bool skip_header = std::filesystem::exists(BAR_DUMP_FILE_NAME);
+		
+		std::fstream fs;
+		fs.open(BAR_DUMP_FILE_NAME, std::fstream::out | mode);
+		if (!fs.is_open())
+		{
+			log::error<true>("dump_bars: could not open file {}", BAR_DUMP_FILE_NAME);
+			return;
+		}
+
+		log::debug<1, true>("dump_bars[skip_header={}]: writing {} bars to {}", skip_header, n_ticks, BAR_DUMP_FILE_NAME);
+
+		if (!skip_header) {
+			fs << "bar_end" << BAR_DUMP_FILE_SEP
+			   << "open" << BAR_DUMP_FILE_SEP
+			   << "high" << BAR_DUMP_FILE_SEP
+			   << "low" << BAR_DUMP_FILE_SEP
+			   << "close" << BAR_DUMP_FILE_SEP
+			   << "vol[volume]" << BAR_DUMP_FILE_SEP
+			   << "val[spread]" 
+			   << std::endl;
+		}
+
+		for (int i = 0; i < n_ticks; ++i, ++ticks) {
+			fs << zorro_date_to_string(ticks->time) << BAR_DUMP_FILE_SEP
+			   << format_fp(ticks->fOpen, BAR_DUMP_FILE_PREC) << BAR_DUMP_FILE_SEP
+			   << format_fp(ticks->fHigh, BAR_DUMP_FILE_PREC) << BAR_DUMP_FILE_SEP
+			   << format_fp(ticks->fLow, BAR_DUMP_FILE_PREC) << BAR_DUMP_FILE_SEP
+			   << format_fp(ticks->fClose, BAR_DUMP_FILE_PREC) << BAR_DUMP_FILE_SEP
+			   << format_fp(ticks->fVol, BAR_DUMP_FILE_PREC) << BAR_DUMP_FILE_SEP
+			   << format_fp(ticks->fVal, BAR_DUMP_FILE_PREC) 
+			   << std::endl;
+		}
+
+		fs.close();
 	}
 
 	DLLFUNC_C void BrokerHTTP(FARPROC fp_send, FARPROC fp_status, FARPROC fp_result, FARPROC fp_free) {
@@ -162,7 +215,7 @@ namespace zorro {
 	}
 
 	/*
-	 *  BrokerLogin
+	 * BrokerLogin
 	 * 
 	 * Login or logout to the broker's API server; called in [Trade] mode or for downloading historical price data. 
 	 * If the connection to the server was lost, f.i. due to to Internet problems or server weekend maintenance, 
@@ -187,7 +240,7 @@ namespace zorro {
 					exec_report_queue, 
 					top_of_book_queue
 				));
-				log::debug<1, true>how("BrokerLogin: FIX thread created");
+				log::debug<1, true>("BrokerLogin: FIX thread created");
 			}
 
 			if (user) {
@@ -213,20 +266,21 @@ namespace zorro {
 
 				auto count = 0;
 				auto start = std::chrono::system_clock::now();
-				auto log_in_count = fix_thread->fix_app().log_in_count();
-				while (log_in_count < 2 && count < 50) {
+				log::debug<1, true>("BrokerLogin: waiting for all session log in");
+				auto login_count = fix_thread->fix_app().login_count();
+				while (login_count < num_fix_sessions && count < 50) {
 					std::this_thread::sleep_for(100ms);
-					log_in_count = fix_thread->fix_app().log_in_count();
-					log::info<1, true>("BrokerLogin: waiting for all session log in - login count={}", log_in_count);
+					login_count = fix_thread->fix_app().login_count();
+					log::debug<5, true>("BrokerLogin: waiting for all session log in - login count={}", login_count);
 				}
 				auto dt = std::chrono::system_clock::now() - start;
 				auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(dt).count();
-				if (log_in_count >= 2) {
+				if (login_count >= num_fix_sessions) {
 					log::info<1, true>("BrokerLogin: FIX login after {}ms", ms);
 					return BrokerLoginStatus::LoggedIn;
 				}
 				else {
-					throw std::runtime_error(std::format("login timeout after {}ms login count={}", ms, log_in_count));
+					throw std::runtime_error(std::format("login timeout after {}ms login count={}", ms, login_count));
 				}
 			}
 			else {
@@ -338,7 +392,7 @@ namespace zorro {
 					throw std::runtime_error(std::format("failed to get snapshot in {}ms", timeout));
 				}
 				else {
-					log::info<1, true>("BrokerAsset: subscription request obtained symbol {}", Asset);
+					log::info<1, true>("BrokerAsset: successfully subscribed symbol {} for market data", Asset);
 					return 1;
 				}
 			}
@@ -350,7 +404,10 @@ namespace zorro {
 					if (price) *price = top.mid();
 					if (spread) *spread = top.spread();
 
-					log::debug<4, true>("BrokerAsset: top bid={:.5f} ask={:.5f} @ {}", top.bid_price, top.ask_price, common::to_string(top.timestamp));
+					log::debug<4, true>(
+						"BrokerAsset: top bid={:.5f} ask={:.5f} @ {}", 
+						top.bid_price, top.ask_price, common::to_string(top.timestamp)
+					);
 				}
 				return 1;
 			}
@@ -365,17 +422,68 @@ namespace zorro {
 		}
 	}
 
+	/*
+	 * BrokerHistory2 
+	 * 
+	 * Returns the price history of an asset. Called by Zorro's assetHistory function and at the begin of a trading session for filling the lookback period.
+	 *
+	 * Parameters:
+	 *	Asset			Input, asset symbol for historical prices (see Symbols).
+	 *	tStart			Input, UTC start date/time of the price history (see BrokerTime about the DATE format). This has only the meaning of a 
+	 *                  seek-no-further date; the relevant date for the begin of the history is tEnd.
+	 *	tEnd			Input, UTC end date/time of the price history. If the price history is not available in UTC time, but in the brokers's local time, 
+	 *                  the plugin must convert it to UTC.
+	 *	nTickMinutes	Input, time period of a tick in minutes. Usual values are 0 for single price ticks (T1 data; optional), 1 for one-minute (M1) historical data, 
+	 *                  or a larger value for more quickly filling the LookBack period before starting a strategy.
+	 *	nTicks			Input, maximum number of ticks to be filled; must not exceed the number returned by brokerCommand(GET_MAXTICKS,0), or 300 otherwise.
+	 *	ticks			Output, array of T6 structs (defined in include\trading.h) to be filled with the ask prices, close time, and additional data if available, 
+	 *                  such as historical spread and volume. See history for details. The ticks array is filled in reverse order from tEnd on until either the tick 
+	 *                  time reaches tStart or the number of ticks reaches nTicks, whichever happens first. The most recent tick, closest to tEnd, is at
+	 *                  the start of the array. In the case of T1 data, or when only a single price is available, all prices in a TICK struct can be set to the same value.
+	 * 
+	 * Important Note:
+	 *	The timestamp of a bar in ForexConnect is the beginning of the bar period. 
+	 *  As for Zorro the T6 format is defined 
+	 * 
+     *		typedef struct T6
+	 *		{
+	 *		  DATE  time; // UTC timestamp of the close, DATE format
+	 *		  float fHigh,fLow;	
+	 *		  float fOpen,fClose;	
+	 * 		  float fVal,fVol; // additional data, ask-bid spread, volume etc.
+	 *		} T6;
+	 * 
+	 *	Hence the timestamp should represent the end of the bar period.
+	 * 
+	 * From Zorro documentation:
+	 *	If not stated otherwise, all dates and times reflect the time stamp of the Close price at the end of the bar. 
+	 *	Dates and times are normally UTC. Timestamps in historical data are supposed to be either UTC, or to be a date
+	 *	only with no additional time part, as for daily bars. 
+	 *  It is possible to use historical data with local timestamps in the backtest, but this must be considered in the 
+	 *  script since the date and time functions will then return the local time instead of UTC, and time zone functions
+	 *	cannot be used.
+	 */
 	DLLFUNC int BrokerHistory2(char* Asset, DATE t_start, DATE t_end, int n_tick_minutes, int n_ticks, T6* ticks) {
 		auto bar_seconds = n_tick_minutes * 60;
 		auto t_bar = bar_seconds / SECONDS_PER_DAY;
 		auto t_start2 = t_end - n_ticks * t_bar;
 		auto from = zorro_date_to_string(t_start2);
 		auto to = zorro_date_to_string(t_end);
+		auto ticks_start = ticks;
 
 		// todo determing proper time frame
 		std::string timeframe = "m1";
 		
-		log::debug<2, true>("BrokerHistory2 {}: requesting {} ticks bar period {} minutes from {} to {}", Asset, n_ticks, n_tick_minutes, from, to);
+		auto now = common::get_current_system_clock();
+		auto now_zorro = zorro::convert_time_chrono(now);
+		auto now_str = zorro_date_to_string(now_zorro);
+
+		log::debug<2, true>(
+			"BrokerHistory2 {}: requesting {} ticks bar period {} minutes from {}[{}] to {}[{}] at {}", 
+			Asset, n_ticks, n_tick_minutes, from, t_start2, to, t_end, now_str
+		);
+
+		log::debug<2, true>("BrokerHistory2: t_start={}, t_start2={}, t_end={}, now_zorro={}", t_start, t_start2, t_end, now_zorro);
 
 		std::vector<BidAskBar<DATE>> bars;
 
@@ -387,7 +495,7 @@ namespace zorro {
 			fxcm::default_url, 
 			Asset, 
 			timeframe.c_str(),
-			t_start, 
+			t_start2, 
 			t_end
 		);
 
@@ -403,6 +511,15 @@ namespace zorro {
 			DATE end = start + t_bar;
 			auto time = convert_time_chrono(bar.timestamp);
 
+			if (end > t_end || end < t_start) {
+				log::debug<2, true>(
+					"BrokerHistory2 {}: skipping timestamp {} as it is out of bound t_start={} t_end={}", 
+					Asset, zorro_date_to_string(end), zorro_date_to_string(t_start), zorro_date_to_string(t_end)
+				);
+
+				continue;
+			}
+
 			log::debug<5, false>(
 				"[{}] from={} to={} open={:.5f} high={:.5f} low={:.5f} close={:.5f}",
 				count, zorro_date_to_string(start), zorro_date_to_string(end), bar.ask_open, bar.ask_high, bar.ask_low, bar.ask_close
@@ -417,6 +534,17 @@ namespace zorro {
 			ticks->time = end;
 			++ticks;
 			++count;
+		}
+
+		if (dump_bars_to_file) {
+			dump_bars(ticks_start, count);
+			write_to_file("Log/broker_hist.csv", 
+				std::format(
+					"{}, {}, {}, {}, {}, {}, {}, {}",
+					Asset, timeframe, zorro_date_to_string(t_start2), t_start2, zorro_date_to_string(t_end), t_end, n_ticks, count
+				),
+				"asset, timeframe, t_start2, t_start2[DATE], t_end, t_end[DATE], n_ticks, count"
+			);
 		}
 
 		return count;
@@ -449,8 +577,8 @@ namespace zorro {
 	 *	-2 when the broker API did not respond at all within the wait time. The plugin must then attempt to cancel the order. Zorro will display a "possible orphan" warning.
 	 *	-3 when the order was accepted, but got no ID yet. The ID is then taken from the next subsequent BrokerBuy call that returned a valid ID. This is used for combo positions that require several orders.
 	 */
-	DLLFUNC_C int BrokerBuy2(char* Asset, int amount, double stop, double limit, double* av_fill_price, int* fill_qty) {
-		log::debug<2, true>("BrokerBuy2: {} amount={} limit={}", Asset, amount, limit);
+	DLLFUNC_C int BrokerBuy2(char* Asset, int lots, double stop, double limit, double* av_fill_price, int* fill_qty) {
+		log::debug<2, true>("BrokerBuy2: {} lots={} limit={} lot_amount={}", Asset, lots, limit, lot_amount);
 
 		if (!fix_thread) {
 			log::error<true>("BrokerBuy2: no FIX session");
@@ -459,18 +587,22 @@ namespace zorro {
 
 		auto symbol = FIX::Symbol(Asset);
 		FIX::OrdType ord_type;
-		if (limit && !stop)
+		if (limit && !stop) {
 			ord_type = FIX::OrdType_LIMIT;
-		else if (limit && stop)
+		} 
+		else if (limit && stop) {
 			ord_type = FIX::OrdType_STOP_LIMIT;
-		else if (!limit && stop)
+		}
+		else if (!limit && stop) {
 			ord_type = FIX::OrdType_STOP;
-		else
-			ord_type = FIX::OrdType_MARKET;
+		}
+		else {
+			ord_type = FIX::OrdType_MARKET;	
+		}
 
 		auto cl_ord_id = FIX::ClOrdID(next_client_order_id());
-		auto side = amount > 0 ? FIX::Side(FIX::Side_BUY) : FIX::Side(FIX::Side_SELL);
-		auto qty = FIX::OrderQty(std::abs(amount));
+		auto side = lots > 0 ? FIX::Side(FIX::Side_BUY) : FIX::Side(FIX::Side_SELL);
+		auto qty = FIX::OrderQty(std::abs(lots));
 		auto limit_price = FIX::Price(limit);
 		auto stop_price = FIX::StopPx(stop);
 
@@ -478,7 +610,12 @@ namespace zorro {
 			symbol, cl_ord_id, side, ord_type, time_in_force, qty, limit_price, stop_price
 		);
 
-		log::debug<2, true>("BrokerBuy2: NewOrderSingle {}", fix_string(msg));
+		if (msg.has_value()) {
+			log::debug<2, true>("BrokerBuy2: NewOrderSingle {}", fix_string(msg.value()));
+		}
+		else {
+			log::debug<2, true>("BrokerBuy2: failed to create NewOrderSingle");
+		}
 
 		ExecReport report;
 		bool success = exec_report_queue.pop(report, fix_exec_report_waiting_time);
@@ -488,7 +625,7 @@ namespace zorro {
 			return BrokerError::OrderRejectedOrTimeout;
 		}
 		else {
-			if (report.exec_type == FIX::ExecType_REJECTED) {
+			if (report.exec_type == FIX::ExecType_REJECTED || report.ord_status == FIX::OrdStatus_REJECTED) {
 				log::info<1, true>("BrokerBuy2: rejected {}", report.to_string());
 				return BrokerError::OrderRejectedOrTimeout;
 			}
@@ -604,8 +741,8 @@ namespace zorro {
 	 *	  - nTradeID when the ID did not change or the trade was fully closed.
 	 *	  - 0 when the trade was not found or could not be closed.
 	 */
-	DLLFUNC_C int BrokerSell2(int trade_id, int amount, double limit, double* close, double* cost, double* profit, int* fill) {
-		log::debug<1, true>("BrokerSell2 nTradeID={} nAmount={} limit={}", trade_id, amount, limit);
+	DLLFUNC_C int BrokerSell2(int trade_id, int lot_amount, double limit, double* close, double* cost, double* profit, int* fill) {
+		log::debug<1, true>("BrokerSell2 nTradeID={} nAmount={} limit={}", trade_id, lot_amount, limit);
 
 		auto it = order_id_by_internal_order_id.find(trade_id);
 		if (it != order_id_by_internal_order_id.end()) {
@@ -665,12 +802,12 @@ namespace zorro {
 					auto side = FIX::Side(order.side);
 					auto ord_type = FIX::OrdType(order.ord_type);
 
-					if (std::abs(amount) > order.order_qty) {
-						log::error<true>("BrokerSell2: trying to cancel/replace with an amount={} > order.order_qty={}!", amount, order.order_qty);
+					if (std::abs(lot_amount) > order.order_qty) {
+						log::error<true>("BrokerSell2: trying to cancel/replace with an lots={} > order.order_qty={}!", lot_amount, order.order_qty);
 						return 0;
 					}
 
-					if (std::abs(amount) >= order.leaves_qty) {
+					if (std::abs(lot_amount) >= order.leaves_qty) {
 						log::debug<2, true>("BrokerSell2: cancel working order completely");
 
 						auto msg = fix_thread->fix_app().order_cancel_request(
@@ -696,7 +833,7 @@ namespace zorro {
 					}
 					else {
 						int leaves_qty = (int)order.leaves_qty;
-						auto target_qty = leaves_qty - std::abs(amount);
+						auto target_qty = leaves_qty - std::abs(lot_amount);
 
 						log::debug<2, true>( 
 							"BrokerSell2: cancel/replace working order from leaves_qty={} to target_qty={}",
@@ -924,8 +1061,8 @@ namespace zorro {
 			}
 
 			case SET_AMOUNT: {
-				amount = *(double*)dw_parameter;
-				log::debug<1, true>("BrokerCommand {}[{}] amount={}", broker_command_string(command), command, amount);
+				lot_amount = *(double*)dw_parameter;
+				log::debug<1, true>("BrokerCommand {}[{}] lots={}", broker_command_string(command), command, lot_amount);
 				return 1;
 			}
 

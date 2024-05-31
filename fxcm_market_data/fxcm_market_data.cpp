@@ -20,6 +20,13 @@ namespace fxcm {
         int quotes_count,
         ResponseListener* responseListener
     ) {
+        LocalFormat format;
+
+        spdlog::debug(
+            "fetch_historical_prices: instrument={} timeframe={}, from={}, to={}, quotes_count={}",
+            instrument, timeframe, format.formatDate(from), format.formatDate(to), quotes_count
+        );
+
         if (!communicator->isReady())
         {
             spdlog::error("fetch_historical_prices error: communicator not ready");
@@ -76,8 +83,6 @@ namespace fxcm {
 
                 auto n = reader->size();
 
-                LocalFormat format;
-
                 if (n > 0) {
                     spdlog::debug(
                         "fetch_historical_prices: {} bars from {} to {} in request interval from {} to {}",
@@ -87,6 +92,10 @@ namespace fxcm {
 
                     for (int i = 0; i < n; ++i) {
                         DATE dt = reader->getDate(i); // beginning of the bar
+                        
+                        if (dt < from) {
+                            continue;
+                        }
 
                         common::BidAskBar<DATE> bar(
                             dt,
@@ -101,7 +110,24 @@ namespace fxcm {
                             reader->getVolume(i)
                         );
 
+                        //spdlog::debug(
+                        //    "fetch_historical_prices [{} - {}]: i={}, bar begin timestamp={}, bar={}",
+                        //    format.formatDate(from), format.formatDate(to), i, format.formatDate(bar.timestamp), bar.to_string()
+                        //);
+
                         bars.emplace_back(bar);
+                    }
+
+                    spdlog::debug("fetch_historical_prices: successfully loaded {} bars", bars.size());
+                    if (bars.size() > 0) {
+                        spdlog::debug(
+                            "fetch_historical_prices [{} - {}]: first bar timestamp={}, bar={}",
+                             format.formatDate(from), format.formatDate(to), format.formatDate(bars.begin()->timestamp), bars.begin()->to_string()
+                        );
+                        spdlog::debug(
+                            "fetch_historical_prices [{} - {}]: last bar timestamp={}, bar={}",
+                            format.formatDate(from), format.formatDate(to), format.formatDate(bars.rbegin()->timestamp), bars.rbegin()->to_string()
+                        );
                     }
 
                     return true;
@@ -126,19 +152,21 @@ namespace fxcm {
     }
 
     /*
-        Note:
+        Get historical bars
 
-        typedef enum
-        {
-            Tick = 0,                   //!< tick
-            Min = 1,                    //!< 1 minute
-            Hour = 2,                   //!< 1 hour
-            Day = 3,                    //!< 1 day
-            Week = 4,                   //!< 1 week
-            Month = 5,                  //!< 1 month
-            Year = 6
-        } O2GTimeframeUnit;
-    
+        The name of the timeframe is the name of the timeframe measurement unit followed by the length of the time period.
+        The names of the units are:
+
+        Example(s)
+            t   Ticks       t1 - ticks
+            m   Minutes     m1 - 1 minute, m5 - 5 minutes, m30 - 30 minutes.
+            H   Hours       H1 - 1 hour, H6 - 6 hours, H12 - 12 hours.
+            D   Days        D1 - 1 day.
+            W   Weeks       W1 - 1 week.
+            M   Months      M1 - 1 month.
+
+        The timestamp of a bar is the beginning of the bar period.
+
     */
     bool get_historical_prices(
         std::vector<common::BidAskBar<DATE>>& bars,
@@ -154,73 +182,105 @@ namespace fxcm {
         const char* session_id,
         const char* pin
     ) {
-        // create the ForexConnect trading session
-        O2G2Ptr<IO2GSession> session = CO2GTransport::createSession();
-        O2G2Ptr<SessionStatusListener> statusListener = new SessionStatusListener(session, true, session_id, pin);
+        try {
+            // create the ForexConnect trading session
+            O2G2Ptr<IO2GSession> session = CO2GTransport::createSession();
+            O2G2Ptr<SessionStatusListener> statusListener = new SessionStatusListener(session, true, session_id, pin);
 
-        // subscribe IO2GSessionStatus interface implementation for the status events
-        session->subscribeSessionStatus(statusListener);
-        statusListener->reset();
-
-        // create an instance of IPriceHistoryCommunicator
-        pricehistorymgr::IError* error = NULL;
-        O2G2Ptr<pricehistorymgr::IPriceHistoryCommunicator> communicator(
-            pricehistorymgr::PriceHistoryCommunicatorFactory::createCommunicator(session, "History", &error)
-        );
-        O2G2Ptr<pricehistorymgr::IError> autoError(error);
-
-        if (!communicator)
-        {
-            spdlog::error("get_historical_prices: error {}", error->getMessage());
-            return false;
-        }
-
-        // log in to ForexConnect
-        session->login(login, password, url, connection);
-
-        bool success = false;
-
-        if (statusListener->waitEvents() && statusListener->isConnected())
-        {
-            O2G2Ptr<CommunicatorStatusListener> communicatorStatusListener(new CommunicatorStatusListener());
-            communicator->addStatusListener(communicatorStatusListener);
-
-            // wait until the communicator signals that it is ready
-            if (communicator->isReady() ||
-                communicatorStatusListener->waitEvents() && communicatorStatusListener->isReady())
-            {
-                // attach the instance of the class that implements the IPriceHistoryCommunicatorListener interface to the communicator
-                O2G2Ptr<ResponseListener> responseListener(new ResponseListener());
-                communicator->addListener(responseListener);
-
-                success = fetch_historical_prices(
-                    bars,
-                    communicator,
-                    instrument,
-                    timeframe,
-                    date_from,
-                    date_to,
-                    0,
-                    responseListener
-                );
-
-                if (success) {
-                    spdlog::debug("get_historical_prices: done, read {} bars", bars.size());
-                }
-
-                communicator->removeListener(responseListener);
-            }
-
-            communicator->removeStatusListener(communicatorStatusListener);
+            // subscribe IO2GSessionStatus interface implementation for the status events
+            session->subscribeSessionStatus(statusListener);
             statusListener->reset();
 
-            session->logout();
-            statusListener->waitEvents();
+            // create an instance of IPriceHistoryCommunicator
+            pricehistorymgr::IError* error = NULL;
+            O2G2Ptr<pricehistorymgr::IPriceHistoryCommunicator> communicator(
+                pricehistorymgr::PriceHistoryCommunicatorFactory::createCommunicator(session, "History", &error)
+            );
+            O2G2Ptr<pricehistorymgr::IError> autoError(error);
+
+            if (!communicator)
+            {
+                spdlog::error("get_historical_prices: error {}", error->getMessage());
+                return false;
+            }
+
+            // log in to ForexConnect
+            bool login_success = session->login(login, password, url, connection);
+
+            bool success = false;
+
+            if (statusListener->waitEvents() && statusListener->isConnected())
+            {
+                O2G2Ptr<CommunicatorStatusListener> communicatorStatusListener(new CommunicatorStatusListener());
+                communicator->addStatusListener(communicatorStatusListener);
+
+                // wait until the communicator signals that it is ready
+                if (communicator->isReady() ||
+                    communicatorStatusListener->waitEvents() && communicatorStatusListener->isReady())
+                {
+                    // attach the instance of the class that implements the IPriceHistoryCommunicatorListener interface to the communicator
+                    O2G2Ptr<ResponseListener> responseListener(new ResponseListener());
+                    communicator->addListener(responseListener);
+
+                    success = fetch_historical_prices(
+                        bars,
+                        communicator,
+                        instrument,
+                        timeframe,
+                        date_from,
+                        date_to,
+                        0,
+                        responseListener
+                    );
+
+                    if (success) {
+                        LocalFormat local_format;
+
+                        if (!bars.empty()) {
+                            spdlog::debug(
+                                "get_historical_prices: done, read {} bars covering {} - {}",
+                                bars.size(), local_format.formatDate(bars.begin()->timestamp), local_format.formatDate(bars.rbegin()->timestamp)
+                            );
+                        }
+                        else {
+                            spdlog::debug(
+                                "get_historical_prices: done, could not load any bars in {} - {}",
+                                local_format.formatDate(date_from), local_format.formatDate(date_to)
+                            );
+                        }
+                    }
+                    else {
+                        spdlog::error("get_historical_prices: error in fetch_historical_prices");
+                    }
+
+                    communicator->removeListener(responseListener);
+                }
+
+                communicator->removeStatusListener(communicatorStatusListener);
+                statusListener->reset();
+
+                session->logout();
+                statusListener->waitEvents();
+            }
+
+            session->unsubscribeSessionStatus(statusListener);
+
+            return success;
         }
-
-        session->unsubscribeSessionStatus(statusListener);
-
-        return success;
+        catch (...)
+        {
+            std::exception_ptr ex = std::current_exception();
+            spdlog::error("get_historical_prices: got exception");
+            try
+            {
+                std::rethrow_exception(ex);
+            }
+            catch (std::bad_exception const& be)
+            {
+                spdlog::error("get_historical_prices: bad_exception {}", be.what());
+            }
+            return false;
+        }
     }
 
     /** Gets precision of a specified instrument.

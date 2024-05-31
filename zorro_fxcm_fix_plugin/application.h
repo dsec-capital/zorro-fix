@@ -41,6 +41,10 @@ namespace zorro
 
 	std::string fix_string(const FIX::Message& msg);
 
+	/*
+	 * FXCM FIX Client Application
+	 * 
+	 */
 	class Application: public FIX::Application, public FIX::MessageCracker
 	{
 	public:
@@ -50,9 +54,7 @@ namespace zorro
 			BlockingTimeoutQueue<TopOfBook>& top_of_book_queue
 		);
 
-		bool is_logged_in() const;
-
-		int log_in_count() const;
+		int login_count() const;
 
 		const std::set<std::string>& get_account_ids() const;
 
@@ -75,44 +77,47 @@ namespace zorro
 			const FIX::Symbol& symbol
 		);
 
-		FIX::Message new_order_single(
-			const FIX::Symbol& symbol, 
-			const FIX::ClOrdID& clOrdId, 
+		std::optional<FIX::Message> new_order_single(
+			const FIX::Symbol& symbol,
+			const FIX::ClOrdID& cl_ord_id,
 			const FIX::Side& side,
-			const FIX::OrdType& ordType, 
+			const FIX::OrdType& ord_type,
 			const FIX::TimeInForce& tif,
-			const FIX::OrderQty& quantity, 
-			const FIX::Price& price, 
-			const FIX::StopPx& stopPrice
+			const FIX::OrderQty& order_qty,
+			const FIX::Price& price,
+			const FIX::StopPx& stop_price,
+			const std::optional<FIX::Account>& account_id = std::optional<FIX::Account>()
 		) const;
 
-		FIX::Message order_cancel_request(
+		std::optional<FIX::Message> order_cancel_request(
 			const FIX::Symbol& symbol,
-			const FIX::OrderID& ordID,
-			const FIX::OrigClOrdID& origClOrdID,
-			const FIX::ClOrdID& clOrdId,
+			const FIX::OrderID& ord_id,
+			const FIX::OrigClOrdID& orig_cl_ord_id,
+			const FIX::ClOrdID& ,
 			const FIX::Side& side,
-			const FIX::OrderQty& orderQty
+			const FIX::OrderQty& order_qty,
+			const std::optional<FIX::Account>& account_id = std::optional<FIX::Account>()
 		) const;
 
-		FIX::Message order_cancel_replace_request(
+		std::optional<FIX::Message> order_cancel_replace_request(
 			const FIX::Symbol& symbol,
-			const FIX::OrderID& ordID,
-			const FIX::OrigClOrdID& origClOrdID,
-			const FIX::ClOrdID& clOrdId,
+			const FIX::OrderID& ord_id,
+			const FIX::OrigClOrdID& orig_cl_ord_id,
+			const FIX::ClOrdID& cl_ord_id,
 			const FIX::Side& side,
-			const FIX::OrdType& ordType,
-			const FIX::OrderQty& orderQty,
-			const FIX::Price& price
+			const FIX::OrdType& ord_type,
+			const FIX::OrderQty& order_qty,
+			const FIX::Price& price,
+			const std::optional<FIX::Account>& account_id = std::optional<FIX::Account>()
 		) const;
-
-
 
 	private:
 
 		bool is_trading_session(const FIX::SessionID& sess_id) const;
 
 		bool is_market_data_session(const FIX::SessionID& sess_id) const;
+
+		bool is_market_data_message(const FIX::Message& message) const;
 
 		// custom FXCM FIX fields
 		enum FXCM_FIX_FIELDS
@@ -152,6 +157,8 @@ namespace zorro
 		std::unordered_map<std::string, std::string> market_data_subscriptions;
 		std::unordered_map<std::string, TopOfBook> top_of_books;
 		OrderTracker order_tracker;
+
+		bool log_market_data;
 
 		// should not be used anymore, use the top_of_book_queue
 		bool has_book(const std::string& symbol);
