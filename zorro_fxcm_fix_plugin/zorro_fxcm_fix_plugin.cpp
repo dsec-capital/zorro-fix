@@ -594,10 +594,10 @@ namespace zorro {
 		if (limit && !stop) {
 			ord_type = FIX::OrdType_LIMIT;
 		} 
-		else if (limit && stop) {
+		else if (limit && stop && stop != -1) {
 			ord_type = FIX::OrdType_STOP_LIMIT;
 		}
-		else if (!limit && stop) {
+		else if (!limit && stop && stop != -1) {
 			ord_type = FIX::OrdType_STOP;
 		}
 		else {
