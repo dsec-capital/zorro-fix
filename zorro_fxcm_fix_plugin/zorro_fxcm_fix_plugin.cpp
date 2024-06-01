@@ -71,6 +71,7 @@ namespace zorro {
 	std::unique_ptr<FixThread> fix_thread = nullptr;
 	BlockingTimeoutQueue<ExecReport> exec_report_queue;
 	BlockingTimeoutQueue<TopOfBook> top_of_book_queue;
+	BlockingTimeoutQueue<FXCMPositionReports> position_report_queue;
 	BlockingTimeoutQueue<FXCMCollateralReport> collateral_report_queue;
 	std::unordered_map<int, std::string> order_id_by_internal_order_id;
 	std::unordered_map<std::string, TopOfBook> top_of_books;
@@ -240,6 +241,7 @@ namespace zorro {
 					settings_cfg_file,
 					exec_report_queue, 
 					top_of_book_queue,
+					position_report_queue,
 					collateral_report_queue
 				));
 				log::debug<1, true>("BrokerLogin: FIX thread created");

@@ -96,7 +96,7 @@ namespace zorro
 	FXCMMarginCallStatus parse_fxcm_margin_call_status(const std::string& status);
 
 	struct FXCMCollateralReport {
-		std::string account_id;
+		std::string account;
 		std::chrono::nanoseconds sending_time;
 		double balance;
 		double start_cash;
@@ -107,6 +107,36 @@ namespace zorro
 		double cash_daily;
 		FXCMMarginCallStatus margin_call_status;
 		std::vector<std::pair<int, std::string>> party_sub_ids;
+	};
+
+	struct FXCMPositionReport {
+		std::string account;
+		std::string symbol;
+		std::string currency;
+		std::string pos_id;
+
+		double settle_price;
+
+		bool is_open;
+
+		// valid for open and closed positions 
+		double interest;
+		double commission;
+		std::chrono::nanoseconds open_time;
+
+		// valid only for open positions
+		std::optional<double> used_margin;
+
+		// valid only for closed positions
+		std::optional<double> close_pnl;
+		std::optional<double> close_settle_price;
+		std::optional<std::chrono::nanoseconds> close_time;
+		std::optional<std::string> close_order_id;
+		std::optional<std::string> close_cl_ord_id;
+	};
+
+	struct FXCMPositionReports {
+		std::vector< FXCMPositionReport> reports;
 	};
 
 	/*
@@ -120,6 +150,7 @@ namespace zorro
 			const FIX::SessionSettings& session_settings,
 			BlockingTimeoutQueue<ExecReport>& exec_report_queue,
 			BlockingTimeoutQueue<TopOfBook>& top_of_book_queue,
+			BlockingTimeoutQueue<FXCMPositionReports>& position_reports_queue,
 			BlockingTimeoutQueue<FXCMCollateralReport>& collateral_report_queue
 		);
 
@@ -136,7 +167,7 @@ namespace zorro
 		// Sends RequestForPositions in order to receive a PositionReport messages if positions
 		// matching the requested criteria exist; otherwise, a RequestForPositionsAck will be
 		// sent with the acknowledgement that no positions exist. 
-		FIX::Message request_for_positions(const std::string& account_id);
+		FIX::Message request_for_positions(const std::string& account);
 
 		FIX::Message market_data_snapshot(const FIX::Symbol& symbol);
 
@@ -155,7 +186,7 @@ namespace zorro
 			const FIX::OrderQty& order_qty,
 			const FIX::Price& price,
 			const FIX::StopPx& stop_price,
-			const std::optional<FIX::Account>& account_id = std::optional<FIX::Account>()
+			const std::optional<FIX::Account>& account = std::optional<FIX::Account>()
 		) const;
 
 		std::optional<FIX::Message> order_cancel_request(
@@ -165,7 +196,7 @@ namespace zorro
 			const FIX::ClOrdID& ,
 			const FIX::Side& side,
 			const FIX::OrderQty& order_qty,
-			const std::optional<FIX::Account>& account_id = std::optional<FIX::Account>()
+			const std::optional<FIX::Account>& account = std::optional<FIX::Account>()
 		) const;
 
 		std::optional<FIX::Message> order_cancel_replace_request(
@@ -177,7 +208,7 @@ namespace zorro
 			const FIX::OrdType& ord_type,
 			const FIX::OrderQty& order_qty,
 			const FIX::Price& price,
-			const std::optional<FIX::Account>& account_id = std::optional<FIX::Account>()
+			const std::optional<FIX::Account>& account = std::optional<FIX::Account>()
 		) const;
 
 	private:
@@ -210,10 +241,10 @@ namespace zorro
 			FXCM_ERROR_DETAILS = 9029,			// String Error details of server side processing
 			FXCM_SERVER_TIMEZONE_NAME = 9030,	// Server time zone name 
 			FXCM_USED_MARGIN = 9038,			// Float Amount of used margin nominated for an account or position (liquidation level)
-			FXCM_POS_INTEREST = 9040,			// FXCMPosInterest Float Amount of interest applied to the position
-			FXCM_POS_ID = 9041,
+			FXCM_POS_INTEREST = 9040,			// Float Amount of interest applied to the position
+			FXCM_POS_ID = 9041,					// String
 			FXCM_POS_OPEN_TIME = 9042,			// UTCTimestamp Time when trading position was opened
-			FXCM_CLOSE_SETTL_PRICE = 9043,		// Float Closing price of trading position
+			FXCM_CLOSE_SETTLE_PRICE = 9043,		// Float Closing price of trading position
 			FXCM_POS_CLOSE_TIME = 9044,			// UTCTimestamp Time when trading position was closed
 			FXCM_MARGIN_CALL = 9045,			// String Milestones status of account from risk management point of view 
 												// N: account has no problems, Y: account reached liquidation margin call, 
@@ -230,7 +261,7 @@ namespace zorro
 			FXCM_MAX_NO_RESULTS = 9060,			// Int Used in conjunction with Request For Positions message for Closed Positions Historical Snapshots
 			FXCM_PEG_FLUCTUATE_PTS = 9061,		// Int Specifies the number trailing stop fluctuating points
 			FXCM_SUBSCRIPTION_STATUS = 9076,	// String FXCM Subscription status(D / T / V / M)
-			FXCM_Pos_ID_Ref = 9078,				// String Origin / Reference FXCM Trade ID
+			FXCM_POS_ID_REF = 9078,				// String Origin / Reference FXCM Trade ID
 			FXCM_CONTINGENCY_ID = 9079,			// String FXCM Contingency ID
 			FXCM_PRODUCT_ID = 9080,				// 1: Forex, 2: Index, 3: Commodity, 4: Treasury, 5: Bullion, 6: Shares, 7: FX Index
 			FXCM_COND_DIST_STOP = 9090,			// Float Condition distance for Stop order
@@ -245,6 +276,7 @@ namespace zorro
 		FIX::SessionSettings session_settings;
 		BlockingTimeoutQueue<ExecReport>& exec_report_queue;
 		BlockingTimeoutQueue<TopOfBook>& top_of_book_queue;
+		BlockingTimeoutQueue<FXCMPositionReports>& position_reports_queue;
 		BlockingTimeoutQueue<FXCMCollateralReport>& collateral_report_queue;
 
 		FIX::SessionID trading_session_id;
@@ -266,6 +298,7 @@ namespace zorro
 		std::string server_timezone_name;
 		std::map<std::string, std::string> fxcm_parameters;
 		std::map<std::string, FXCMSecurityInformation> fxcm_security_informations;
+		std::vector<FXCMPositionReport> position_report_list;
 
 		// should not be used anymore, use the top_of_book_queue
 		bool has_book(const std::string& symbol);

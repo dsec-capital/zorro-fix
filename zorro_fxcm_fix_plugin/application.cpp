@@ -32,10 +32,8 @@ namespace zorro {
 		return std::chrono::duration_cast<std::chrono::nanoseconds>(tp.time_since_epoch());
 	}
 
-	template<typename G>
-	inline std::chrono::nanoseconds parse_datetime(const G& g, int date_time_field = FIX::FIELD::SendingTime) {
-		std::stringstream in;
-		in << g.getField(date_time_field);
+	inline std::chrono::nanoseconds parse_datetime(const std::string& datetime) {
+		std::stringstream in; in << datetime;
 		std::chrono::time_point<std::chrono::system_clock>  tp;
 		in >> std::chrono::parse("%Y%m%d-%T", tp);
 		return std::chrono::duration_cast<std::chrono::nanoseconds>(tp.time_since_epoch());
@@ -59,10 +57,12 @@ namespace zorro {
 		const FIX::SessionSettings& session_settings,
 		BlockingTimeoutQueue<ExecReport>& exec_report_queue,
 		BlockingTimeoutQueue<TopOfBook>& top_of_book_queue,
+		BlockingTimeoutQueue<FXCMPositionReports>& position_reports_queue,
 		BlockingTimeoutQueue<FXCMCollateralReport>& collateral_report_queue
 	) : session_settings(session_settings)
 	  , exec_report_queue(exec_report_queue)
 	  , top_of_book_queue(top_of_book_queue)
+	  , position_reports_queue(position_reports_queue)
       , collateral_report_queue(collateral_report_queue)
 	  , done(false)
 	  , logged_in(0)
@@ -70,10 +70,10 @@ namespace zorro {
 	  , log_market_data(false)
 	{
 		if (session_settings.get().has("AccountId")) {
-			auto account_id = session_settings.get().getString("AccountId");
-			account_ids.insert(account_id);
+			auto account = session_settings.get().getString("AccountId");
+			account_ids.insert(account);
 			spdlog::info(
-				"Application::Application account id from session settings={}", account_id
+				"Application::Application account id from session settings={}", account
 			);
 		}
 	}
@@ -151,8 +151,8 @@ namespace zorro {
 		}
 
 		// all messages sent to FXCM must contain the TargetSubID field (both Administrative and Application messages) 
-		auto sub_ID = session_settings.get().getString("TargetSubID");
-		message.getHeader().setField(FIX::TargetSubID(sub_ID));
+		auto sub_id = session_settings.get().getString("TargetSubID");
+		message.getHeader().setField(FIX::TargetSubID(sub_id));
 
 		spdlog::debug("Application::toAdmin OUT <{}> {}", sessionID.toString(), fix_string(message));
 	}
@@ -306,10 +306,10 @@ namespace zorro {
 	void Application::onMessage(const FIX44::CollateralReport& message, const FIX::SessionID& session_ID)
 	{
 		try {
-			const auto& account_id = message.getField(FIX::FIELD::Account);
-			account_ids.insert(account_id);
+			const auto& account = message.getField(FIX::FIELD::Account);
+			account_ids.insert(account);
 
-			spdlog::debug("Application::onMessage[FIX44::CollateralReport]: inserted account id={}", account_id);
+			spdlog::debug("Application::onMessage[FIX44::CollateralReport]: inserted account={}", account);
 
 			// account balance, which is the cash balance in the account, not including any profit or losses on open trades
 			double balance = FIX::DoubleConvertor::convert(message.getField(FIX::FIELD::CashOutstanding));
@@ -320,7 +320,7 @@ namespace zorro {
 			double maintenance_margin = FIX::DoubleConvertor::convert(message.getField(FXCM_USED_MARGIN3));
 			double cash_daily = FIX::DoubleConvertor::convert(message.getField(FXCM_CASH_DAILY));
 			auto margin_call_status = parse_fxcm_margin_call_status(message.getField(FXCM_MARGIN_CALL));
-			auto sending_time = parse_datetime(message.getHeader(), FIX::FIELD::SendingTime);
+			auto sending_time = parse_datetime(message.getHeader().getField(FIX::FIELD::SendingTime));
 
 			// CollateralReport NoPartyIDs group can be inspected for additional account information such as AccountName or HedgingStatus
 			FIX44::CollateralReport::NoPartyIDs group;
@@ -329,8 +329,8 @@ namespace zorro {
 			// Get the number of NoPartySubIDs repeating groups
 			// For each group, get both the PartySubIDType and the PartySubID (the value)
 			std::vector<std::pair<int, std::string>> party_sub_ids;
-			int number_subID = FIX::IntConvertor::convert(group.getField(FIX::FIELD::NoPartySubIDs));
-			for (int u = 1; u <= number_subID; u++) {
+			int num_sub_id = FIX::IntConvertor::convert(group.getField(FIX::FIELD::NoPartySubIDs));
+			for (int u = 1; u <= num_sub_id; u++) {
 				FIX44::CollateralReport::NoPartyIDs::NoPartySubIDs sub_group;
 				group.getGroup(u, sub_group);
 
@@ -340,7 +340,7 @@ namespace zorro {
 			}
 
 			FXCMCollateralReport collateral_report{
-				.account_id = account_id,
+				.account = account,
 				.sending_time = sending_time,
 				.balance = balance,
 				.start_cash = start_cash,
@@ -354,8 +354,8 @@ namespace zorro {
 			};
 
 			spdlog::debug(
-				"Application::onMessage[CollateralReport]: publish collateral report for account_id={} balance={}", 
-				account_id, balance
+				"Application::onMessage[FIX44::CollateralReport]: publish collateral report for account={} balance={}", 
+				account, balance
 			);
 
 			collateral_report_queue.push(collateral_report);
@@ -370,27 +370,134 @@ namespace zorro {
 
 	void Application::onMessage(const FIX44::RequestForPositionsAck& message, const FIX::SessionID& session_ID)
 	{
-		std::string pos_reqID = message.getField(FIX::FIELD::PosReqID);
+		FIX::PosReqResult pos_req_result;
+		FIX::TotalNumPosReports total_num_reports;
+		
+		message.get(pos_req_result);
+		message.get(total_num_reports);
 
 		// if a PositionReport is requested and no positions exist for that request, the Text field will
 		// indicate that no positions matched the requested criteria 
-		if (message.isSetField(FIX::FIELD::Text))
-			spdlog::debug("Application::onMessage[FIX44::RequestForPositionsAck]: text={}", message.getField(FIX::FIELD::Text));
+		if (pos_req_result == FIX::PosReqResult_NO_POSITIONS_FOUND_THAT_MATCH_CRITERIA) {
+			spdlog::debug(
+				"Application::onMessage[FIX44::RequestForPositionsAck]: publish empty position report list text={}",
+				message.getField(FIX::FIELD::Text)
+			);
+			position_reports_queue.push(FXCMPositionReports());
+		}
 	}
 
 	void Application::onMessage(const FIX44::PositionReport& message, const FIX::SessionID& session_ID)
 	{
-		// Print out important position related information such as accountID and symbol 
-		std::string accountID = message.getField(FIX::FIELD::Account);
+		try {
+			FIX::Symbol symbol;
+			FIX::Account account;
+			FIX::Currency currency;
+			FIX::PosReqType pos_req_type; 
+			FIX::SettlPrice settle_price;
+			FIX::SettlPriceType settle_price_type;
+			FIX::TotalNumPosReports total_num_reports;
 
-		//string symbol = pr.getField(FIELD::Symbol);
-		//string positionID = pr.getField(FXCM_POS_ID);
-		//string pos_open_time = pr.getField(FXCM_POS_OPEN_TIME);
-		//cout << "PositionReport -> " << endl;
-		//cout << "   Account -> " << accountID << endl;
-		//cout << "   Symbol -> " << symbol << endl;
-		//cout << "   PositionID -> " << positionID << endl;
-		//cout << "   Open Time -> " << pos_open_time << endl;
+			// valid for open and closed positions 
+			std::string pos_id;
+			double interest = 0;
+			double commission = 0;
+			std::chrono::nanoseconds open_time;
+
+			// valid only for open positions
+			double used_margin = 0;
+
+			// valid only for closed positions
+			double close_pnl = 0;
+			double close_settle_price = 0;
+			std::chrono::nanoseconds close_time;
+			std::string close_order_id;
+			std::string close_cl_ord_id;
+
+			message.get(symbol);
+			message.get(account);
+			message.get(currency);
+			message.get(pos_req_type);
+			message.get(total_num_reports);
+
+			pos_id = message.getField(FXCM_POS_ID);
+			interest = FIX::DoubleConvertor::convert(message.getField(FXCM_POS_INTEREST));
+			commission = FIX::DoubleConvertor::convert(message.getField(FXCM_POS_COMMISSION));
+			open_time = parse_datetime(message.getField(FXCM_POS_OPEN_TIME));
+
+			int num_positions = FIX::IntConvertor::convert(message.getField(FIX::FIELD::NoPositions));
+			if (num_positions > 1) {
+				spdlog::error("Application::onMessage[FIX44::PositionReport] error: num_positions={} > 1 not expected", num_positions);
+			}
+			FIX44::PositionReport::NoPositions group;
+			message.getGroup(1, group);
+
+			int position_qty = 0;
+			if (group.isSetField(FIX::FIELD::LongQty)) {
+				position_qty = FIX::IntConvertor::convert(group.getField(FIX::FIELD::LongQty));
+			} 
+			else if (group.isSetField(FIX::FIELD::ShortQty)) {
+				position_qty = -std::abs(FIX::IntConvertor::convert(group.getField(FIX::FIELD::ShortQty)));
+			}
+			else {
+				spdlog::error("Application::onMessage[FIX44::PositionReport] error: neither LongQty nor ShortQty defined");
+			}
+			
+			bool is_open = true;
+			if (pos_req_type == 0) { // ‘0’ - Open Position
+				is_open = true;
+				used_margin = FIX::DoubleConvertor::convert(message.getField(FXCM_USED_MARGIN));
+
+			} else if (pos_req_type == 1) { // ‘1’ - Closed Position
+				is_open = false;
+				close_pnl = FIX::DoubleConvertor::convert(message.getField(FXCM_CLOSE_PNL));
+				close_settle_price = FIX::DoubleConvertor::convert(message.getField(FXCM_CLOSE_SETTLE_PRICE));
+				close_time = parse_datetime(message.getField(FXCM_POS_CLOSE_TIME));
+				close_order_id = message.getField(FXCM_CLOSE_ORDER_ID);
+				close_cl_ord_id = message.getField(FXCM_CLOSE_CL_ORD_ID);
+			}
+			else {
+				spdlog::error("Application::onMessage[FIX44::PositionReport] error: unexpected pos_req_type={}", pos_req_type.getValue());
+			}
+
+			bool is_closed = !is_open;
+			FXCMPositionReport position_report{
+				.account = account.getValue(),
+				.symbol = symbol.getValue(),
+				.currency = currency,
+				.pos_id = pos_id,
+				.settle_price = settle_price,
+				.is_open = is_open,
+				.interest = interest,
+				.commission = commission,
+				.open_time = open_time,
+				.used_margin = is_open ? used_margin : std::optional<double>(),
+				.close_pnl = is_closed ? close_pnl : std::optional<double>(),
+				.close_settle_price = is_closed ? close_pnl : std::optional<double>(),
+				.close_time = is_closed ? close_time : std::optional<std::chrono::nanoseconds>(),
+				.close_order_id = is_closed ? close_order_id : std::optional<std::string>(),
+				.close_cl_ord_id = is_closed ? close_cl_ord_id : std::optional<std::string>(),
+			};
+
+			position_report_list.emplace_back(position_report);
+
+			bool is_last = total_num_reports == position_report_list.size();
+			if (is_last) {
+				spdlog::debug("Application::onMessage[FIX44::PositionReport]: publish {} position reports", position_report_list.size());
+
+				FXCMPositionReports reports{
+					.reports = position_report_list
+				};
+				position_reports_queue.push(reports);
+				position_report_list.clear();
+			}
+		}
+		catch (FIX::FieldNotFound& error) {
+			spdlog::error(
+				"Application::onMessage[FIX44::PositionReport]: field not found {}",
+				error.what()
+			);
+		}
 	}
 
 	void Application::onMessage(const FIX44::MarketDataSnapshotFullRefresh& message, const FIX::SessionID& session_ID)
@@ -719,14 +826,14 @@ namespace zorro {
 		return request;
 	}
 
-	FIX::Message Application::request_for_positions(const std::string& account_id)
+	FIX::Message Application::request_for_positions(const std::string& account)
 	{
 		FIX44::RequestForPositions request;
 		request.setField(FIX::PosReqID(id_generator.genID()));
 		request.setField(FIX::PosReqType(FIX::PosReqType_POSITIONS));
 		// AccountID for the request. This must be set for routing purposes. We must
 		// also set the Parties AccountID field in the NoPartySubIDs group
-		request.setField(FIX::Account(account_id));
+		request.setField(FIX::Account(account));
 		request.setField(FIX::SubscriptionRequestType(FIX::SubscriptionRequestType_SNAPSHOT));
 		request.setField(FIX::AccountType(FIX::AccountType_CARRIED_NON_CUSTOMER_SIDE_CROSS_MARGINED));
 		request.setField(FIX::TransactTime());
@@ -743,7 +850,7 @@ namespace zorro {
 		FIX44::RequestForPositions::NoPartyIDs::NoPartySubIDs sub_parties;
 		sub_parties.setField(FIX::PartySubIDType(FIX::PartySubIDType_SECURITIES_ACCOUNT_NUMBER));
 		// Set Parties AccountID
-		sub_parties.setField(FIX::PartySubID(account_id));
+		sub_parties.setField(FIX::PartySubID(account));
 		// Add NoPartySubIds group
 		parties_group.addGroup(sub_parties);
 		// Add NoPartyIDs group
@@ -765,7 +872,7 @@ namespace zorro {
 		const FIX::OrderQty& order_qty, 
 		const FIX::Price& price, 
 		const FIX::StopPx& stop_price, 
-		const std::optional<FIX::Account>& account_id
+		const std::optional<FIX::Account>& account
 	) const {
 		FIX44::NewOrderSingle order(
 			cl_ord_id,
@@ -780,8 +887,8 @@ namespace zorro {
 		
 		order.setField(FIX::TradingSessionID("FXCM"));  // TODO do it via group
 
-		if (account_id.has_value()) {
-			order.set(account_id.value());
+		if (account.has_value()) {
+			order.set(account.value());
 		}
 		else if (!account_ids.empty()) {
 			order.set(FIX::Account(*account_ids.begin()));
@@ -810,7 +917,7 @@ namespace zorro {
 		const FIX::ClOrdID& cl_ord_id,
 		const FIX::Side& side,
 		const FIX::OrderQty& order_qty,
-		const std::optional<FIX::Account>& account_id
+		const std::optional<FIX::Account>& account
 	) const {
 		FIX44::OrderCancelRequest request(
 			orig_cl_ord_iD,
@@ -822,8 +929,8 @@ namespace zorro {
 		request.set(ord_id);
 		request.set(order_qty);
 
-		if (account_id.has_value()) {
-			request.set(account_id.value());
+		if (account.has_value()) {
+			request.set(account.value());
 		}
 		else if (!account_ids.empty()) {
 			request.set(FIX::Account(*account_ids.begin()));
@@ -848,7 +955,7 @@ namespace zorro {
 		const FIX::OrdType& ord_type,
 		const FIX::OrderQty& order_qty,
 		const FIX::Price& price,
-		const std::optional<FIX::Account>& account_id
+		const std::optional<FIX::Account>& account
 	) const {
 		FIX44::OrderCancelReplaceRequest request(
 			orig_cl_ord_id, 
@@ -863,8 +970,8 @@ namespace zorro {
 		request.set(price);
 		request.set(order_qty);
 
-		if (account_id.has_value()) {
-			request.set(account_id.value());
+		if (account.has_value()) {
+			request.set(account.value());
 		}
 		else if (!account_ids.empty()) {
 			request.set(FIX::Account(*account_ids.begin()));
