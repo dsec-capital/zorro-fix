@@ -116,11 +116,6 @@ namespace fxcm {
                             reader->getVolume(i)
                         );
 
-                        //spdlog::debug(
-                        //    "fetch_historical_prices [{} - {}]: i={}, bar begin timestamp={}, bar={}",
-                        //    format.formatDate(from), format.formatDate(to), i, format.formatDate(bar.timestamp), bar.to_string()
-                        //);
-
                         bars.emplace_back(bar);
                     }
 

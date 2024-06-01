@@ -74,7 +74,7 @@ namespace zorro {
 		std::chrono::seconds flush_interval = std::chrono::seconds(2)
 	) {
 		auto cwd = std::filesystem::current_path().string();
-		auto spd_logger = spdlog::basic_logger_mt("standard_logger", logger_name);
+		auto spd_logger = spdlog::basic_logger_mt("standard", logger_name);
 		spd_logger->set_level(log_level);
 		spdlog::set_default_logger(spd_logger);
 		spdlog::set_level(log_level);

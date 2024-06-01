@@ -59,19 +59,19 @@ void SessionStatusListener::onSessionStatusChanged(IO2GSessionStatus::O2GSession
     switch (status)
     {
     case IO2GSessionStatus::Disconnected:
-        std::cout << "status::disconnected" << std::endl;
+        spdlog::debug("SessionStatusListener::onSessionStatusChanged: IO2GSessionStatus::Disconnected");
         mConnected = false;
         mDisconnected = true;
         SetEvent(mSessionEvent);
         break;
 
     case IO2GSessionStatus::Connecting:
-        std::cout << "status::connecting" << std::endl;
+        spdlog::debug("SessionStatusListener::onSessionStatusChanged: IO2GSessionStatus::Connecting");
         break;
 
     case IO2GSessionStatus::TradingSessionRequested: 
         {
-            std::cout << "status::trading session requested" << std::endl;
+            spdlog::debug("SessionStatusListener::onSessionStatusChanged: IO2GSessionStatus::TradingSessionRequested");
             O2G2Ptr<IO2GSessionDescriptorCollection> descriptors = mSession->getTradingSessionDescriptors();
             bool found = false;
             if (descriptors)
@@ -112,22 +112,22 @@ void SessionStatusListener::onSessionStatusChanged(IO2GSessionStatus::O2GSession
         break;
 
     case IO2GSessionStatus::Connected:
-        spdlog::info("SessionStatusListener::onSessionStatusChanged: status::connected");
+        spdlog::info("SessionStatusListener::onSessionStatusChanged: IO2GSessionStatus::Connected");
         mConnected = true;
         mDisconnected = false;
         SetEvent(mSessionEvent);
         break;
 
     case IO2GSessionStatus::Reconnecting:
-        spdlog::info("SessionStatusListener::onSessionStatusChanged: status::reconnecting");
+        spdlog::info("SessionStatusListener::onSessionStatusChanged: IO2GSessionStatus::Reconnecting");
         break;
 
     case IO2GSessionStatus::Disconnecting:
-        spdlog::info("SessionStatusListener::onSessionStatusChanged: status::disconnecting");
+        spdlog::info("SessionStatusListener::onSessionStatusChanged: IO2GSessionStatus::Disconnecting");
         break;
 
     case IO2GSessionStatus::SessionLost:
-        spdlog::info("SessionStatusListener::onSessionStatusChanged: status::session lost");
+        spdlog::info("SessionStatusListener::onSessionStatusChanged: IO2GSessionStatus::SessionLost");
         break;
 
     }

@@ -24,19 +24,22 @@ int main(int argc, char* argv[])
 {
 	zorro::BrokerError = show;
 
-	zorro::create_file_logger("test_fxcm_market_data.log");
+	zorro::create_file_logger("test_fxcm_market_data_spd.log");
 
 	int n_tick_minutes = 1;
 	int n_ticks = 2 * 1440;
 	std::string instrument = "EUR/USD";
 	std::string timeframe = "m1";
 
-	std::cout
-		<< "get_historical_prices:" << std::endl
+	std::stringstream ss; ss
+		<< "FXCM marktet data download with get_historical_prices:" << std::endl
 		<< "  n_tick_minutes=" << n_tick_minutes << std::endl
 		<< "  n_ticks=" << n_ticks << std::endl
 		<< "  instrument=" << instrument << std::endl
 		<< "  timeframe=" << timeframe << std::endl;
+
+	std::cout << ss.str();
+	spdlog::info(ss.str());
 
 	std::vector<common::BidAskBar<fxcm::DATE>> bars;
 
@@ -70,10 +73,13 @@ int main(int argc, char* argv[])
 		t_end
 	);
 
-	spdlog::debug("{} bars read", bars.size());
 	for (auto it = bars.begin(); it != bars.end(); ++it) {
 		auto ts = zorro::zorro_date_to_string(it->timestamp, false);
 		spdlog::debug("begin {} bar {}", ts, it->to_string());
 	}
+
+	std::string endmsg = std::format("FXCM marktet data download completed: {} bars read", bars.size());
+	spdlog::info(endmsg);
+	std::cout << endmsg << std::endl;
 }
 
