@@ -31,6 +31,13 @@ int main(int argc, char* argv[])
 	std::string instrument = "EUR/USD";
 	std::string timeframe = "m1";
 
+	std::cout
+		<< "get_historical_prices:" << std::endl
+		<< "  n_tick_minutes=" << n_tick_minutes << std::endl
+		<< "  n_ticks=" << n_ticks << std::endl
+		<< "  instrument=" << instrument << std::endl
+		<< "  timeframe=" << timeframe << std::endl;
+
 	std::vector<common::BidAskBar<fxcm::DATE>> bars;
 
 	size_t len = 0;

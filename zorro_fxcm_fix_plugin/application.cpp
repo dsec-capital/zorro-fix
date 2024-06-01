@@ -194,9 +194,6 @@ namespace zorro {
 	// use this field value to determine if the trading desk is open. As stated above, use TradSesStatus for this purpose
 	void Application::onMessage(const FIX44::TradingSessionStatus& message, const FIX::SessionID& session_ID)
 	{
-		// Check TradSesStatus field to see if the trading desk is open or closed
-		//	2 = Open
-		//	3 = Closed
 		trade_session_status = static_cast<common::fix::TradeSessionStatus>(
 			FIX::IntConvertor::convert(message.getField(FIX::FIELD::TradSesStatus))
 		);
@@ -219,7 +216,7 @@ namespace zorro {
 					const auto& symbol = group.getField(FIX::FIELD::Symbol);
 					int product = FIX::IntConvertor::convert(group.getField(FIX::FIELD::Product));
 					int factor = FIX::IntConvertor::convert(group.getField(FIX::FIELD::Factor));
-					int contract_multiplier = FIX::IntConvertor::convert(group.getField(FIX::FIELD::ContractMultiplier));
+					double contract_multiplier = FIX::DoubleConvertor::convert(group.getField(FIX::FIELD::ContractMultiplier));
 					int pip_size = FIX::IntConvertor::convert(group.getField(FXCM_SYM_PRECISION));
 					double point_size = FIX::DoubleConvertor::convert(group.getField(FXCM_SYM_POINT_SIZE));
 					FXCMProductId prod_id = static_cast<FXCMProductId>(FIX::IntConvertor::convert(group.getField(FXCM_PRODUCT_ID)));
@@ -268,8 +265,13 @@ namespace zorro {
 				}
 				catch (FIX::FieldNotFound& error) {
 					spdlog::error(
-						"Application::onMessage[FIX44::TradingSessionStatus]: security list field not found {}",
+						"Application::onMessage[FIX44::TradingSessionStatus]: security info field not found {}",
 						error.what()
+					);
+				}
+				catch (...) {
+					spdlog::error(
+						"Application::onMessage[FIX44::TradingSessionStatus]: security info error"
 					);
 				}
 			}
@@ -279,9 +281,6 @@ namespace zorro {
 			// Read field FXCMNoParam (9016) which shows us how many system parameters are in the message
 			int params_count = FIX::IntConvertor::convert(message.getField(FXCM_NO_PARAMS));
 			for (int i = 1; i <= params_count; i++) {
-				// For each paramater, print out both the name of the paramater and the value of the 
-				// paramater. FXCMParamName (9017) is the name of the paramater and FXCMParamValue(9018)
-				// is of course the paramater value
 				FIX::FieldMap field_map = message.getGroupRef(i, FXCM_NO_PARAMS);
 				fxcm_parameters.emplace(
 					field_map.getField(FXCM_PARAM_NAME),
@@ -310,7 +309,7 @@ namespace zorro {
 			const auto& account_id = message.getField(FIX::FIELD::Account);
 			account_ids.insert(account_id);
 
-			spdlog::debug("Application::onMessage[CollateralReport]: inserted account id={}", account_id);
+			spdlog::debug("Application::onMessage[FIX44::CollateralReport]: inserted account id={}", account_id);
 
 			// account balance, which is the cash balance in the account, not including any profit or losses on open trades
 			double balance = FIX::DoubleConvertor::convert(message.getField(FIX::FIELD::CashOutstanding));
@@ -321,7 +320,7 @@ namespace zorro {
 			double maintenance_margin = FIX::DoubleConvertor::convert(message.getField(FXCM_USED_MARGIN3));
 			double cash_daily = FIX::DoubleConvertor::convert(message.getField(FXCM_CASH_DAILY));
 			auto margin_call_status = parse_fxcm_margin_call_status(message.getField(FXCM_MARGIN_CALL));
-			auto sending_time = parse_datetime(message, FIX::FIELD::SendingTime);
+			auto sending_time = parse_datetime(message.getHeader(), FIX::FIELD::SendingTime);
 
 			// CollateralReport NoPartyIDs group can be inspected for additional account information such as AccountName or HedgingStatus
 			FIX44::CollateralReport::NoPartyIDs group;
@@ -353,6 +352,13 @@ namespace zorro {
 				.margin_call_status = margin_call_status,
 				.party_sub_ids = party_sub_ids
 			};
+
+			spdlog::debug(
+				"Application::onMessage[CollateralReport]: publish collateral report for account_id={} balance={}", 
+				account_id, balance
+			);
+
+			collateral_report_queue.push(collateral_report);
 		}
 		catch (FIX::FieldNotFound& error) {
 			spdlog::error(

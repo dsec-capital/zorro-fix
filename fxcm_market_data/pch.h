@@ -17,16 +17,20 @@
 #include <stdexcept>
 #include <algorithm>
 
-#include <ForexConnect.h>
+#include "ForexConnect.h"
 
 #include "CommonSources.h"
 
-#define _TIMEOUT 30000
+#include "spdlog/spdlog.h"
+
+#include "common/bar.h"
+
+constexpr auto _TIMEOUT = 30000;
 
 #ifndef WIN32
 #define _stricmp strcasecmp
 #endif
 
-#include "framework.h"
+#define WIN32_LEAN_AND_MEAN  // Exclude rarely-used stuff from Windows headers
 
 #endif //PCH_H

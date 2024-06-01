@@ -119,7 +119,8 @@ namespace zorro {
 
 	std::string next_client_order_id() {
 		++client_order_id;
-		return std::format("cl_ord_id_{}", client_order_id);
+		auto ts = common::get_current_system_clock().count() / 1000000;
+		return std::format("coid_{}_{}", ts, client_order_id);
 	}
 
 	int next_internal_order_id() {
@@ -579,7 +580,7 @@ namespace zorro {
 	 *	-3 when the order was accepted, but got no ID yet. The ID is then taken from the next subsequent BrokerBuy call that returned a valid ID. This is used for combo positions that require several orders.
 	 */
 	DLLFUNC_C int BrokerBuy2(char* Asset, int lots, double stop, double limit, double* av_fill_price, int* fill_qty) {
-		log::debug<2, true>("BrokerBuy2: {} lots={} limit={} lot_amount={}", Asset, lots, limit, lot_amount);
+		log::debug<2, true>("BrokerBuy2 {}: lots={}, lots={}, limit={}, stop={}", Asset, lots, lot_amount, limit, stop);
 
 		if (!fix_thread) {
 			log::error<true>("BrokerBuy2: no FIX session");
@@ -742,8 +743,8 @@ namespace zorro {
 	 *	  - nTradeID when the ID did not change or the trade was fully closed.
 	 *	  - 0 when the trade was not found or could not be closed.
 	 */
-	DLLFUNC_C int BrokerSell2(int trade_id, int lot_amount, double limit, double* close, double* cost, double* profit, int* fill) {
-		log::debug<1, true>("BrokerSell2 nTradeID={} nAmount={} limit={}", trade_id, lot_amount, limit);
+	DLLFUNC_C int BrokerSell2(int trade_id, int lots, double limit, double* close, double* cost, double* profit, int* fill) {
+		log::debug<1, true>("BrokerSell2: nTradeID={}, lots={}, limit={}", trade_id, lots, limit);
 
 		auto it = order_id_by_internal_order_id.find(trade_id);
 		if (it != order_id_by_internal_order_id.end()) {
@@ -803,12 +804,12 @@ namespace zorro {
 					auto side = FIX::Side(order.side);
 					auto ord_type = FIX::OrdType(order.ord_type);
 
-					if (std::abs(lot_amount) > order.order_qty) {
-						log::error<true>("BrokerSell2: trying to cancel/replace with an lots={} > order.order_qty={}!", lot_amount, order.order_qty);
+					if (std::abs(lots) > order.order_qty) {
+						log::error<true>("BrokerSell2: trying to cancel/replace with an lots={} > order.order_qty={}!", lots, order.order_qty);
 						return 0;
 					}
 
-					if (std::abs(lot_amount) >= order.leaves_qty) {
+					if (std::abs(lots) >= order.leaves_qty) {
 						log::debug<2, true>("BrokerSell2: cancel working order completely");
 
 						auto msg = fix_thread->fix_app().order_cancel_request(
@@ -834,7 +835,7 @@ namespace zorro {
 					}
 					else {
 						int leaves_qty = (int)order.leaves_qty;
-						auto target_qty = leaves_qty - std::abs(lot_amount);
+						auto target_qty = leaves_qty - std::abs(lots);
 
 						log::debug<2, true>( 
 							"BrokerSell2: cancel/replace working order from leaves_qty={} to target_qty={}",

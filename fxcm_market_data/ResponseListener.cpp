@@ -1,18 +1,5 @@
-/* Copyright 2019 FXCM Global Services, LLC
-
-   Licensed under the Apache License, Version 2.0 (the "License");
-   you may not use these files except in compliance with the License.
-   You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-   Unless required by applicable law or agreed to in writing, software
-   distributed under the License is distributed on an "AS IS" BASIS,
-   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-   See the License for the specific language governing permissions and
-   limitations under the License.
-*/
 #include "pch.h"
+
 #include "ResponseListener.h"
 
 ResponseListener::ResponseListener()
@@ -33,7 +20,6 @@ bool ResponseListener::wait()
     return WaitForSingleObject(mSyncResponseEvent, INFINITE) == WAIT_OBJECT_0;
 }
 
-/** Gets response.*/
 pricehistorymgr::IPriceHistoryCommunicatorResponse* ResponseListener::getResponse()
 {
     if (mResponse)
@@ -48,8 +34,7 @@ void ResponseListener::setRequest(pricehistorymgr::IPriceHistoryCommunicatorRequ
     request->addRef();
 }
 
-void ResponseListener::onRequestCompleted(pricehistorymgr::IPriceHistoryCommunicatorRequest *request,
-                                          pricehistorymgr::IPriceHistoryCommunicatorResponse *response)
+void ResponseListener::onRequestCompleted(pricehistorymgr::IPriceHistoryCommunicatorRequest *request, pricehistorymgr::IPriceHistoryCommunicatorResponse *response)
 {
     if (mRequest == request)
     {
@@ -59,12 +44,14 @@ void ResponseListener::onRequestCompleted(pricehistorymgr::IPriceHistoryCommunic
     }
 }
 
-void ResponseListener::onRequestFailed(pricehistorymgr::IPriceHistoryCommunicatorRequest *request,
-                                       pricehistorymgr::IError *error)
+void ResponseListener::onRequestFailed(pricehistorymgr::IPriceHistoryCommunicatorRequest *request, pricehistorymgr::IError *error)
 {
     if (mRequest == request)
     {
-        std::cout << "Request failed: " << error->getMessage() << std::endl;
+        spdlog::error(
+            "ResponseListener::onRequestFailed: error {}",
+            error != nullptr ? error->getMessage() : "cannot retrieve error message as handler not initialized"
+        );
 
         mRequest = NULL;
         mResponse = NULL;
@@ -77,7 +64,7 @@ void ResponseListener::onRequestCancelled(pricehistorymgr::IPriceHistoryCommunic
 {
     if (mRequest == request)
     {
-        std::cout << "Request cancelled." << std::endl;
+        spdlog::error("ResponseListener::onRequestCancelled: request cancelled");
 
         mRequest = NULL;
         mResponse = NULL;

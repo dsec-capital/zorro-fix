@@ -29,7 +29,7 @@ namespace fxcm {
 
         if (!communicator->isReady())
         {
-            spdlog::error("fetch_historical_prices error: communicator not ready");
+            spdlog::error("fetch_historical_prices phm_error: communicator not ready");
             return false;
         }
 
@@ -37,10 +37,10 @@ namespace fxcm {
         O2G2Ptr<pricehistorymgr::ITimeframeFactory> timeframeFactory = communicator->getTimeframeFactory();
         pricehistorymgr::IError* error = NULL;
         O2G2Ptr<IO2GTimeframe> timeframeObj = timeframeFactory->create(timeframe, &error);
-        O2G2Ptr<pricehistorymgr::IError> autoError(error);
+        O2G2Ptr<pricehistorymgr::IError> auto_error(error);
         if (!timeframeObj)
         {
-            spdlog::error("fetch_historical_prices error: timeframe {} invalid", timeframe);
+            spdlog::error("fetch_historical_prices phm_error: timeframe {} invalid", timeframe);
             return false;
         }
 
@@ -50,14 +50,20 @@ namespace fxcm {
         );
         if (!request)
         {
-            spdlog::error("fetch_historical_prices error: failded creating request {}", error->getMessage());
+            spdlog::error(
+                "fetch_historical_prices phm_error: failded creating request {}", 
+                error != 0 ? error->getMessage() : "error handler not initialized - cannot get error message"
+            );
             return false;
         }
 
         responseListener->setRequest(request);
         if (!communicator->sendRequest(request, &error))
         {
-            spdlog::error("fetch_historical_prices error: failded sending request {}", error->getMessage());
+            spdlog::error(
+                "fetch_historical_prices phm_error: failded sending request {}", 
+                error != 0 ? error->getMessage() : "error handler not initialized - cannot get error message"
+            );
             return false;
         }
 
@@ -69,15 +75,15 @@ namespace fxcm {
         if (response)
         {
             // use IO2GMarketDataSnapshotResponseReader to extract price data from the response object 
-            pricehistorymgr::IError* error = NULL;
-            O2G2Ptr<IO2GMarketDataSnapshotResponseReader> reader = communicator->createResponseReader(response, &error);
-            O2G2Ptr<pricehistorymgr::IError> autoError(error);
+            pricehistorymgr::IError* phm_error = NULL;
+            O2G2Ptr<IO2GMarketDataSnapshotResponseReader> reader = communicator->createResponseReader(response, &phm_error);
+            O2G2Ptr<pricehistorymgr::IError> phm_auto_error(phm_error);
 
             if (reader)
             {
                 if (!reader->isBar())
                 {
-                    spdlog::error("fetch_historical_prices error: failded sending requestexpected bars");
+                    spdlog::error("fetch_historical_prices phm_error: failded sending requestexpected bars");
                     return false;
                 }
 
@@ -134,19 +140,22 @@ namespace fxcm {
                 }
                 else {
                     spdlog::error(
-                        "fetch_historical_prices error: no bars in request interval from {} to {}",
+                        "fetch_historical_prices phm_error: no bars in request interval from {} to {}",
                         n, format.formatDate(from), format.formatDate(to)
                     );
                     return false;
                 }
             }
             else {
-                spdlog::error("fetch_historical_prices error: failded create reader");
+                spdlog::error("fetch_historical_prices phm_error: failded create reader");
                 return false;
             }
         }
         else {
-            spdlog::error("fetch_historical_prices error: failded receiving request {}", error->getMessage());
+            spdlog::error(
+                "fetch_historical_prices phm_error: failded receiving request {}", 
+                error != 0 ? error->getMessage() : "error handler not initialized - cannot get error message"
+                );
             return false;
         }
     }
@@ -180,12 +189,20 @@ namespace fxcm {
         DATE date_to,
         const std::string& timezone,
         const char* session_id,
-        const char* pin
+        const char* pin,
+        int timeout
     ) {
+        LocalFormat format;
+
+        spdlog::debug(
+            "get_historical_prices: instrument={} timeframe={}, from={}, to={}",
+            instrument, timeframe, format.formatDate(date_from), format.formatDate(date_to)
+        );
+
         try {
             // create the ForexConnect trading session
             O2G2Ptr<IO2GSession> session = CO2GTransport::createSession();
-            O2G2Ptr<SessionStatusListener> statusListener = new SessionStatusListener(session, true, session_id, pin);
+            O2G2Ptr<SessionStatusListener> statusListener = new SessionStatusListener(session, true, session_id, pin, timeout);
 
             // subscribe IO2GSessionStatus interface implementation for the status events
             session->subscribeSessionStatus(statusListener);
@@ -200,12 +217,17 @@ namespace fxcm {
 
             if (!communicator)
             {
-                spdlog::error("get_historical_prices: error {}", error->getMessage());
+                spdlog::error(
+                    "get_historical_prices: phm_error {}", 
+                    error != 0 ? error->getMessage() : "error handler not initialized - cannot get error message"
+                );
                 return false;
             }
 
             // log in to ForexConnect
             bool login_success = session->login(login, password, url, connection);
+
+            spdlog::debug("get_historical_prices: login success={}", login_success);
 
             bool success = false;
 
@@ -250,7 +272,7 @@ namespace fxcm {
                         }
                     }
                     else {
-                        spdlog::error("get_historical_prices: error in fetch_historical_prices");
+                        spdlog::error("get_historical_prices: phm_error in fetch_historical_prices");
                     }
 
                     communicator->removeListener(responseListener);
@@ -269,16 +291,7 @@ namespace fxcm {
         }
         catch (...)
         {
-            std::exception_ptr ex = std::current_exception();
-            spdlog::error("get_historical_prices: got exception");
-            try
-            {
-                std::rethrow_exception(ex);
-            }
-            catch (std::bad_exception const& be)
-            {
-                spdlog::error("get_historical_prices: bad_exception {}", be.what());
-            }
+            spdlog::error("get_historical_prices: got other exception");
             return false;
         }
     }

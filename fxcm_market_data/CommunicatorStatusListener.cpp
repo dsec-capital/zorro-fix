@@ -1,18 +1,5 @@
-/* Copyright 2019 FXCM Global Services, LLC
-
-   Licensed under the Apache License, Version 2.0 (the "License");
-   you may not use these files except in compliance with the License.
-   You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-   Unless required by applicable law or agreed to in writing, software
-   distributed under the License is distributed on an "AS IS" BASIS,
-   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-   See the License for the specific language governing permissions and
-   limitations under the License.
-*/
 #include "pch.h"
+
 #include "CommunicatorStatusListener.h"
 
 CommunicatorStatusListener::CommunicatorStatusListener()
@@ -40,8 +27,9 @@ void CommunicatorStatusListener::reset()
 bool CommunicatorStatusListener::waitEvents()
 {
     int res = WaitForSingleObject(mSyncCommunicatorEvent, _TIMEOUT);
-    if (res != 0)
-        std::cout << "Timeout occurred during waiting for communicator status is ready" << std::endl;
+    if (res != 0) {
+        spdlog::error("CommunicatorStatusListener::waitEvents: timeout occured while waiting for communicator status to be ready");
+    }
     return res == 0;
 }
 
@@ -54,6 +42,9 @@ void CommunicatorStatusListener::onCommunicatorStatusChanged(bool ready)
 void CommunicatorStatusListener::onCommunicatorInitFailed(pricehistorymgr::IError *error)
 {
     mError = true;
-    std::cout << "Communicator initialization error: " << error->getMessage() << std::endl;
+    spdlog::error(
+        "CommunicatorStatusListener::onCommunicatorInitFailed: error {}",
+        error != nullptr ? error->getMessage() : "cannot retrieve error message as handler not initialized"
+    );
     SetEvent(mSyncCommunicatorEvent);
 }

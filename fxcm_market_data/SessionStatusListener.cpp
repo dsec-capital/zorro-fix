@@ -1,22 +1,8 @@
-/* Copyright 2019 FXCM Global Services, LLC
-
-   Licensed under the Apache License, Version 2.0 (the "License");
-   you may not use these files except in compliance with the License.
-   You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-   Unless required by applicable law or agreed to in writing, software
-   distributed under the License is distributed on an "AS IS" BASIS,
-   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-   See the License for the specific language governing permissions and
-   limitations under the License.
-*/
 #include "pch.h"
+
 #include "SessionStatusListener.h"
 
-/** Constructor. */
-SessionStatusListener::SessionStatusListener(IO2GSession *session, bool printSubsessions, const char *sessionID, const char *pin)
+SessionStatusListener::SessionStatusListener(IO2GSession *session, bool printSubsessions, const char *sessionID, const char *pin, int timeout)
 {
     if (sessionID != 0)
         mSessionID = sessionID;
@@ -32,9 +18,9 @@ SessionStatusListener::SessionStatusListener(IO2GSession *session, bool printSub
     mPrintSubsessions = printSubsessions;
     mRefCount = 1;
     mSessionEvent = CreateEvent(0, FALSE, FALSE, 0);
+    mTimeout = timeout;
 }
 
-/** Destructor. */
 SessionStatusListener::~SessionStatusListener()
 {
     mSession->release();
@@ -43,13 +29,11 @@ SessionStatusListener::~SessionStatusListener()
     CloseHandle(mSessionEvent);
 }
 
-/** Increase reference counter. */
 long SessionStatusListener::addRef()
 {
     return O2GAtomic::InterlockedInc(mRefCount);
 }
 
-/** Decrease reference counter. */
 long SessionStatusListener::release()
 {
     long rc = O2GAtomic::InterlockedDec(mRefCount);
@@ -64,14 +48,12 @@ void SessionStatusListener::reset()
     mDisconnected = false;
 }
 
-/** Callback called when login has been failed. */
 void SessionStatusListener::onLoginFailed(const char *error)
 {
-    std::cout << "Login error: " << error << std::endl;
+    spdlog::error("SessionStatusListener::onLoginFailed: error {}", error);
     SetEvent(mSessionEvent);
 }
 
-/** Callback called when session status has been changed. */
 void SessionStatusListener::onSessionStatusChanged(IO2GSessionStatus::O2GSessionStatus status)
 {
     switch (status)
@@ -82,76 +64,87 @@ void SessionStatusListener::onSessionStatusChanged(IO2GSessionStatus::O2GSession
         mDisconnected = true;
         SetEvent(mSessionEvent);
         break;
+
     case IO2GSessionStatus::Connecting:
         std::cout << "status::connecting" << std::endl;
         break;
-    case IO2GSessionStatus::TradingSessionRequested:
-    {
-        std::cout << "status::trading session requested" << std::endl;
-        O2G2Ptr<IO2GSessionDescriptorCollection> descriptors = mSession->getTradingSessionDescriptors();
-        bool found = false;
-        if (descriptors)
+
+    case IO2GSessionStatus::TradingSessionRequested: 
         {
-            if (mPrintSubsessions)
-                std::cout << "descriptors available:" << std::endl;
-            for (int i = 0; i < descriptors->size(); ++i)
+            std::cout << "status::trading session requested" << std::endl;
+            O2G2Ptr<IO2GSessionDescriptorCollection> descriptors = mSession->getTradingSessionDescriptors();
+            bool found = false;
+            if (descriptors)
             {
-                O2G2Ptr<IO2GSessionDescriptor> descriptor = descriptors->get(i);
-                if (mPrintSubsessions)
-                    std::cout << "  id:='" << descriptor->getID()
-                              << "' name='" << descriptor->getName()
-                              << "' description='" << descriptor->getDescription()
-                              << "' " << (descriptor->requiresPin() ? "requires pin" : "") << std::endl;
-                if (mSessionID == descriptor->getID())
+                std::stringstream strBuf;
+                if (mPrintSubsessions) {
+                    strBuf << "SessionStatusListener::onSessionStatusChanged: descriptors available:" << std::endl;
+                }
+                
+                for (int i = 0; i < descriptors->size(); ++i)
                 {
-                    found = true;
-                    break;
+                    O2G2Ptr<IO2GSessionDescriptor> descriptor = descriptors->get(i);
+                    if (mPrintSubsessions)
+                        strBuf << "  id:='" << descriptor->getID()
+                               << "' name='" << descriptor->getName()
+                               << "' description='" << descriptor->getDescription()
+                               << "' " << (descriptor->requiresPin() ? "requires pin" : "") << std::endl;
+                    if (mSessionID == descriptor->getID())
+                    {
+                        found = true;
+                        break;
+                    }
+                }
+
+                if (mPrintSubsessions) {
+                    spdlog::info(strBuf.str());
                 }
             }
+            if (!found)
+            {
+                onLoginFailed("specified sub session identifier is not found");
+            }
+            else
+            {
+                mSession->setTradingSession(mSessionID.c_str(), mPin.c_str());
+            }
         }
-        if (!found)
-        {
-            onLoginFailed("The specified sub session identifier is not found");
-        }
-        else
-        {
-            mSession->setTradingSession(mSessionID.c_str(), mPin.c_str());
-        }
-    }
-    break;
+        break;
+
     case IO2GSessionStatus::Connected:
-        std::cout << "status::connected" << std::endl;
+        spdlog::info("SessionStatusListener::onSessionStatusChanged: status::connected");
         mConnected = true;
         mDisconnected = false;
         SetEvent(mSessionEvent);
         break;
+
     case IO2GSessionStatus::Reconnecting:
-        std::cout << "status::reconnecting" << std::endl;
+        spdlog::info("SessionStatusListener::onSessionStatusChanged: status::reconnecting");
         break;
+
     case IO2GSessionStatus::Disconnecting:
-        std::cout << "status::disconnecting" << std::endl;
+        spdlog::info("SessionStatusListener::onSessionStatusChanged: status::disconnecting");
         break;
+
     case IO2GSessionStatus::SessionLost:
-        std::cout << "status::session lost" << std::endl;
+        spdlog::info("SessionStatusListener::onSessionStatusChanged: status::session lost");
         break;
+
     }
 }
 
-/** Check whether session is connected */
 bool SessionStatusListener::isConnected() const
 {
     return mConnected;
 }
 
-/** Check whether session is disconnected */
 bool SessionStatusListener::isDisconnected() const
 {
     return mDisconnected;
 }
 
-/** Wait for connection or error. */
 bool SessionStatusListener::waitEvents()
 {
-    return WaitForSingleObject(mSessionEvent, _TIMEOUT) == 0;
+    return WaitForSingleObject(mSessionEvent, mTimeout) == 0;
 }
 

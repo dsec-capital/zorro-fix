@@ -33,6 +33,8 @@ class SessionStatusListener : public IO2GSessionStatus
     IO2GSession *mSession;
     /** Event handle. */
     HANDLE mSessionEvent;
+    /** Timeout */
+    DWORD mTimeout;
 
  protected:
     /** Destructor. */
@@ -45,8 +47,9 @@ class SessionStatusListener : public IO2GSessionStatus
         @param sessionID        Identifier of the subsession or NULL in case
                                 no subsession selector is expected.
         @param pin              Pin code or NULL in case no pin code request is expected.
+        @param timeout          Timeout in milliseconds
     */
-    SessionStatusListener(IO2GSession *session, bool printSubsessions, const char *sessionID = 0, const char *pin = 0);
+    SessionStatusListener(IO2GSession *session, bool printSubsessions, const char *sessionID = 0, const char *pin = 0, int timeout = 10000);
 
     /** Increase reference counter. */
     virtual long addRef();

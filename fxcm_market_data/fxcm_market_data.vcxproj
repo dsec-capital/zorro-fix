@@ -200,7 +200,6 @@
   <ItemGroup>
     <ClInclude Include="CommonSources.h" />
     <ClInclude Include="CommunicatorStatusListener.h" />
-    <ClInclude Include="framework.h" />
     <ClInclude Include="fxcm_market_data.h" />
     <ClInclude Include="LocalFormat.h" />
     <ClInclude Include="pch.h" />

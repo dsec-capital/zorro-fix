@@ -1,4 +1,5 @@
 #include "pch.h"
+
 #include "LocalFormat.h"
 
 LocalFormat::LocalFormat()

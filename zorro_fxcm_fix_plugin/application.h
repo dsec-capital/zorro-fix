@@ -72,7 +72,7 @@ namespace zorro
 		double min_quantity;
 		int round_lots;
 		int factor;
-		int contract_multiplier;
+		double contract_multiplier;
 		FXCMProductId prod_id;
 		double interest_buy;
 		double interest_sell;

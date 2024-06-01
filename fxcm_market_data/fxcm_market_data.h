@@ -5,8 +5,6 @@
 
 #include "common/bar.h"
 
-#include "spdlog/spdlog.h"
-
 namespace fxcm {
 
     constexpr inline const char* default_url = "http://www.fxcorporate.com/Hosts.jsp";
@@ -32,7 +30,8 @@ namespace fxcm {
         DATE date_to,
         const std::string& timezone = "UTC",
         const char* session_id = nullptr,
-        const char* pin = nullptr
+        const char* pin = nullptr,
+        int timeout = 10000
     );
 
 }
