@@ -387,11 +387,14 @@ namespace zorro {
 	 * Optional function. Is called by Zorro in regular intervals and returns the current account status. 
 	 * Is also used to change the account if multiple accounts are supported. If the BrokerAccount function 
 	 * is not provided, f.i. when using a FIX API, Zorro estimates balance, equity, and margin from initial 
-	 *values and trade results.
+	 * values and trade results.
+	 * 
 	 * Parameters:
 	 *	Account		Input, new account name or number, or NULL for using the current account.
 	 *	pBalance	Optional output, current balance on the account.
-	 *	pTradeVal	Optional output, current value of all open trades; the difference between account equity and returned balance value. If not available, Zorro estimes the equity from balance and value of all open trades. If no balance was returned, the account equity can be returned in pTradeVal.
+	 *	pTradeVal	Optional output, current value of all open trades; the difference between account 
+	 *              equity and returned balance value. If not available, Zorro estimes the equity from balance 
+	 *              and value of all open trades. If no balance was returned, the account equity can be returned in pTradeVal.
 	 *	pMarginVal	Optional output, current total margin bound by all open trades. If not
 	 * 
 	 * Returns:
@@ -1312,6 +1315,7 @@ namespace zorro {
 					"BrokerCommand {}[{}] filename={}",
 					"BROKER_CMD_CREATE_SECURITY_INFO_FILE", BROKER_CMD_CREATE_SECURITY_INFO_FILE, filename
 				);
+
 				std::stringstream headers, rows;
 				headers
 					<< "symbol" << ", "
@@ -1381,8 +1385,43 @@ namespace zorro {
 						return 0;
 					}
 
-					auto text = reports.to_string();
-					write_to_file(filename, text, "", std::fstream::trunc);
+					std::stringstream headers, rows;
+					headers
+						<< "account" << ", "
+						<< "symbol" << ", "
+						<< "currency" ", "
+						<< "pos_id" << ", "
+						<< "settle_price" << ", "
+						<< "is_open" << ", "
+						<< "interest" << ", "
+						<< "commission" << ", "
+						<< "open_time" << ", "
+						<< "used_margin" << ", "
+						<< "close_pnl" << ", "
+						<< "close_settle_price" << ", "
+						<< "close_time" << ", "
+						<< "close_order_id" << ", "
+						<< "close_cl_ord_id";
+					for (const auto& report : reports.reports) {
+						rows
+							<< report.account << ", "
+							<< report.symbol << ", "
+							<< report.currency << ", "
+							<< report.pos_id << ", "
+							<< report.settle_price << ", "
+							<< report.is_open << ", "
+							<< report.interest << ", "
+							<< report.commission << ", "
+							<< common::to_string(report.open_time) << ", "
+							<< (report.used_margin.has_value() ? std::to_string(report.used_margin.value()) : "N/A") << ", "
+							<< (report.close_pnl.has_value() ? std::to_string(report.close_pnl.value()) : "N/A") << ", "
+							<< (report.close_settle_price.has_value() ? std::to_string(report.close_settle_price.value()) : "N/A") << ", "
+							<< (report.close_settle_price.has_value() ? common::to_string(report.close_time.value()) : "N/A") << ", "
+							<< (report.close_order_id.has_value() ? report.close_order_id.value() : "N/A") << ", "
+							<< (report.close_cl_ord_id.has_value() ? report.close_cl_ord_id.value() : "N/A")
+							<< std::endl;
+					}
+					write_to_file(filename, rows.str(), headers.str(), std::fstream::trunc);
 					return reports.reports.size();
 				}
 				else {
