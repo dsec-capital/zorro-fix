@@ -541,6 +541,8 @@ namespace zorro {
 			message.get(account);
 			message.get(currency);
 			message.get(pos_req_type);
+			message.get(settle_price);
+			message.get(settle_price_type);
 			message.get(total_num_reports);
 
 			pos_id = message.getField(FXCM_POS_ID);
@@ -587,9 +589,9 @@ namespace zorro {
 			FXCMPositionReport position_report{
 				.account = account.getValue(),
 				.symbol = symbol.getValue(),
-				.currency = currency,
+				.currency = currency.getValue(),
 				.pos_id = pos_id,
-				.settle_price = settle_price,
+				.settle_price = settle_price.getValue(),
 				.is_open = is_open,
 				.interest = interest,
 				.commission = commission,

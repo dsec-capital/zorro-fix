@@ -287,10 +287,10 @@ namespace zorro {
 					login_count = fix_thread->fix_app().login_count();
 				}
 				auto dt = std::chrono::system_clock::now() - start;
-				auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(dt).count();
+				auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(dt);
 				if (login_count < num_fix_sessions) {
 					fix_thread->cancel();
-					throw std::runtime_error(std::format("login timeout after {}ms login count={}", ms, login_count));
+					throw std::runtime_error(std::format("login timeout after {} login count={}", ms, login_count));
 				}
 				else {
 					log::info<1, true>("BrokerLogin: FIX login after {}ms", ms);
@@ -747,9 +747,11 @@ namespace zorro {
 
 		ExecReport report;
 		bool success = exec_report_queue.pop(report, fix_exec_report_waiting_time);
-
 		if (!success) {
-			log::error<true>("BrokerBuy2 timeout while waiting for FIX exec report on order new!");
+			log::error<true>(
+				"BrokerBuy2 timeout while waiting for FIX exec report on order new after {}", 
+				fix_exec_report_waiting_time
+			);
 			return BrokerError::OrderRejectedOrTimeout;
 		}
 		else {
@@ -944,9 +946,11 @@ namespace zorro {
 
 						ExecReport report;
 						bool success = exec_report_queue.pop(report, fix_exec_report_waiting_time);
-
 						if (!success) {
-							log::error<true>("BrokerSell2: timeout while waiting for FIX exec report on order cancel!");
+							log::error<true>(
+								"BrokerSell2: timeout while waiting for FIX exec report on order cancel after {}",
+								fix_exec_report_waiting_time
+							);
 							return 0;
 						} 
 						else {
@@ -978,7 +982,10 @@ namespace zorro {
 						bool success = exec_report_queue.pop(report, fix_exec_report_waiting_time);
 
 						if (!success) {
-							log::error<true>("BrokerSell2: timeout while waiting for FIX exec report on order cancel/replace!");
+							log::error<true>(
+								"BrokerSell2: timeout while waiting for FIX exec report on order cancel/replace after {}", 
+								fix_exec_report_waiting_time
+							);
 							return 0;
 						}
 						else {
@@ -1099,9 +1106,11 @@ namespace zorro {
 
 						ExecReport report;
 						bool success = exec_report_queue.pop(report, fix_exec_report_waiting_time);
-
 						if (!success) {
-							log::error<true>("BrokerCommand[DO_CANCEL] timeout while waiting for FIX exec report on order cancel!");
+							log::error<true>(
+								"BrokerCommand[DO_CANCEL] timeout while waiting for FIX exec report on order cancel after {}",
+								fix_exec_report_waiting_time
+							);
 
 							return 0;
 						}
@@ -1366,7 +1375,7 @@ namespace zorro {
 					FXCMPositionReports reports;
 					bool success = position_report_queue.pop(reports, 4*fix_waiting_time);
 					if (!success) {
-						log::error<true>("BrokerCommand {}[{}] request for positions timed out after {}ms",
+						log::error<true>("BrokerCommand {}[{}] request for positions timed out after {}",
 							"BROKER_CMD_GET_POSITIONS", BROKER_CMD_GET_POSITIONS, 4 * fix_waiting_time
 						);
 						return 0;
