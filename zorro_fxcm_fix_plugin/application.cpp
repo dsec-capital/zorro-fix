@@ -1,5 +1,5 @@
-#ifdef _MSC_VER
-#pragma warning(disable : 4503 4355 4786)
+#ifdef _MSC_VER 
+#pragma warning(disable : 4503 4355 4786 26444)
 #endif
 
 #include "pch.h"
@@ -8,6 +8,7 @@
 
 #include "quickfix/config.h"
 #include "quickfix/Session.h"
+#include "magic_enum/magic_enum.hpp"
 
 #include "spdlog/spdlog.h"
 
@@ -53,17 +54,129 @@ namespace zorro {
 		throw std::runtime_error("unknown margin call status " + status);
 	}
 
+	std::string FXCMSecurityInformation::to_string() const {
+		std::stringstream ss;
+		ss << "FXCMSecurityInformation["
+	       << "symbol=" << symbol << ", "
+	       << "currency=" << currency << ", "
+	       << "product=" << product << ", "
+	       << "pip_size=" << pip_size << ", "
+	       << "point_size=" << point_size << ", "
+	       << "max_quanity=" << max_quanity << ", "
+	       << "min_quantity=" << min_quantity << ", "
+	       << "round_lots=" << round_lots << ", "
+	       << "factor=" << factor << ", "
+	       << "contract_multiplier=" << contract_multiplier << ", "
+	       << "prod_id=" << magic_enum::enum_name(prod_id) << ", "
+	       << "interest_buy=" << interest_buy << ", "
+	       << "interest_sell=" << interest_sell << ", "
+	       << "subscription_status=" << subscription_status << ", "
+	       << "sort_order=" << sort_order << ", "
+	       << "cond_dist_stop=" << cond_dist_stop << ", "
+	       << "cond_dist_limit=" << cond_dist_limit << ", "
+	       << "cond_dist_entry_stop=" << cond_dist_entry_stop << ", "
+	       << "cond_dist_entry_limit=" << cond_dist_entry_limit << ", "
+	       << "fxcm_trading_status=" << magic_enum::enum_name(fxcm_trading_status) 
+	       << "]";
+		return ss.str();
+	}
+
+	std::string FXCMCollateralReport::to_string() const {
+		std::stringstream ss;
+		ss << "FXCMCollateralReport["
+		   << "balance=" << balance << ", "
+		   << "start_cash=" << start_cash << ", "
+		   << "end_cash=" << end_cash << ", "
+		   << "margin_ratio=" << margin_ratio << ", "
+		   << "margin=" << margin << ", "
+		   << "margin=" << margin << ", "
+		   << "margin_call_status=" << magic_enum::enum_name(margin_call_status) << ", "
+		   << "sending_time" << common::to_string(sending_time) << ", "
+		   << "party_sub_ids=[";
+		bool first = false;
+		for (const auto& psid : party_sub_ids) {
+			if (first) ss << ", ";
+			ss << "type=" << psid.first << ", " << "party_sub_id=" << psid.second;
+			first = true;
+		}
+		ss << "]]";
+		return ss.str();
+	}
+
+	std::string FXCMPositionReport::to_string() const {
+		std::stringstream ss;
+		ss << "FXCMPositionReport["
+		   << "account=" << account << ", "
+		   << "symbol=" << symbol << ", "
+		   << "currency=" << currency << ", "
+		   << "pos_id=" << pos_id << ", "
+		   << "settle_price=" << settle_price << ", "
+		   << "is_open=" << is_open << ", "
+		   << "interest=" << interest << ", "
+		   << "commission=" << commission << ", "
+		   << "open_time=" << common::to_string(open_time) << ", "
+		   << "used_margin=" << (used_margin.has_value() ? std::to_string(used_margin.value()) : "N/A") << ", "
+		   << "close_pnl=" << (close_pnl.has_value() ? std::to_string(close_pnl.value()) : "N/A") << ", "
+		   << "close_settle_price=" << (close_settle_price.has_value() ? std::to_string(close_settle_price.value()) : "N/A") << ", "
+		   << "close_time=" << (close_settle_price.has_value() ? common::to_string(close_time.value()) : "N/A") << ", "
+		   << "close_order_id=" << (close_order_id.has_value() ? close_order_id.value() : "N/A") << ", "
+		   << "close_cl_ord_id=" << (close_cl_ord_id.has_value() ? close_cl_ord_id.value() : "N/A")
+		   << "]";
+		return ss.str();
+	}
+
+	std::string FXCMPositionReports::to_string() const {
+		std::stringstream ss;
+		bool first = false;
+		for (const auto& report : reports) {
+			if (first) ss << ", ";
+			ss << report.to_string();
+			first = true;
+		}
+		return ss.str();
+	}
+
+	std::string FXCMTradingSessionStatus::to_string() const {
+		std::stringstream ss;
+		ss << "FXCMTradingSessionStatus["
+		   << "security_informations=[";
+		bool first_s = false;
+		for (const auto& infos : security_informations) {
+			if (first_s) ss << ", ";
+			ss << infos.first << "=" << infos.second.to_string();
+			first_s = true;
+		}
+		ss << "], ";
+		ss
+		   << "trade_session_status=" << magic_enum::enum_name(trade_session_status) << ", "
+		   << "server_timezone_name=" << server_timezone_name << ", "
+		   << "server_timezone=" << server_timezone << ", "
+		   << "parameters=[";
+		bool first_p = false;
+		for (const auto& param : session_parameters) {
+			if (first_p) ss << ", ";
+			ss << param.first << "=" << param.second;
+			first_p = true;
+		}
+		ss << "]]";
+		return ss.str();
+	}
+
 	Application::Application(
 		const FIX::SessionSettings& session_settings,
+		unsigned int requests_on_logon,
 		BlockingTimeoutQueue<ExecReport>& exec_report_queue,
 		BlockingTimeoutQueue<TopOfBook>& top_of_book_queue,
 		BlockingTimeoutQueue<FXCMPositionReports>& position_reports_queue,
-		BlockingTimeoutQueue<FXCMCollateralReport>& collateral_report_queue
+		BlockingTimeoutQueue<FXCMCollateralReport>& collateral_report_queue,
+		BlockingTimeoutQueue<FXCMTradingSessionStatus>& trading_session_status_queue
 	) : session_settings(session_settings)
+      , requests_on_logon(requests_on_logon)
 	  , exec_report_queue(exec_report_queue)
 	  , top_of_book_queue(top_of_book_queue)
 	  , position_reports_queue(position_reports_queue)
       , collateral_report_queue(collateral_report_queue)
+      , trading_session_status_queue(trading_session_status_queue)
 	  , done(false)
 	  , logged_in(0)
       , order_tracker("account")
@@ -82,7 +195,8 @@ namespace zorro {
 		return logged_in.load();
 	}
 
-	const std::set<std::string>& Application::get_account_ids() const {
+	std::set<std::string> Application::get_account_ids() {
+		std::unique_lock<std::mutex> ul(mutex);
 		return account_ids;
 	}
 
@@ -120,8 +234,12 @@ namespace zorro {
 		spdlog::debug("Application::onLogon sessionID={} login count={}", sess_id.toString(), logged_in.load());
 
 		if (is_trading_session(sess_id)) {
-			trading_session_status_request();
-			collateral_inquiry();
+			if (requests_on_logon & static_cast<unsigned int>(RequestsOnLogon::RequestsOnLogon_TradingSessionStatus)) {
+				trading_session_status_request();
+			}
+			if (requests_on_logon & static_cast<unsigned int>(RequestsOnLogon::RequestsOnLogon_CollateralReport)) {
+				collateral_inquiry();
+			}
 		}
 	}
 
@@ -194,17 +312,10 @@ namespace zorro {
 	// use this field value to determine if the trading desk is open. As stated above, use TradSesStatus for this purpose
 	void Application::onMessage(const FIX44::TradingSessionStatus& message, const FIX::SessionID& session_ID)
 	{
-		trade_session_status = static_cast<common::fix::TradeSessionStatus>(
-			FIX::IntConvertor::convert(message.getField(FIX::FIELD::TradSesStatus))
-		);
-
-		server_timezone = FIX::IntConvertor::convert(message.getField(FXCM_SERVER_TIMEZONE));
-		server_timezone_name = message.getField(FXCM_SERVER_TIMEZONE);
-
 		try {
-			// Within the TradingSessionStatus message is an embeded SecurityList. From SecurityList we can see
-			// the list of available trading securities and information relevant to each; e.g., point sizes,
-			// minimum and maximum order quantities by security, etc. 
+			FXCMTradingSessionStatus status;
+
+			// parse TradingSessionStatus message embeded in SecurityList
 			int num_symbols = FIX::IntConvertor::convert(message.getField(FIX::FIELD::NoRelatedSym));
 			for (int i = 1; i <= num_symbols; i++) {
 				// 55=LINK/USD|460=12|228=1|231=1|9001=3|9002=0.01|9005=8027|9080=9|15=USD|561=1|
@@ -261,7 +372,7 @@ namespace zorro {
 						.cond_dist_entry_limit = cond_dist_entry_limit,
 						.fxcm_trading_status = trade_status,
 					};
-					fxcm_security_informations.emplace(symbol, std::move(security_info));
+					status.security_informations.emplace(symbol, std::move(security_info));
 				}
 				catch (FIX::FieldNotFound& error) {
 					spdlog::error(
@@ -276,18 +387,30 @@ namespace zorro {
 				}
 			}
 
-			// Also within TradingSessionStatus are FXCM system parameters. This includes important information
-			// such as account base currency, server time zone, the time at which the trading day ends, and more.			
-			// Read field FXCMNoParam (9016) which shows us how many system parameters are in the message
+			status.trade_session_status = static_cast<common::fix::TradeSessionStatus>(
+				FIX::IntConvertor::convert(message.getField(FIX::FIELD::TradSesStatus))
+				);
+
+			status.server_timezone = FIX::IntConvertor::convert(message.getField(FXCM_SERVER_TIMEZONE));
+			status.server_timezone_name = message.getField(FXCM_SERVER_TIMEZONE);
+
 			int params_count = FIX::IntConvertor::convert(message.getField(FXCM_NO_PARAMS));
 			for (int i = 1; i <= params_count; i++) {
 				FIX::FieldMap field_map = message.getGroupRef(i, FXCM_NO_PARAMS);
-				fxcm_parameters.emplace(
+				status.session_parameters.emplace(
 					field_map.getField(FXCM_PARAM_NAME),
 					field_map.getField(FXCM_PARAM_VALUE)
 				);
 			}
-		} catch(FIX::FieldNotFound &error) {
+
+			spdlog::debug(
+				"Application::onMessage[FIX44::TradingSessionStatus]: publish trading session status {}",
+				status.to_string()
+			);
+
+			trading_session_status_queue.push(status);
+		} 
+		catch(FIX::FieldNotFound &error) {
 			spdlog::error(
 				"Application::onMessage[FIX44::TradingSessionStatus]: field not found {}",
 				error.what()
@@ -763,11 +886,6 @@ namespace zorro {
 
 	std::optional<FIX::Message> Application::unsubscribe_market_data(const FIX::Symbol& symbol)
 	{
-		// Unsubscribe from EUR/USD. Note that our request_ID is the exact same
-		// that was sent for our request to subscribe. This is necessary to 
-		// unsubscribe. This request below is identical to our request to subscribe
-		// with the exception that SubscriptionRequestType is set to
-		// "SubscriptionRequestType_DISABLE_PREVIOUS_SNAPSHOT_PLUS_UPDATE_REQUEST"
 		auto it = market_data_subscriptions.find(symbol.getString());
 
 		if (it != market_data_subscriptions.end()) {
@@ -801,7 +919,6 @@ namespace zorro {
 
 	FIX::Message Application::trading_session_status_request()
 	{
-		// Request TradingSessionStatus message 
 		FIX44::TradingSessionStatusRequest request;
 		request.setField(FIX::TradSesReqID(id_generator.genID()));
 		request.setField(FIX::TradingSessionID("FXCM"));
@@ -816,11 +933,14 @@ namespace zorro {
 
 	FIX::Message Application::collateral_inquiry()
 	{
-		// request CollateralReport message. We will receive a CollateralReport for each account under our login
+		// will trigger a CollateralReport for each account under the login
 		FIX44::CollateralInquiry request;
 		request.setField(FIX::CollInquiryID(id_generator.genID()));
 		request.setField(FIX::TradingSessionID("FXCM"));
 		request.setField(FIX::SubscriptionRequestType(FIX::SubscriptionRequestType_SNAPSHOT));
+
+		spdlog::debug("Application::collateral_inquiry: {}", fix_string(request));
+
 		FIX::Session::sendToTarget(request, trading_session_id);
 
 		return request;
@@ -831,29 +951,22 @@ namespace zorro {
 		FIX44::RequestForPositions request;
 		request.setField(FIX::PosReqID(id_generator.genID()));
 		request.setField(FIX::PosReqType(FIX::PosReqType_POSITIONS));
-		// AccountID for the request. This must be set for routing purposes. We must
-		// also set the Parties AccountID field in the NoPartySubIDs group
 		request.setField(FIX::Account(account));
 		request.setField(FIX::SubscriptionRequestType(FIX::SubscriptionRequestType_SNAPSHOT));
 		request.setField(FIX::AccountType(FIX::AccountType_CARRIED_NON_CUSTOMER_SIDE_CROSS_MARGINED));
 		request.setField(FIX::TransactTime());
 		request.setField(FIX::ClearingBusinessDate());
 		request.setField(FIX::TradingSessionID("FXCM"));
-		// Set NoPartyIDs group. These values are always as seen below
 		request.setField(FIX::NoPartyIDs(1));
 		FIX44::RequestForPositions::NoPartyIDs parties_group;
 		parties_group.setField(FIX::PartyID("FXCM ID"));
 		parties_group.setField(FIX::PartyIDSource('D'));
 		parties_group.setField(FIX::PartyRole(3));
 		parties_group.setField(FIX::NoPartySubIDs(1));
-		// Set NoPartySubIDs group
 		FIX44::RequestForPositions::NoPartyIDs::NoPartySubIDs sub_parties;
 		sub_parties.setField(FIX::PartySubIDType(FIX::PartySubIDType_SECURITIES_ACCOUNT_NUMBER));
-		// Set Parties AccountID
 		sub_parties.setField(FIX::PartySubID(account));
-		// Add NoPartySubIds group
 		parties_group.addGroup(sub_parties);
-		// Add NoPartyIDs group
 		request.addGroup(parties_group);
 
 		spdlog::debug("Application::request_for_positions: {}", fix_string(request));

@@ -1,4 +1,4 @@
-#pragma warning(disable : 4996 4244 4312)
+#pragma warning(disable : 4996 4244 4312 C26444)
 
 #include "pch.h"
 #include "application.h"
@@ -41,8 +41,12 @@ namespace zorro {
 	httplib::Client rest_client(std::format("{}:{}", rest_host, rest_port));
 
 	int max_snaphsot_waiting_iterations = 10; 
+	std::chrono::milliseconds fix_waiting_time = 2000ms;
 	std::chrono::milliseconds fix_exec_report_waiting_time = 500ms;
 	std::string settings_cfg_file = "Plugin/zorro_fxcm_fix_client.cfg";
+	unsigned int requests_on_logon =
+		static_cast<unsigned int>(RequestsOnLogon::RequestsOnLogon_TradingSessionStatus) +
+		static_cast<unsigned int>(RequestsOnLogon::RequestsOnLogon_CollateralReport);
 
 	int client_order_id = 0;
 	int internal_order_id = 1000;
@@ -73,8 +77,11 @@ namespace zorro {
 	BlockingTimeoutQueue<TopOfBook> top_of_book_queue;
 	BlockingTimeoutQueue<FXCMPositionReports> position_report_queue;
 	BlockingTimeoutQueue<FXCMCollateralReport> collateral_report_queue;
+	BlockingTimeoutQueue<FXCMTradingSessionStatus> trading_session_status_queue;
 	std::unordered_map<int, std::string> order_id_by_internal_order_id;
 	std::unordered_map<std::string, TopOfBook> top_of_books;
+	std::map<std::string, FXCMCollateralReport> collateral_reports;
+	FXCMTradingSessionStatus trading_session_status;
 	OrderTracker order_tracker("account");
 
 	std::string order_mapping_string() {
@@ -239,10 +246,12 @@ namespace zorro {
 				log::debug<1, true>("BrokerLogin: FIX thread createing...");
 				fix_thread = std::unique_ptr<FixThread>(new FixThread(
 					settings_cfg_file,
+					requests_on_logon,
 					exec_report_queue, 
 					top_of_book_queue,
 					position_report_queue,
-					collateral_report_queue
+					collateral_report_queue,
+					trading_session_status_queue
 				));
 				log::debug<1, true>("BrokerLogin: FIX thread created");
 			}
@@ -275,17 +284,41 @@ namespace zorro {
 				while (login_count < num_fix_sessions && count < 50) {
 					std::this_thread::sleep_for(100ms);
 					login_count = fix_thread->fix_app().login_count();
-					log::debug<5, true>("BrokerLogin: waiting for all session log in - login count={}", login_count);
 				}
 				auto dt = std::chrono::system_clock::now() - start;
 				auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(dt).count();
-				if (login_count >= num_fix_sessions) {
-					log::info<1, true>("BrokerLogin: FIX login after {}ms", ms);
-					return BrokerLoginStatus::LoggedIn;
-				}
-				else {
+				if (login_count < num_fix_sessions) {
+					fix_thread->cancel();
 					throw std::runtime_error(std::format("login timeout after {}ms login count={}", ms, login_count));
 				}
+				else {
+					log::info<1, true>("BrokerLogin: FIX login after {}ms", ms);
+				}
+
+				bool success = trading_session_status_queue.pop(trading_session_status, fix_waiting_time);
+				if (!success) {
+					fix_thread->cancel();
+					throw std::runtime_error("failed to obtain trading session status");
+				}
+				else {
+					log::info<1, true>(
+						"BrokerLogin: trading session status obtained server_timezone={} num securities={}",
+						trading_session_status.server_timezone_name, trading_session_status.security_informations.size()
+					);
+				}
+
+				FXCMCollateralReport collateral_report;
+				success = collateral_report_queue.pop(collateral_report, fix_waiting_time);
+				if (!success) {
+					fix_thread->cancel();
+					throw std::runtime_error("failed to obtain initial collateral report");
+				}
+				else {
+					collateral_reports.emplace(collateral_report.account, collateral_report);
+					log::info<1, true>("BrokerLogin: collateral report={}", collateral_report.to_string());
+				}
+
+				return BrokerLoginStatus::LoggedIn;
 			}
 			else {
 				log::debug<1, true>("BrokerLogin: FIX service stopping...");
@@ -346,35 +379,118 @@ namespace zorro {
 
 		return ExchangeStatus::Open;
 	}
-
-	DLLFUNC int BrokerAccount(char* Account, double* pdBalance, double* pdTradeVal, double* pdMarginVal) 
+	
+	/*
+	 * BrokerAccount
+	 *
+	 * Optional function. Is called by Zorro in regular intervals and returns the current account status. 
+	 * Is also used to change the account if multiple accounts are supported. If the BrokerAccount function 
+	 * is not provided, f.i. when using a FIX API, Zorro estimates balance, equity, and margin from initial 
+	 *values and trade results.
+	 * Parameters:
+	 *	Account		Input, new account name or number, or NULL for using the current account.
+	 *	pBalance	Optional output, current balance on the account.
+	 *	pTradeVal	Optional output, current value of all open trades; the difference between account equity and returned balance value. If not available, Zorro estimes the equity from balance and value of all open trades. If no balance was returned, the account equity can be returned in pTradeVal.
+	 *	pMarginVal	Optional output, current total margin bound by all open trades. If not
+	 * 
+	 * Returns:
+	 *	1 when the account is available and the returned data is valid
+	 *  0 when a wrong account was given or the account was not found.
+	 */
+	DLLFUNC int BrokerAccount(char* account, double* balance, double* pdTradeVal, double* margin_val) 
 	{
-		// TODO 
-		double Balance = 10000;
-		double TradeVal = 0;
-		double MarginVal = 0;
+		log::debug<2, true>("BrokerAccount: requesting account details for account {}", account);
 
-		if (pdBalance && Balance > 0.) *pdBalance = Balance;
-		if (pdTradeVal && TradeVal > 0.) *pdTradeVal = TradeVal;
-		if (pdMarginVal && MarginVal > 0.) *pdMarginVal = MarginVal;
-		return 1;
+		auto it = collateral_reports.find(account);
+
+		if (it != collateral_reports.end()) {
+			*balance = it->second.balance;
+			*margin_val = it->second.margin;
+			return 1;
+		}
+		else {
+			fix_thread->fix_app().collateral_inquiry();
+
+			FXCMCollateralReport collateral_report;
+			auto success = collateral_report_queue.pop(collateral_report, fix_waiting_time);
+			if (!success) {
+				log::error<true>("failed to obtain collateral report for account {}", account);
+				return 0;
+			} 
+			else {
+				collateral_reports.emplace(collateral_report.account, collateral_report);
+
+				if (collateral_report.account != account) {
+					log::error<true>(
+						"BrokerAccount error: wrong account, expected account {} in {}", 
+						 account, collateral_report.to_string());
+					return 0;
+				}
+				else {
+					log::debug<1, true>("BrokerAccount: collateral report={}", collateral_report.to_string());
+					*balance = collateral_report.balance;
+					*margin_val = collateral_report.margin;
+					return 1;
+				}
+			}
+		}
 	}
 
 	/*
 	 * BrokerAsset
 	 * 
-	 * Returns
-	 *	 1 when the asset is available and the returned data is valid
-	 *   0 otherwise. 
+	 * Subscribes an asset, and/or returns information about it. Zorro subscribes all used assets at the begin 
+	 * of the trading session. Price and spread for all assets are retrieved in TickTime intervals or when 
+	 * BrokerProgress was preciously called by the plugin. Other asset data is retrieved once per bar.
 	 * 
-	 * An asset that returns 0 after subscription will trigger Error 053, and its trading will be disabled.
+	 * Parameters:
+     *	Asset		Input, asset symbol for live prices (see Symbols).
+     *	pPrice		Optional output, current ask price of the asset, or NULL for subscribing the asset. An asset must be 
+	 *              subscribed before any information about it can be retrieved.
+     *	pSpread		Optional output, the current difference of ask and bid price of the asset.
+     *	pVolume		Optional output, a parameter reflecting the current supply and demand of the asset. 
+	 *              Such as trade volume per minute, accumulated daily trade volume, open interest, ask/bid volume, 
+	 *              or tick frequency. If a value is returned, it should be consistent with the fVol content of the 
+	 *              T6 struct in BrokerHistory2 (see below)..
+     *	pPip		Optional output, size of 1 PIP, f.i. 0.0001 for EUR/USD.
+     *	pPipCost	Optional output, cost of 1 PIP profit or loss per lot, in units of the account currency. If not directly supported, 
+	 *			    calculate it as decribed under asset list.
+     *	pLotAmount	Optional output, minimum order size, i.e. number of contracts for 1 lot of the asset. For currencies it's usually 
+	 *			    10000 with mini lot accounts and 1000 with micro lot accounts. For CFDs it's usually 1, but can also be a fraction 
+	 *				of a contract, like 0.1.
+     *	pMargin		Optional output, either initial margin cost for buying 1 lot of the asset in units of the account currency 
+	 *			    or the leverage of the asset when negative (f.i. -50 for 50:1 leverage).
+     *	pRollLong	Optional output, rollover fee for long trades, i.e. interest that is added to or subtracted from the account 
+	 *		        for holding positions overnight. The returned value is the daily fee per 10,000 contracts for currencies, 
+	 *			    and per contract for all other assets, in units of the account currency.
+     *	pRollShort	Optional output, rollover fee for short trades.
+     *	pCommission	Optional output, roundturn commission per 10,000 contracts for currencies, per contract for all other assets, 
+	 *			    in units of the account currency.
+     * Returns:
+     *	1 when the asset is available and the returned data is valid, 
+	 *  0 otherwise. An asset that returns 0 after subscription will trigger Error 053, and its trading will be disabled.
 	 * 
+	 * Remarks:
+	 *	If parameters are not supplied by the broker API, they can be left unchanged. Zorro will then use default values from 
+	 *	the asset list. Only price and spread must always be returned when the pPrice and pSpread parameters are nonzero.
+	 * 
+	 *  For receiving streaming price data, get the Zorro window handle from the SET_HWND command for sending messages to a 
+	 *	Zorro window. The message WM_APP+1 triggers a price quote request.
+	 * 
+	 *	Dependent on the broker API, some asset parameters might require unit conversions because lots and pips can have 
+	 *  special meanings. In most APIs, such as the FXCM API, the parameters are directly available. A more complicated example 
+	 *	is the MT4™ API where the parameters must be corrected by the different scales of "Lot" and "Point"
+	 * 
+	 * Asset parameters can be different dependent on when they are requested. For instance, some brokers charge a three 
+	 * times higher rollover fee on Wednesday for compensating the weekend. Spreads are usually higher when the market is 
+	 * closed or illiquid.
+	 * 
+	 * If the broker API can not subscribe an asset, it must be manually subscribed in the broker platform or website.
 	 */
-	DLLFUNC int BrokerAsset(char* Asset, double* price, double* spread,
+	DLLFUNC int BrokerAsset(char* asset, double* price, double* spread,
 		double* volume, double* pip, double* pip_cost, double* min_amount,
 		double* margin_cost, double* roll_long, double* roll_short) 
 	{
-
 		try {
 			if (fix_thread == nullptr) {
 				throw std::runtime_error("no FIX session");
@@ -384,25 +500,32 @@ namespace zorro {
 
 			// subscribe to Asset market data
 			if (!price) {  
-				FIX::Symbol symbol(Asset);
+				FIX::Symbol symbol(asset);
 				fix_app.subscribe_market_data(symbol, false);
 
-				log::info<1, true>("BrokerAsset: subscription request sent for symbol {}", Asset);
+				log::info<1, true>("BrokerAsset: subscription request sent for symbol {}", asset);
 
 				TopOfBook top;
-				auto timeout = 2000;
-				bool success = top_of_book_queue.pop(top, std::chrono::milliseconds(timeout));
+				bool success = top_of_book_queue.pop(top, fix_waiting_time);
 				if (!success) {
-					throw std::runtime_error(std::format("failed to get snapshot in {}ms", timeout));
+					throw std::runtime_error(std::format("failed to get snapshot in {}ms", fix_waiting_time));
 				}
-				else {
-					log::info<1, true>("BrokerAsset: successfully subscribed symbol {} for market data", Asset);
-					return 1;
+
+				log::info<1, true>("BrokerAsset: successfully subscribed symbol {} for market data", asset);
+
+				auto it = trading_session_status.security_informations.find(asset);
+				
+				if (it == trading_session_status.security_informations.end()) {
+					log::error<true>("BrokerAsset: could not find security information for asset {}", asset);
 				}
+				
+				log::info<1, true>("BrokerAsset: found security information={}", it->second.to_string());
+
+				return 1;
 			}
 			else {
 				pop_top_of_books();
-				auto it = top_of_books.find(Asset);
+				auto it = top_of_books.find(asset);
 				if (it != top_of_books.end()) {
 					const auto& top = it->second;
 					if (price) *price = top.mid();

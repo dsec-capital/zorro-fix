@@ -46,10 +46,12 @@ namespace zorro {
 	public:
 		FixThread(
 			const std::string& settings_cfg_file,
+			unsigned int requests_on_logon,
 			BlockingTimeoutQueue<ExecReport>& exec_report_queue,
 			BlockingTimeoutQueue<TopOfBook>& top_of_book_queue,
 			BlockingTimeoutQueue<FXCMPositionReports>& position_reports_queue,
-			BlockingTimeoutQueue<FXCMCollateralReport>& collateral_report_queue
+			BlockingTimeoutQueue<FXCMCollateralReport>& collateral_report_queue,
+			BlockingTimeoutQueue<FXCMTradingSessionStatus>& trading_session_status_queue
 		) :
 			started(false),
 			settings_cfg_file(settings_cfg_file)
@@ -57,10 +59,12 @@ namespace zorro {
 			create_factories();
 			application = new Application(
 				*settings, 
+				requests_on_logon,
 				exec_report_queue, 
 				top_of_book_queue, 
 				position_reports_queue, 
-				collateral_report_queue
+				collateral_report_queue,
+				trading_session_status_queue
 			);
 			initiator = new FIX::SocketInitiator(*application, *store_factory, *settings, *log_factory);
 			spdlog::debug("FixThread: FIX application and FIX initiator created");
@@ -79,15 +83,27 @@ namespace zorro {
 #ifdef HAVE_SSL
 		FixThread(
 			const std::string& settings_cfg_file,
+			unsigned int requests_on_logon,
 			BlockingTimeoutQueue<ExecReport>& exec_report_queue,
-			BlockingTimeoutQueue<TopOfBook>& top_of_book_queue
+			BlockingTimeoutQueue<TopOfBook>& top_of_book_queue,
+			BlockingTimeoutQueue<FXCMPositionReports>& position_reports_queue,
+			BlockingTimeoutQueue<FXCMCollateralReport>& collateral_report_queue,
+			BlockingTimeoutQueue<FXCMTradingSessionStatus>& trading_session_status_queue
 			const std::string& isSSL
 		) :
 			started(false),
 			settings_cfg_file(settings_cfg_file)
 		{
 			create_factories();
-			application = new Application(*settings, exec_report_queue, top_of_book_queue);
+			application = new Application(
+				*settings,
+				requests_on_logon,
+				exec_report_queue,
+				top_of_book_queue,
+				position_reports_queue,
+				collateral_report_queue,
+				trading_session_status_queue
+			);
 			if (isSSL.compare("SSL") == 0)
 				initiator = new FIX::ThreadedSSLSocketInitiator(*application, *store_factory, *settings, *log_factory);
 			else if (isSSL.compare("SSL-ST") == 0)

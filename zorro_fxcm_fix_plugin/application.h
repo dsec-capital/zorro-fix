@@ -83,6 +83,18 @@ namespace zorro
 		double cond_dist_entry_stop;
 		double cond_dist_entry_limit;
 		FXCMTradingStatus fxcm_trading_status;
+
+		std::string to_string() const;
+	};
+
+	struct FXCMTradingSessionStatus {
+		common::fix::TradeSessionStatus trade_session_status{ common::fix::TradeSessionStatus::UNDEFINED };
+		std::string server_timezone_name;
+		int server_timezone{ 0 };
+		std::map<std::string, std::string> session_parameters;
+		std::map<std::string, FXCMSecurityInformation> security_informations;
+
+		std::string to_string() const;
 	};
 
 	enum FXCMMarginCallStatus {
@@ -107,6 +119,8 @@ namespace zorro
 		double cash_daily;
 		FXCMMarginCallStatus margin_call_status;
 		std::vector<std::pair<int, std::string>> party_sub_ids;
+
+		std::string to_string() const;
 	};
 
 	struct FXCMPositionReport {
@@ -133,10 +147,22 @@ namespace zorro
 		std::optional<std::chrono::nanoseconds> close_time;
 		std::optional<std::string> close_order_id;
 		std::optional<std::string> close_cl_ord_id;
+
+		std::string to_string() const;
 	};
 
 	struct FXCMPositionReports {
 		std::vector< FXCMPositionReport> reports;
+
+		std::string to_string() const;
+	};
+
+	enum class RequestsOnLogon
+	{
+		RequestsOnLogon_TradingSessionStatus	= 1 << 0,  
+		RequestsOnLogon_CollateralReport		= 1 << 1,  
+		RequestsOnLogon_PositionReport			= 1 << 2,  
+		RequestsOnLogon_OrderStatusReport		= 1 << 3
 	};
 
 	/*
@@ -148,17 +174,20 @@ namespace zorro
 	public:
 		Application(
 			const FIX::SessionSettings& session_settings,
+			unsigned int requests_on_logon,
 			BlockingTimeoutQueue<ExecReport>& exec_report_queue,
 			BlockingTimeoutQueue<TopOfBook>& top_of_book_queue,
 			BlockingTimeoutQueue<FXCMPositionReports>& position_reports_queue,
-			BlockingTimeoutQueue<FXCMCollateralReport>& collateral_report_queue
+			BlockingTimeoutQueue<FXCMCollateralReport>& collateral_report_queue,
+			BlockingTimeoutQueue<FXCMTradingSessionStatus>& trading_session_status_queue
 		);
 
 		int login_count() const;
 
-		const std::set<std::string>& get_account_ids() const;
+		std::set<std::string> get_account_ids();
 
-		// Sends TradingSessionStatusRequest message in order to receive a TradingSessionStatus message
+		// Sends TradingSessionStatusRequest message in order to receive a TradingSessionStatus message.
+		// Note that TradingSessionStatus message also contains security informations.
 		FIX::Message trading_session_status_request();
 
 		// Sends the CollateralInquiry message in order to receive a CollateralReport message.
@@ -274,10 +303,12 @@ namespace zorro
 		};
 
 		FIX::SessionSettings session_settings;
+		unsigned int requests_on_logon;
 		BlockingTimeoutQueue<ExecReport>& exec_report_queue;
 		BlockingTimeoutQueue<TopOfBook>& top_of_book_queue;
 		BlockingTimeoutQueue<FXCMPositionReports>& position_reports_queue;
 		BlockingTimeoutQueue<FXCMCollateralReport>& collateral_report_queue;
+		BlockingTimeoutQueue<FXCMTradingSessionStatus>& trading_session_status_queue;
 
 		FIX::SessionID trading_session_id;
 		FIX::SessionID market_data_session_id;
@@ -289,16 +320,13 @@ namespace zorro
 
 		std::unordered_map<std::string, std::string> market_data_subscriptions;
 		std::unordered_map<std::string, TopOfBook> top_of_books;
+		std::vector<FXCMPositionReport> position_report_list;
 		OrderTracker order_tracker;
 
 		bool log_market_data;
 
-		common::fix::TradeSessionStatus trade_session_status{ common::fix::TradeSessionStatus::UNDEFINED };
-		int server_timezone{ 0 };
-		std::string server_timezone_name;
-		std::map<std::string, std::string> fxcm_parameters;
-		std::map<std::string, FXCMSecurityInformation> fxcm_security_informations;
-		std::vector<FXCMPositionReport> position_report_list;
+
+		std::mutex mutex;
 
 		// should not be used anymore, use the top_of_book_queue
 		bool has_book(const std::string& symbol);
