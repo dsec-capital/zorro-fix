@@ -4,6 +4,7 @@
 #define ORDERTYPE_GTC 2
 #define BROKER_CMD_CREATE_ASSET_LIST_FILE 2000
 #define BROKER_CMD_CREATE_SECURITY_INFO_FILE 2001
+#define BROKER_CMD_GET_POSITIONS 2002
 
 static var startTime;
 static bool Quoting = false;
@@ -111,6 +112,8 @@ function run() {
 		enterLong(tmf);
 		
 		printf("\n======> enterLong: Lots=%.5f", (var)Lots);
+
+		int np = brokerCommand(BROKER_CMD_GET_POSITIONS, "Log/actual_positions.csv");
 
 		Inventory = true;
 	}

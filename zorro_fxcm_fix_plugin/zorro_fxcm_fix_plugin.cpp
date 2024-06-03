@@ -171,7 +171,7 @@ namespace zorro {
 			return;
 		}
 
-		if (!skip_header) {
+		if (!skip_header || mode == std::fstream::trunc) {
 			fs << header << std::endl;
 		}
 		fs << text << std::endl;
@@ -1351,6 +1351,37 @@ namespace zorro {
 				}
 				write_to_file(filename, rows.str(), headers.str(), std::fstream::trunc);
 				return trading_session_status.security_informations.size();
+			}
+
+			case BROKER_CMD_GET_POSITIONS: {
+				auto filename = std::string((const char*)dw_parameter);
+				log::debug<1, true>( 
+					"BrokerCommand {}[{}] filename={}",
+					"BROKER_CMD_GET_POSITIONS", BROKER_CMD_GET_POSITIONS, filename
+				);
+
+				if (fix_thread) {
+					fix_thread->fix_app().request_for_positions(fxcm_account);
+
+					FXCMPositionReports reports;
+					bool success = position_report_queue.pop(reports, 4*fix_waiting_time);
+					if (!success) {
+						log::error<true>("BrokerCommand {}[{}] request for positions timed out after {}ms",
+							"BROKER_CMD_GET_POSITIONS", BROKER_CMD_GET_POSITIONS, 4 * fix_waiting_time
+						);
+						return 0;
+					}
+
+					auto text = reports.to_string();
+					write_to_file(filename, text, "", std::fstream::trunc);
+					return reports.reports.size();
+				}
+				else {
+					log::error<true>("BrokerCommand {}[{}] FIX service not running",
+						"BROKER_CMD_GET_POSITIONS", BROKER_CMD_GET_POSITIONS
+					);
+					return 0;
+				}
 			}
 
 			default: {
