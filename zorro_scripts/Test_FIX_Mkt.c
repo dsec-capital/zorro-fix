@@ -69,7 +69,7 @@ function run() {
 	Hedge = 2;
 
 	BarPeriod = 1;
-	LookBack = 300;
+	LookBack = 100;
 
 	asset("EUR/USD");
 
@@ -105,23 +105,12 @@ function run() {
 
 	MaxLong = 10;
 	MaxShort = 10;
-	if (!is(LOOKBACK) && !Quoting) {
-		brokerCommand(SET_ORDERTYPE, ORDERTYPE_GTC);
-		Lots = 5;
-		OrderLimit = LimitAsk;
-		enterShort(tmf);
-		printf("\nenterShort: OrderLimit=%.5f", OrderLimit);
-
-		OrderLimit = LimitBid;
-		enterLong(tmf);
-		printf("\nenterLong: OrderLimit=%.5f", OrderLimit);
-
-		Quoting = true;
-	}
 
 	if (!is(LOOKBACK) && !Inventory) {
 		Lots = 2;
 		enterLong(tmf);
+		
+		printf("\n======> enterLong: Lots=%.5f", (var)Lots);
 
 		Inventory = true;
 	}

@@ -53,7 +53,9 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "scripts", "scripts", "{83DE
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "zorro_scripts", "zorro_scripts", "{9D0EA1EA-D30C-49AD-9ECE-F121B408E38C}"
 	ProjectSection(SolutionItems) = preProject
+		zorro_scripts\Assets_FX_FIX.csv = zorro_scripts\Assets_FX_FIX.csv
 		zorro_scripts\Test_FIX.c = zorro_scripts\Test_FIX.c
+		zorro_scripts\Test_FIX_Mkt.c = zorro_scripts\Test_FIX_Mkt.c
 		zorro_scripts\Test_Requote_FIX.c = zorro_scripts\Test_Requote_FIX.c
 		zorro_scripts\Test_Requote_TMF_FIX.c = zorro_scripts\Test_Requote_TMF_FIX.c
 	EndProjectSection

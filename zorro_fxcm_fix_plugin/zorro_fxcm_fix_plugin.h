@@ -21,4 +21,7 @@ namespace zorro
 	long(__cdecl* http_status)(int id);
 	long(__cdecl* http_result)(int id, char* content, long size);
 	void(__cdecl* http_free)(int id);
+
+	constexpr unsigned int BROKER_CMD_CREATE_ASSET_LIST_FILE = 2000;
+	constexpr unsigned int BROKER_CMD_CREATE_SECURITY_INFO_FILE = 2001;
 }

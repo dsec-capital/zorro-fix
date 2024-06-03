@@ -20,6 +20,7 @@
 
 #include "nlohmann/json.h"
 #include "httplib/httplib.h"
+#include "magic_enum/magic_enum.hpp"
 #include "spdlog/spdlog.h"
 #include "spdlog/sinks/basic_file_sink.h"
 
@@ -1006,7 +1007,12 @@ namespace zorro {
 		return 0;
 	}
 
-	// https://zorro-project.com/manual/en/brokercommand.htm
+	/*
+	 * BrokerCommand
+	 * 
+	 * Details can be found here
+	 *  - https://zorro-project.com/manual/en/brokercommand.htm
+	 */
 	DLLFUNC double BrokerCommand(int command, DWORD dw_parameter) {
 		switch (command) {
 			case GET_COMPLIANCE: {
@@ -1248,6 +1254,103 @@ namespace zorro {
 			case SET_FUNCTIONS: {
 				log::debug<1, true>("BrokerCommand {}[{}]", broker_command_string(command), command);
 				break;
+			}
+
+			case BROKER_CMD_CREATE_ASSET_LIST_FILE: {
+				auto filename = std::string((const char*)dw_parameter);
+				log::debug<1, true>(
+					"BrokerCommand {}[{}] filename={}", 
+					"BROKER_CMD_CREATE_ASSET_LIST_FILE", BROKER_CMD_CREATE_ASSET_LIST_FILE, filename
+				);
+				std::stringstream headers, rows;
+				headers << "Name, Price, Spread, RollLong, RollShort, PIP, PIPCost, MarginCost, Leverage, LotAmount, Commission, Symbol, Type, Description";
+				for (const auto& [symbol, info] : trading_session_status.security_informations) {
+					double price = 0, spread = 0, pip_cost = 0, margin_cost = 0, leverage = 0, commission = 0.6;
+					auto it = top_of_books.find(info.symbol);
+					if (it != top_of_books.end()) {
+						price = it->second.ask_price;
+						spread = it->second.ask_price - it->second.bid_price;
+					}
+
+					// how should be the mapping?
+					// FXCM_SYM_INTEREST_BUY = 9003,		// Interest Rate for sell side open positions
+					// FXCM_SYM_INTEREST_SELL = 9004,		// Interest Rate for buy side open position 
+
+					rows
+						<< info.symbol << ", "
+						<< price << ", "
+						<< spread << ", "
+						<< info.interest_buy << ", "
+						<< info.interest_sell << ", "
+						<< info.point_size << ", "
+						<< pip_cost << ", "
+						<< margin_cost << ", "
+						<< leverage << ", "
+						<< info.round_lots << ", "
+						<< commission << ", "
+						<< info.symbol << ", "
+						<< magic_enum::enum_name(info.prod_id) << ", "
+						<< info.symbol << "[" << info.currency << "]"
+						<< std::endl;
+				}
+				write_to_file(filename, rows.str(), headers.str(), std::fstream::trunc);
+				return trading_session_status.security_informations.size();
+			}
+
+			case BROKER_CMD_CREATE_SECURITY_INFO_FILE: {
+				auto filename = std::string((const char*)dw_parameter);
+				log::debug<1, true>(
+					"BrokerCommand {}[{}] filename={}",
+					"BROKER_CMD_CREATE_SECURITY_INFO_FILE", BROKER_CMD_CREATE_SECURITY_INFO_FILE, filename
+				);
+				std::stringstream headers, rows;
+				headers
+					<< "symbol" << ", "
+					<< "currency" << ", "
+					<< "product" << ", "
+					<< "pip_size" << ", "
+					<< "point_size" << ", "
+					<< "max_quanity" << ", "
+					<< "min_quantity" << ", "
+					<< "round_lots" << ", "
+					<< "factor" << ", "
+					<< "contract_multiplier" << ", "
+					<< "prod_id" << ", "
+					<< "interest_buy" << ", "
+					<< "interest_sell" << ", "
+					<< "subscription_status" << ", "
+					<< "sort_order" << ", "
+					<< "cond_dist_stop" << ", "
+					<< "cond_dist_limit" << ", "
+					<< "cond_dist_entry_stop" << ", "
+					<< "cond_dist_entry_limit" << ", "
+					<< "fxcm_trading_status";
+				for (const auto& [symbol, info] : trading_session_status.security_informations) {
+					rows 
+						<< info.symbol << ", "
+						<< info.currency << ", "
+						<< info.product << ", "
+						<< info.pip_size << ", "
+						<< info.point_size << ", "
+						<< info.max_quanity << ", "
+						<< info.min_quantity << ", "
+						<< info.round_lots << ", "
+						<< info.factor << ", "
+						<< info.contract_multiplier << ", "
+						<< magic_enum::enum_name(info.prod_id) << ", "
+						<< info.interest_buy << ", "
+						<< info.interest_sell << ", "
+						<< info.subscription_status << ", "
+						<< info.sort_order << ", "
+						<< info.cond_dist_stop << ", "
+						<< info.cond_dist_limit << ", "
+						<< info.cond_dist_entry_stop << ", "
+						<< info.cond_dist_entry_limit << ", "
+						<< magic_enum::enum_name(info.fxcm_trading_status)
+						<< std::endl;
+				}
+				write_to_file(filename, rows.str(), headers.str(), std::fstream::trunc);
+				return trading_session_status.security_informations.size();
 			}
 
 			default: {
