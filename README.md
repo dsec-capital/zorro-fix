@@ -24,11 +24,34 @@ Contributions, bug reports and constructive feedback are very welcome.
 
 
 
+## Dependencies
+
+The project uses most modern [C++ 20](https://en.cppreference.com/w/cpp/20) and depends on the following 
+header only third party components:
+
+  - [httplib ](third_parties/httplib)
+  - [nlohmann json](third_parties/nlohmann)
+  - [toml++](third_parties/toml++)
+  - [magic_enum](third_parties/magic_enum)
+  - [spdlog](third_parties/spdlog)
+
+Library dependencies are:
+
+  - [QuickFix](third_parties/quickfix) with prebuilt static libraries included
+  - [FXCM ForexConnect SDK](third_parties/fxcm) which requires separate installation, see below
+
+
+
 ## FXCM FIX Plugin  
 
 The FXCM FIX client plugin implements the FXCM FIX 4.4. protocol, inlcuding their specific extensions as documented
 in the [FXCM FIX specification](https://apiwiki.fxcorporate.com/api/fix/docs/FXCM-FIX-BSI.pdf). 
 The [FXCM ForexConnect SDK](https://fxcodebase.com/wiki/index.php/Download) is used to fetch historical market data from FXCM. 
+
+Zorro already comes with a [plugin for FXCM](https://zorro-project.com/manual/en/fxcm.htm) which uses the  
+[FXCM ForexConnect SDK](https://fxcodebase.com/wiki/index.php/Download) under the hood. The advantage of the FIX protocol
+is that it offers much better rate limits as can be seen from the 
+[FXCM API comparison](https://www.fxcm.com/markets/algorithmic-trading/compare-api/). 
 
 
 ### Supported Features
@@ -45,7 +68,7 @@ The FXCM FIX client plugin implements all of Zorro's [broker plugin functions](h
   - Collateral inquiry (message CollateralReport)
   - Execution reports (message ExecReport)
 
-More details can be found in [FXCM FIX client application](zorro_fxcm_fix_plugin/Application.h). 
+More details can be found in [FXCM FIX client application](zorro_fxcm_fix_plugin/application.h). 
 
 
 ### Installation
