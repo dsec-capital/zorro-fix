@@ -66,6 +66,7 @@ namespace zorro {
 				spdlog::error(msg);
 			}
 		};
+
 	}
 
 	inline std::shared_ptr<spdlog::logger> create_file_logger(

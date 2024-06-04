@@ -195,8 +195,11 @@ namespace zorro
 
 		// Sends RequestForPositions in order to receive a PositionReport messages if positions
 		// matching the requested criteria exist; otherwise, a RequestForPositionsAck will be
-		// sent with the acknowledgement that no positions exist. 
-		FIX::Message request_for_positions(const std::string& account);
+		// sent with the acknowledgement that no positions exist.
+		// pos_req_type = 0 for open position, 1 for closed position 
+		// subscription_request_type = FIX::SubscriptionRequestType(FIX::SubscriptionRequestType_SNAPSHOT)
+		// or FIX::SubscriptionRequestType(FIX::SubscriptionRequestType_SNAPSHOT_AND_UPDATES)
+		FIX::Message request_for_positions(const std::string& account, int pos_req_type);
 
 		FIX::Message market_data_snapshot(const FIX::Symbol& symbol);
 

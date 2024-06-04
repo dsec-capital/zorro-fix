@@ -4,6 +4,7 @@
 #define ORDERTYPE_GTC 2
 #define BROKER_CMD_CREATE_ASSET_LIST_FILE 2000
 #define BROKER_CMD_CREATE_SECURITY_INFO_FILE 2001
+#define BROKER_CMD_GET_POSITIONS 2002
 
 static var startTime;
 static bool Quoting = false;
@@ -117,11 +118,14 @@ function run() {
 		printf("\nenterLong: OrderLimit=%.5f", OrderLimit);
 
 		Quoting = true;
+		OrderLimit = 0;
 	}
 
 	if (!is(LOOKBACK) && !Inventory) {
 		Lots = 2;
 		enterLong(tmf);
+
+		int np = brokerCommand(BROKER_CMD_GET_POSITIONS, "Log/actual_positions.csv");
 
 		Inventory = true;
 	}

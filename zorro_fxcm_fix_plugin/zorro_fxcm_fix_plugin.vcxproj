@@ -105,8 +105,8 @@
 copy /y "$(SolutionDir)$(Configuration)\zorro_fxcm_fix_plugin.dll" "%ZorroInstallDir%\Plugin\zorro_fxcm_fix_plugin.dll"
 robocopy "$(SolutionDir)spec" "%ZorroInstallDir%\Plugin\spec"  
 "$(SolutionDir)scripts\generate_fxcm_fix_client_cfg.bat" "$(ProjectDir)zorro_fxcm_fix_client_template.cfg" "%ZorroInstallDir%\Plugin\zorro_fxcm_fix_client.cfg"
-echo "Checking FXCM dlls"
 "$(SolutionDir)scripts\check_fxcm_dlls.bat"  
+"$(SolutionDir)scripts\copy_zorro_scripts.bat"
 </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
@@ -138,6 +138,7 @@ copy /y "$(SolutionDir)$(Configuration)\zorro_fxcm_fix_plugin.dll" "%ZorroInstal
 robocopy "$(SolutionDir)spec" "%ZorroInstallDir%\Plugin\spec"
 "$(SolutionDir)scripts\generate_fxcm_fix_client_cfg.bat" "$(ProjectDir)zorro_fxcm_fix_client_template.cfg" "%ZorroInstallDir%\Plugin\zorro_fxcm_fix_client.cfg"
 "$(SolutionDir)scripts\check_fxcm_dlls.bat"
+"$(SolutionDir)scripts\copy_zorro_scripts.bat"
  </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>

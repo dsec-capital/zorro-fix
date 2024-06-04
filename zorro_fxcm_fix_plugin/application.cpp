@@ -948,11 +948,11 @@ namespace zorro {
 		return request;
 	}
 
-	FIX::Message Application::request_for_positions(const std::string& account)
+	FIX::Message Application::request_for_positions(const std::string& account, int pos_req_type)
 	{
 		FIX44::RequestForPositions request;
 		request.setField(FIX::PosReqID(id_generator.genID()));
-		request.setField(FIX::PosReqType(FIX::PosReqType_POSITIONS));
+		request.setField(FIX::PosReqType(FIX::PosReqType_POSITIONS));   
 		request.setField(FIX::Account(account));
 		request.setField(FIX::SubscriptionRequestType(FIX::SubscriptionRequestType_SNAPSHOT));
 		request.setField(FIX::AccountType(FIX::AccountType_CARRIED_NON_CUSTOMER_SIDE_CROSS_MARGINED));

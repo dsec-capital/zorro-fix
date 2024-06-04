@@ -24,5 +24,6 @@ namespace zorro
 
 	constexpr unsigned int BROKER_CMD_CREATE_ASSET_LIST_FILE = 2000;
 	constexpr unsigned int BROKER_CMD_CREATE_SECURITY_INFO_FILE = 2001;
-	constexpr unsigned int BROKER_CMD_GET_POSITIONS = 2002;
+	constexpr unsigned int BROKER_CMD_GET_OPEN_POSITIONS = 2002;
+	constexpr unsigned int BROKER_CMD_GET_CLOSED_POSITIONS = 2003;
 }

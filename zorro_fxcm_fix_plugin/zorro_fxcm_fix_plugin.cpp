@@ -1,4 +1,4 @@
-#pragma warning(disable : 4996 4244 4312 C26444)
+#pragma warning(disable : 4996 4244 4312 26444)
 
 #include "pch.h"
 #include "application.h"
@@ -179,18 +179,18 @@ namespace zorro {
 		fs.close();
 	}
 
-	void dump_bars(T6* ticks, int n_ticks, std::ios_base::openmode mode = std::fstream::app) {
+	void write_bars(T6* ticks, int n_ticks, std::ios_base::openmode mode = std::fstream::app) {
 		bool skip_header = std::filesystem::exists(BAR_DUMP_FILE_NAME);
 		
 		std::fstream fs;
 		fs.open(BAR_DUMP_FILE_NAME, std::fstream::out | mode);
 		if (!fs.is_open())
 		{
-			log::error<true>("dump_bars: could not open file {}", BAR_DUMP_FILE_NAME);
+			log::error<true>("write_bars: could not open file {}", BAR_DUMP_FILE_NAME);
 			return;
 		}
 
-		log::debug<1, true>("dump_bars[skip_header={}]: writing {} bars to {}", skip_header, n_ticks, BAR_DUMP_FILE_NAME);
+		log::debug<1, true>("write_bars[skip_header={}]: writing {} bars to {}", skip_header, n_ticks, BAR_DUMP_FILE_NAME);
 
 		if (!skip_header) {
 			fs << "bar_end" << BAR_DUMP_FILE_SEP
@@ -217,6 +217,46 @@ namespace zorro {
 		fs.close();
 	}
 
+	void write_position_reports(const FXCMPositionReports& reports, const std::string& filename) {
+		std::stringstream headers, rows;
+		headers
+			<< "account" << ", "
+			<< "symbol" << ", "
+			<< "currency" ", "
+			<< "pos_id" << ", "
+			<< "settle_price" << ", "
+			<< "is_open" << ", "
+			<< "interest" << ", "
+			<< "commission" << ", "
+			<< "open_time" << ", "
+			<< "used_margin" << ", "
+			<< "close_pnl" << ", "
+			<< "close_settle_price" << ", "
+			<< "close_time" << ", "
+			<< "close_order_id" << ", "
+			<< "close_cl_ord_id";
+		for (const auto& report : reports.reports) {
+			rows
+				<< report.account << ", "
+				<< report.symbol << ", "
+				<< report.currency << ", "
+				<< report.pos_id << ", "
+				<< report.settle_price << ", "
+				<< report.is_open << ", "
+				<< report.interest << ", "
+				<< report.commission << ", "
+				<< common::to_string(report.open_time) << ", "
+				<< (report.used_margin.has_value() ? std::to_string(report.used_margin.value()) : "N/A") << ", "
+				<< (report.close_pnl.has_value() ? std::to_string(report.close_pnl.value()) : "N/A") << ", "
+				<< (report.close_settle_price.has_value() ? std::to_string(report.close_settle_price.value()) : "N/A") << ", "
+				<< (report.close_settle_price.has_value() ? common::to_string(report.close_time.value()) : "N/A") << ", "
+				<< (report.close_order_id.has_value() ? report.close_order_id.value() : "N/A") << ", "
+				<< (report.close_cl_ord_id.has_value() ? report.close_cl_ord_id.value() : "N/A")
+				<< std::endl;
+		}
+		write_to_file(filename, rows.str(), headers.str(), std::fstream::trunc);
+	}
+
 	DLLFUNC_C void BrokerHTTP(FARPROC fp_send, FARPROC fp_status, FARPROC fp_result, FARPROC fp_free) {
 		(FARPROC&)http_send = fp_send;
 		(FARPROC&)http_status = fp_status;
@@ -236,7 +276,9 @@ namespace zorro {
 	 *	User		Input, User name for logging in, or NULL for logging out.
 	 *	Pwd			Input, Password for logging in.
 	 *	Type		Input, account type for logging in; either "Real" or "Demo".
-	 *	Accounts	Input / optional output, char[1024] array, intially filled with the account id from the account list. Can be filled with all user's account numbers as subsequent zero-terminated strings, ending with "" for the last string. When a list is returned, the first account number is used by Zorro for subsequent BrokerAccount calls.
+	 *	Accounts	Input / optional output, char[1024] array, intially filled with the account id from the account list. 
+	 *              Can be filled with all user's account numbers as subsequent zero-terminated strings, ending with "" for 
+	 *              the last string. When a list is returned, the first account number is used by Zorro for subsequent BrokerAccount calls.
 	 * 
 	 * Returns:
 	 *	Login state: 1 when logged in, 0 otherwise.
@@ -278,6 +320,7 @@ namespace zorro {
 				fix_thread->start();
 				log::debug<1, true>("BrokerLogin: FIX service running");
 
+				// TODO think about using a queue mechanism as well to wait for a ready event
 				auto count = 0;
 				auto start = std::chrono::system_clock::now();
 				log::debug<1, true>("BrokerLogin: waiting for all session log in");
@@ -293,7 +336,7 @@ namespace zorro {
 					throw std::runtime_error(std::format("login timeout after {} login count={}", ms, login_count));
 				}
 				else {
-					log::info<1, true>("BrokerLogin: FIX login after {}ms", ms);
+					log::info<1, true>("BrokerLogin: FIX login after {}", ms);
 				}
 
 				bool success = trading_session_status_queue.pop(trading_session_status, fix_waiting_time);
@@ -370,13 +413,21 @@ namespace zorro {
 		}
 
 		const auto time = get_current_system_clock();
+
 		auto n = pop_exec_reports();
+
+		if (n > 0) {
+			log::debug<2, true>(
+				"BrokerTime {} exec reports processed={}\n{}\n{}",
+				common::to_string(time), n, order_tracker.to_string(), order_mapping_string()
+			);
+		}
+
 		auto m = pop_top_of_books();
 
-		log::debug<4, true>(
-			"BrokerTime {} top of book processed={} exec reports processed={}\n{}\n{}", 
-			common::to_string(time), m, n, order_tracker.to_string(), order_mapping_string()
-		);
+		if (m > 0) {
+			log::debug<5, true>("BrokerTime {} top of book processed={}", common::to_string(time), m);
+		}
 
 		return ExchangeStatus::Open;
 	}
@@ -668,7 +719,7 @@ namespace zorro {
 		}
 
 		if (dump_bars_to_file) {
-			dump_bars(ticks_start, count);
+			write_bars(ticks_start, count);
 			write_to_file("Log/broker_hist.csv", 
 				std::format(
 					"{}, {}, {}, {}, {}, {}, {}, {}",
@@ -1015,6 +1066,30 @@ namespace zorro {
 		}
 
 		return 0;
+	}
+
+	int get_fxcm_positions(int cmd, const std::string& cmd_str, const std::string& filename, int pos_req_type) {
+		log::debug<1, true>("BrokerCommand {}[{}] filename={}", cmd_str, cmd, filename);
+
+		if (fix_thread) {
+			fix_thread->fix_app().request_for_positions(fxcm_account, pos_req_type);
+
+			FXCMPositionReports reports;
+			bool success = position_report_queue.pop(reports, 4 * fix_waiting_time);
+			if (!success) {
+				log::error<true>("BrokerCommand {}[{}] request for positions timed out after {}",
+					cmd_str, cmd, 4 * fix_waiting_time
+				);
+				return 0;
+			}
+
+			write_position_reports(reports, filename);
+			return reports.reports.size();
+		}
+		else {
+			log::error<true>("BrokerCommand {}[{}] FIX service not running", cmd_str, cmd);
+			return 0;
+		}
 	}
 
 	/*
@@ -1366,70 +1441,16 @@ namespace zorro {
 				return trading_session_status.security_informations.size();
 			}
 
-			case BROKER_CMD_GET_POSITIONS: {
+			case BROKER_CMD_GET_OPEN_POSITIONS: {
 				auto filename = std::string((const char*)dw_parameter);
-				log::debug<1, true>( 
-					"BrokerCommand {}[{}] filename={}",
-					"BROKER_CMD_GET_POSITIONS", BROKER_CMD_GET_POSITIONS, filename
-				);
+				return get_fxcm_positions(BROKER_CMD_GET_OPEN_POSITIONS, "BROKER_CMD_GET_OPEN_POSITIONS", filename, 0);			
+			}
 
-				if (fix_thread) {
-					fix_thread->fix_app().request_for_positions(fxcm_account);
+			case BROKER_CMD_GET_CLOSED_POSITIONS: {
+				auto filename = std::string((const char*)dw_parameter);
 
-					FXCMPositionReports reports;
-					bool success = position_report_queue.pop(reports, 4*fix_waiting_time);
-					if (!success) {
-						log::error<true>("BrokerCommand {}[{}] request for positions timed out after {}",
-							"BROKER_CMD_GET_POSITIONS", BROKER_CMD_GET_POSITIONS, 4 * fix_waiting_time
-						);
-						return 0;
-					}
-
-					std::stringstream headers, rows;
-					headers
-						<< "account" << ", "
-						<< "symbol" << ", "
-						<< "currency" ", "
-						<< "pos_id" << ", "
-						<< "settle_price" << ", "
-						<< "is_open" << ", "
-						<< "interest" << ", "
-						<< "commission" << ", "
-						<< "open_time" << ", "
-						<< "used_margin" << ", "
-						<< "close_pnl" << ", "
-						<< "close_settle_price" << ", "
-						<< "close_time" << ", "
-						<< "close_order_id" << ", "
-						<< "close_cl_ord_id";
-					for (const auto& report : reports.reports) {
-						rows
-							<< report.account << ", "
-							<< report.symbol << ", "
-							<< report.currency << ", "
-							<< report.pos_id << ", "
-							<< report.settle_price << ", "
-							<< report.is_open << ", "
-							<< report.interest << ", "
-							<< report.commission << ", "
-							<< common::to_string(report.open_time) << ", "
-							<< (report.used_margin.has_value() ? std::to_string(report.used_margin.value()) : "N/A") << ", "
-							<< (report.close_pnl.has_value() ? std::to_string(report.close_pnl.value()) : "N/A") << ", "
-							<< (report.close_settle_price.has_value() ? std::to_string(report.close_settle_price.value()) : "N/A") << ", "
-							<< (report.close_settle_price.has_value() ? common::to_string(report.close_time.value()) : "N/A") << ", "
-							<< (report.close_order_id.has_value() ? report.close_order_id.value() : "N/A") << ", "
-							<< (report.close_cl_ord_id.has_value() ? report.close_cl_ord_id.value() : "N/A")
-							<< std::endl;
-					}
-					write_to_file(filename, rows.str(), headers.str(), std::fstream::trunc);
-					return reports.reports.size();
-				}
-				else {
-					log::error<true>("BrokerCommand {}[{}] FIX service not running",
-						"BROKER_CMD_GET_POSITIONS", BROKER_CMD_GET_POSITIONS
-					);
-					return 0;
-				}
+				// can only get the last 30 closed positions without any filter in place
+				return get_fxcm_positions(BROKER_CMD_GET_CLOSED_POSITIONS, "BROKER_CMD_GET_CLOSED_POSITIONS", filename, 1);
 			}
 
 			default: {
