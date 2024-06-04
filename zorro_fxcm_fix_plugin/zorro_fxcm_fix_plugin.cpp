@@ -767,8 +767,8 @@ namespace zorro {
 	 *	-2 when the broker API did not respond at all within the wait time. The plugin must then attempt to cancel the order. Zorro will display a "possible orphan" warning.
 	 *	-3 when the order was accepted, but got no ID yet. The ID is then taken from the next subsequent BrokerBuy call that returned a valid ID. This is used for combo positions that require several orders.
 	 */
-	DLLFUNC_C int BrokerBuy2(char* Asset, int lots, double stop, double limit, double* av_fill_price, int* fill_qty) {
-		log::debug<2, true>("BrokerBuy2 {}: lots={}, lots={}, limit={}, stop={}", Asset, lots, lot_amount, limit, stop);
+	DLLFUNC_C int BrokerBuy2(char* Asset, int amount, double stop, double limit, double* av_fill_price, int* fill_qty) {
+		log::debug<2, true>("BrokerBuy2 {}: amount={}, lot_amount={}, limit={}, stop={}", Asset, amount, lot_amount, limit, stop);
 
 		if (!fix_thread) {
 			log::error<true>("BrokerBuy2: no FIX session");
@@ -791,8 +791,8 @@ namespace zorro {
 		}
 
 		auto cl_ord_id = FIX::ClOrdID(next_client_order_id());
-		auto side = lots > 0 ? FIX::Side(FIX::Side_BUY) : FIX::Side(FIX::Side_SELL);
-		auto qty = FIX::OrderQty(std::abs(lots));
+		auto side = amount > 0 ? FIX::Side(FIX::Side_BUY) : FIX::Side(FIX::Side_SELL);
+		auto qty = FIX::OrderQty(std::abs(amount));
 		auto limit_price = FIX::Price(limit);
 		auto stop_price = FIX::StopPx(stop);
 
@@ -921,20 +921,20 @@ namespace zorro {
 	 * 
 	 * Parameters:
 	 *	nTradeID	Input, trade/order ID as returned by BrokerBuy2, or -1 for a UUID to be set before with a SET_UUID command.
-	 *	nAmount	Input, number of contracts resp. lots to be closed, positive for a long trade and negative for a short trade (see BrokerBuy). If less than the original size of the trade, the trade is partially closed.
-	 *	Limit	Optional input, fill price for a limit order, set up by OrderLimit, or 0 for closing at market. Can be ignored if limit orders are not supported by the API. 
-	 *	pClose	Optional output, close price of the trade.
-	 *	pCost	Optional output, total rollover fee (swap fee) of the trade.
-	 *	pProfit	Optional output, total profit or loss of the trade in account currency units.
-	 *	pFill	Optional output, the amount that was closed from the position, always positive.
+	 *	Amount		Input, number of contracts resp. lots to be closed, positive for a long trade and negative for a short trade (see BrokerBuy). If less than the original size of the trade, the trade is partially closed.
+	 *	Limit		Optional input, fill price for a limit order, set up by OrderLimit, or 0 for closing at market. Can be ignored if limit orders are not supported by the API. 
+	 *	pClose		Optional output, close price of the trade.
+	 *	pCost		Optional output, total rollover fee (swap fee) of the trade.
+	 *	pProfit		Optional output, total profit or loss of the trade in account currency units.
+	 *	pFill		Optional output, the amount that was closed from the position, always positive.
 	 * 
 	 * Returns:
 	 *	  - New trade ID when the trade was partially closed and the broker assigned a different ID to the remaining position.
 	 *	  - nTradeID when the ID did not change or the trade was fully closed.
 	 *	  - 0 when the trade was not found or could not be closed.
 	 */
-	DLLFUNC_C int BrokerSell2(int trade_id, int lots, double limit, double* close, double* cost, double* profit, int* fill) {
-		log::debug<1, true>("BrokerSell2: nTradeID={}, lots={}, limit={}", trade_id, lots, limit);
+	DLLFUNC_C int BrokerSell2(int trade_id, int amount, double limit, double* close, double* cost, double* profit, int* fill) {
+		log::debug<1, true>("BrokerSell2: nTradeID={}, amount={}, lot_amount={}, limit={}", trade_id, amount, lot_amount, limit);
 
 		auto it = order_id_by_internal_order_id.find(trade_id);
 		if (it != order_id_by_internal_order_id.end()) {
@@ -994,12 +994,12 @@ namespace zorro {
 					auto side = FIX::Side(order.side);
 					auto ord_type = FIX::OrdType(order.ord_type);
 
-					if (std::abs(lots) > order.order_qty) {
-						log::error<true>("BrokerSell2: trying to cancel/replace with an lots={} > order.order_qty={}!", lots, order.order_qty);
+					if (std::abs(amount) > order.order_qty) {
+						log::error<true>("BrokerSell2: trying to cancel/replace with an amount={} > order.order_qty={}!", amount, order.order_qty);
 						return 0;
 					}
 
-					if (std::abs(lots) >= order.leaves_qty) {
+					if (std::abs(amount) >= order.leaves_qty) {
 						log::debug<2, true>("BrokerSell2: cancel working order completely");
 
 						auto msg = fix_thread->fix_app().order_cancel_request(
@@ -1027,7 +1027,7 @@ namespace zorro {
 					}
 					else {
 						int leaves_qty = (int)order.leaves_qty;
-						auto target_qty = leaves_qty - std::abs(lots);
+						auto target_qty = leaves_qty - std::abs(amount);
 
 						log::debug<2, true>( 
 							"BrokerSell2: cancel/replace working order from leaves_qty={} to target_qty={}",
