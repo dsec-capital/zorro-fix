@@ -18,9 +18,9 @@ Contributions, bug reports and constructive feedback are very welcome.
 
 ## Version History
 
+  - v2.0.0 First FXCM FIX plugin, separated and updated Simulation FIX plugin 
   - v1.0.1 Improving order cancellation and many smaller bug fixing
   - v1.0.0 First official release
-  - v2.0.0 First FXCM FIX plugin, separated and updated Simulation FIX plugin 
 
 
 
