@@ -1,5 +1,4 @@
-#ifndef PCH_H
-#define PCH_H
+#pragma once
 
 #define _SILENCE_ALL_MS_EXT_DEPRECATION_WARNINGS
 
@@ -28,5 +27,3 @@
 #include <mutex>
 
 #include "framework.h"
-
-#endif //PCH_H

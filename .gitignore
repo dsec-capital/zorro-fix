@@ -3,7 +3,14 @@ Release/
 lib/
 store/
 
+# ForexConnect history cache
+History/
+
+# Visual Studio
 .vs 
+
+# Log files
+*.log 
 
 # SQL Server files
 *.mdf

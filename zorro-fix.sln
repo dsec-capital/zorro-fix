@@ -3,8 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.8.34408.163
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "zorro_fix_plugin", "zorro_fix_plugin\zorro_fix_plugin.vcxproj", "{F36886A3-3C65-4EC2-9684-DD12573413D6}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "zorro_sim_fix_plugin", "zorro_sim_fix_plugin\zorro_sim_fix_plugin.vcxproj", "{F36886A3-3C65-4EC2-9684-DD12573413D6}"
 	ProjectSection(ProjectDependencies) = postProject
+		{572D925E-AE28-497D-96E4-9FA70174344A} = {572D925E-AE28-497D-96E4-9FA70174344A}
 		{BC8C0499-93B9-40C8-B600-9771DF2875A7} = {BC8C0499-93B9-40C8-B600-9771DF2875A7}
 	EndProjectSection
 EndProject
@@ -13,13 +14,10 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "fix_simulation_server", "fi
 		{BC8C0499-93B9-40C8-B600-9771DF2875A7} = {BC8C0499-93B9-40C8-B600-9771DF2875A7}
 	EndProjectSection
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{E932F319-6B21-4D82-BA46-EA239502E932}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "readme", "readme", "{E932F319-6B21-4D82-BA46-EA239502E932}"
 	ProjectSection(SolutionItems) = preProject
 		LICENSE = LICENSE
 		README.md = README.md
-		Test_FIX.c = Test_FIX.c
-		Test_Requote_FIX.c = Test_Requote_FIX.c
-		Test_Requote_TMF_FIX.c = Test_Requote_TMF_FIX.c
 	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_blocking_queue", "test_blocking_queue\test_blocking_queue.vcxproj", "{50FF315D-D42D-45FD-A644-1F8F3FD96BBB}"
@@ -35,6 +33,43 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_market", "test_market\
 	ProjectSection(ProjectDependencies) = postProject
 		{BC8C0499-93B9-40C8-B600-9771DF2875A7} = {BC8C0499-93B9-40C8-B600-9771DF2875A7}
 	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "zorro_fxcm_fix_plugin", "zorro_fxcm_fix_plugin\zorro_fxcm_fix_plugin.vcxproj", "{DD575D78-D9D5-4B98-8A95-6E6788778DC6}"
+	ProjectSection(ProjectDependencies) = postProject
+		{572D925E-AE28-497D-96E4-9FA70174344A} = {572D925E-AE28-497D-96E4-9FA70174344A}
+		{ABB7F9C6-3F3A-4ED3-800F-1E4974FD7B98} = {ABB7F9C6-3F3A-4ED3-800F-1E4974FD7B98}
+		{BC8C0499-93B9-40C8-B600-9771DF2875A7} = {BC8C0499-93B9-40C8-B600-9771DF2875A7}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "zorro_common", "zorro_common\zorro_common.vcxproj", "{572D925E-AE28-497D-96E4-9FA70174344A}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "scripts", "scripts", "{83DE7AF6-9DBF-4607-8C46-BA9E12782D54}"
+	ProjectSection(SolutionItems) = preProject
+		scripts\check_fxcm_dlls.bat = scripts\check_fxcm_dlls.bat
+		scripts\copy_zorro_scripts.bat = scripts\copy_zorro_scripts.bat
+		scripts\exist_in_path.bat = scripts\exist_in_path.bat
+		scripts\generate_fxcm_fix_client_cfg.bat = scripts\generate_fxcm_fix_client_cfg.bat
+		scripts\replace_str.bat = scripts\replace_str.bat
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "zorro_scripts", "zorro_scripts", "{9D0EA1EA-D30C-49AD-9ECE-F121B408E38C}"
+	ProjectSection(SolutionItems) = preProject
+		zorro_scripts\Assets_FX_FIX.csv = zorro_scripts\Assets_FX_FIX.csv
+		zorro_scripts\Test_Common.h = zorro_scripts\Test_Common.h
+		zorro_scripts\Test_FIX.c = zorro_scripts\Test_FIX.c
+		zorro_scripts\Test_FIX_Mkt.c = zorro_scripts\Test_FIX_Mkt.c
+		zorro_scripts\Test_Requote_FIX.c = zorro_scripts\Test_Requote_FIX.c
+		zorro_scripts\Test_Requote_TMF_FIX.c = zorro_scripts\Test_Requote_TMF_FIX.c
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_fxcm_market_data", "test_fxcm_market_data\test_fxcm_market_data.vcxproj", "{298BFC0F-AF3A-4205-983F-AEBD6F362BE3}"
+	ProjectSection(ProjectDependencies) = postProject
+		{572D925E-AE28-497D-96E4-9FA70174344A} = {572D925E-AE28-497D-96E4-9FA70174344A}
+		{ABB7F9C6-3F3A-4ED3-800F-1E4974FD7B98} = {ABB7F9C6-3F3A-4ED3-800F-1E4974FD7B98}
+		{BC8C0499-93B9-40C8-B600-9771DF2875A7} = {BC8C0499-93B9-40C8-B600-9771DF2875A7}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "fxcm_market_data", "fxcm_market_data\fxcm_market_data.vcxproj", "{ABB7F9C6-3F3A-4ED3-800F-1E4974FD7B98}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -118,6 +153,54 @@ Global
 		{A1C5B75F-863B-45A8-AA1A-EC0BABE770C2}.Release|x64.Build.0 = Release|x64
 		{A1C5B75F-863B-45A8-AA1A-EC0BABE770C2}.Release|x86.ActiveCfg = Release|Win32
 		{A1C5B75F-863B-45A8-AA1A-EC0BABE770C2}.Release|x86.Build.0 = Release|Win32
+		{DD575D78-D9D5-4B98-8A95-6E6788778DC6}.Debug|ARM64.ActiveCfg = Debug|x64
+		{DD575D78-D9D5-4B98-8A95-6E6788778DC6}.Debug|ARM64.Build.0 = Debug|x64
+		{DD575D78-D9D5-4B98-8A95-6E6788778DC6}.Debug|x64.ActiveCfg = Debug|x64
+		{DD575D78-D9D5-4B98-8A95-6E6788778DC6}.Debug|x64.Build.0 = Debug|x64
+		{DD575D78-D9D5-4B98-8A95-6E6788778DC6}.Debug|x86.ActiveCfg = Debug|Win32
+		{DD575D78-D9D5-4B98-8A95-6E6788778DC6}.Debug|x86.Build.0 = Debug|Win32
+		{DD575D78-D9D5-4B98-8A95-6E6788778DC6}.Release|ARM64.ActiveCfg = Release|x64
+		{DD575D78-D9D5-4B98-8A95-6E6788778DC6}.Release|ARM64.Build.0 = Release|x64
+		{DD575D78-D9D5-4B98-8A95-6E6788778DC6}.Release|x64.ActiveCfg = Release|x64
+		{DD575D78-D9D5-4B98-8A95-6E6788778DC6}.Release|x64.Build.0 = Release|x64
+		{DD575D78-D9D5-4B98-8A95-6E6788778DC6}.Release|x86.ActiveCfg = Release|Win32
+		{DD575D78-D9D5-4B98-8A95-6E6788778DC6}.Release|x86.Build.0 = Release|Win32
+		{572D925E-AE28-497D-96E4-9FA70174344A}.Debug|ARM64.ActiveCfg = Debug|ARM64
+		{572D925E-AE28-497D-96E4-9FA70174344A}.Debug|ARM64.Build.0 = Debug|ARM64
+		{572D925E-AE28-497D-96E4-9FA70174344A}.Debug|x64.ActiveCfg = Debug|x64
+		{572D925E-AE28-497D-96E4-9FA70174344A}.Debug|x64.Build.0 = Debug|x64
+		{572D925E-AE28-497D-96E4-9FA70174344A}.Debug|x86.ActiveCfg = Debug|Win32
+		{572D925E-AE28-497D-96E4-9FA70174344A}.Debug|x86.Build.0 = Debug|Win32
+		{572D925E-AE28-497D-96E4-9FA70174344A}.Release|ARM64.ActiveCfg = Release|ARM64
+		{572D925E-AE28-497D-96E4-9FA70174344A}.Release|ARM64.Build.0 = Release|ARM64
+		{572D925E-AE28-497D-96E4-9FA70174344A}.Release|x64.ActiveCfg = Release|x64
+		{572D925E-AE28-497D-96E4-9FA70174344A}.Release|x64.Build.0 = Release|x64
+		{572D925E-AE28-497D-96E4-9FA70174344A}.Release|x86.ActiveCfg = Release|Win32
+		{572D925E-AE28-497D-96E4-9FA70174344A}.Release|x86.Build.0 = Release|Win32
+		{298BFC0F-AF3A-4205-983F-AEBD6F362BE3}.Debug|ARM64.ActiveCfg = Debug|ARM64
+		{298BFC0F-AF3A-4205-983F-AEBD6F362BE3}.Debug|ARM64.Build.0 = Debug|ARM64
+		{298BFC0F-AF3A-4205-983F-AEBD6F362BE3}.Debug|x64.ActiveCfg = Debug|x64
+		{298BFC0F-AF3A-4205-983F-AEBD6F362BE3}.Debug|x64.Build.0 = Debug|x64
+		{298BFC0F-AF3A-4205-983F-AEBD6F362BE3}.Debug|x86.ActiveCfg = Debug|Win32
+		{298BFC0F-AF3A-4205-983F-AEBD6F362BE3}.Debug|x86.Build.0 = Debug|Win32
+		{298BFC0F-AF3A-4205-983F-AEBD6F362BE3}.Release|ARM64.ActiveCfg = Release|ARM64
+		{298BFC0F-AF3A-4205-983F-AEBD6F362BE3}.Release|ARM64.Build.0 = Release|ARM64
+		{298BFC0F-AF3A-4205-983F-AEBD6F362BE3}.Release|x64.ActiveCfg = Release|x64
+		{298BFC0F-AF3A-4205-983F-AEBD6F362BE3}.Release|x64.Build.0 = Release|x64
+		{298BFC0F-AF3A-4205-983F-AEBD6F362BE3}.Release|x86.ActiveCfg = Release|Win32
+		{298BFC0F-AF3A-4205-983F-AEBD6F362BE3}.Release|x86.Build.0 = Release|Win32
+		{ABB7F9C6-3F3A-4ED3-800F-1E4974FD7B98}.Debug|ARM64.ActiveCfg = Debug|ARM64
+		{ABB7F9C6-3F3A-4ED3-800F-1E4974FD7B98}.Debug|ARM64.Build.0 = Debug|ARM64
+		{ABB7F9C6-3F3A-4ED3-800F-1E4974FD7B98}.Debug|x64.ActiveCfg = Debug|x64
+		{ABB7F9C6-3F3A-4ED3-800F-1E4974FD7B98}.Debug|x64.Build.0 = Debug|x64
+		{ABB7F9C6-3F3A-4ED3-800F-1E4974FD7B98}.Debug|x86.ActiveCfg = Debug|Win32
+		{ABB7F9C6-3F3A-4ED3-800F-1E4974FD7B98}.Debug|x86.Build.0 = Debug|Win32
+		{ABB7F9C6-3F3A-4ED3-800F-1E4974FD7B98}.Release|ARM64.ActiveCfg = Release|ARM64
+		{ABB7F9C6-3F3A-4ED3-800F-1E4974FD7B98}.Release|ARM64.Build.0 = Release|ARM64
+		{ABB7F9C6-3F3A-4ED3-800F-1E4974FD7B98}.Release|x64.ActiveCfg = Release|x64
+		{ABB7F9C6-3F3A-4ED3-800F-1E4974FD7B98}.Release|x64.Build.0 = Release|x64
+		{ABB7F9C6-3F3A-4ED3-800F-1E4974FD7B98}.Release|x86.ActiveCfg = Release|Win32
+		{ABB7F9C6-3F3A-4ED3-800F-1E4974FD7B98}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

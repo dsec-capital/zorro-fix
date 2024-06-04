@@ -149,10 +149,12 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="bar.h" />
     <ClInclude Include="bar_builder.h" />
     <ClInclude Include="blocking_queue.h" />
     <ClInclude Include="book.h" />
     <ClInclude Include="exec_report.h" />
+    <ClInclude Include="fix.h" />
     <ClInclude Include="fodra_pham.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="id_generator.h" />

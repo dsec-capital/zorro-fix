@@ -25,6 +25,8 @@ namespace common {
 
 		TopOfBook() {}
 
+		TopOfBook(const std::string& symbol) : symbol(symbol) {}
+
 		TopOfBook(
 			const std::string& symbol,
 			const std::chrono::nanoseconds& timestamp,
