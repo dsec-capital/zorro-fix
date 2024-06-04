@@ -46,6 +46,15 @@ namespace common {
 	  , leaves_qty(leaves_qty)
 	{}
 
+
+	bool OrderReport::is_sell() const {
+		return side == FIX::Side_SELL;
+	}
+
+	bool OrderReport::is_buy() const {
+		return side == FIX::Side_BUY;
+	}
+
 	bool OrderReport::is_filled() const {
 		return leaves_qty == 0;
 	}

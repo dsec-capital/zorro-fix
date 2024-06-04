@@ -81,7 +81,7 @@ function run()
 				brokerCommand(DO_CANCEL, AskTrade->nID);
 			}
 			OrderLimit = LimitAsk;
-			AskTrade = enterShort(tmf);
+			AskTrade = enterShort(diagnostics_tmf);
 			printf("\n======> enterShort: OrderLimit=%.5f prev quote=%.5f", OrderLimit, AskQuote);
 			AskQuote = LimitAsk;
 			OrderLimit = 0;
@@ -93,7 +93,7 @@ function run()
 				brokerCommand(DO_CANCEL, BidTrade->nID);
 			}
 			OrderLimit = LimitBid;
-			BidTrade = enterLong(tmf);
+			BidTrade = enterLong(diagnostics_tmf);
 			printf("\n======> enterLong: OrderLimit=%.5f prev quote=%.5f", OrderLimit, BidQuote);
 			BidQuote = LimitBid;
 			OrderLimit = 0;

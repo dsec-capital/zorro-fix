@@ -30,6 +30,10 @@ namespace zorro {
 	using namespace common;
 	using namespace std::chrono_literals;
 
+	namespace log {
+		std::size_t logging_verbosity = 2;
+	}
+
 	// http://localhost:8080/bars?symbol=AUD/USD
 	std::string rest_host = "http://localhost";
 	int rest_port = 8080;

@@ -13,6 +13,10 @@
 
 namespace zorro {
 	int(__cdecl* BrokerError)(const char* txt);
+
+	namespace log {
+		std::size_t logging_verbosity = 2;
+	}
 }
 
 int show(const char* txt) {

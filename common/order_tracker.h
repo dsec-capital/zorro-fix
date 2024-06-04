@@ -48,6 +48,10 @@ namespace common {
 		double cum_qty{ 0 };
 		double leaves_qty{ 0 };
 
+		bool is_buy() const;
+
+		bool is_sell() const;
+
 		bool is_filled() const;
 
 		bool is_cancelled() const;

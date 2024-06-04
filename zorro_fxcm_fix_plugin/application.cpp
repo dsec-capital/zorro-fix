@@ -13,10 +13,14 @@
 #include "spdlog/spdlog.h"
 
 #include "common/time_utils.h"
+#include "zorro_common/log.h"
 
 namespace zorro {
 
 	using namespace common;
+
+	constexpr int dl0 = 2;
+	constexpr int dl1 = 4;
 
 	std::string fix_string(const FIX::Message& msg) {
 		auto s = msg.toString();
@@ -184,7 +188,7 @@ namespace zorro {
 		if (session_settings.get().has("AccountId")) {
 			auto account = session_settings.get().getString("AccountId");
 			account_ids.insert(account);
-			spdlog::info(
+			log::debug<dl1, false>(
 				"Application::Application account id from session settings={}", account
 			);
 		}
@@ -222,7 +226,7 @@ namespace zorro {
 		else {
 			trading_session_id = sess_id;
 		}
-		spdlog::debug(
+		log::debug<dl1, false>(
 			"Application::onCreate is trading={}, sessionID={}", is_trading, sess_id.toString()
 		);
 	}
@@ -230,7 +234,7 @@ namespace zorro {
 	void Application::onLogon(const FIX::SessionID& sess_id)
 	{
 		logged_in++;
-		spdlog::debug("Application::onLogon sessionID={} login count={}", sess_id.toString(), logged_in.load());
+		log::debug<dl0, false>("Application::onLogon sessionID={} login count={}", sess_id.toString(), logged_in.load());
 
 		if (is_trading_session(sess_id)) {
 			if (requests_on_logon & static_cast<unsigned int>(RequestsOnLogon::RequestsOnLogon_TradingSessionStatus)) {
@@ -245,14 +249,14 @@ namespace zorro {
 	void Application::onLogout(const FIX::SessionID& sessionID)
 	{
 		logged_in--;
-		spdlog::debug("Application::onLogout sessionID={}", sessionID.toString());
+		log::debug<dl0, false>("Application::onLogout sessionID={}", sessionID.toString());
 	}
 
 	void Application::fromAdmin(
 		const FIX::Message& message, const FIX::SessionID& sessionID
 	) EXCEPT(FIX::FieldNotFound, FIX::IncorrectDataFormat, FIX::IncorrectTagValue, FIX::RejectLogon)
 	{
-		spdlog::debug("Application::fromAdmin IN <{}> {}", sessionID.toString(), fix_string(message));
+		log::debug<dl1, false>("Application::fromAdmin IN <{}> {}", sessionID.toString(), fix_string(message));
 	}
 
 	void Application::toAdmin(FIX::Message& message, const FIX::SessionID& sessionID) 
@@ -271,7 +275,7 @@ namespace zorro {
 		auto sub_id = session_settings.get().getString("TargetSubID");
 		message.getHeader().setField(FIX::TargetSubID(sub_id));
 
-		spdlog::debug("Application::toAdmin OUT <{}> {}", sessionID.toString(), fix_string(message));
+		log::debug<dl1, false>("Application::toAdmin OUT <{}> {}", sessionID.toString(), fix_string(message));
 	}
 
 	void Application::fromApp(const FIX::Message& message, const FIX::SessionID& sessionID)
@@ -279,7 +283,7 @@ namespace zorro {
 	{
 		auto mkt = is_market_data_message(message);
 		if (!mkt || (mkt && log_market_data)) {
-			spdlog::debug("Application::fromApp IN <{}> {}", sessionID.toString(), fix_string(message));
+			log::debug<dl1, false>("Application::fromApp IN <{}> {}", sessionID.toString(), fix_string(message));
 		}
 		crack(message, sessionID);
 	}
@@ -297,7 +301,7 @@ namespace zorro {
 		auto sub_ID = session_settings.get().getString("TargetSubID");
 		message.getHeader().setField(FIX::TargetSubID(sub_ID));
 
-		spdlog::debug("Application::toApp OUT <{}> {}", sessionID.toString(), fix_string(message));
+		log::debug<dl1, false>("Application::toApp OUT <{}> {}", sessionID.toString(), fix_string(message));
 	}
 
 	// The TradingSessionStatus message is used to provide an update on the status of the market. Furthermore, 
@@ -374,13 +378,13 @@ namespace zorro {
 					status.security_informations.emplace(symbol, std::move(security_info));
 				}
 				catch (FIX::FieldNotFound& error) {
-					spdlog::error(
+					log::error<false>(
 						"Application::onMessage[FIX44::TradingSessionStatus]: security info field not found {}",
 						error.what()
 					);
 				}
 				catch (...) {
-					spdlog::error(
+					log::error<false>(
 						"Application::onMessage[FIX44::TradingSessionStatus]: security info error"
 					);
 				}
@@ -402,7 +406,7 @@ namespace zorro {
 				);
 			}
 
-			spdlog::debug(
+			log::debug<dl1, false>(
 				"Application::onMessage[FIX44::TradingSessionStatus]: publish trading session status {}",
 				status.to_string()
 			);
@@ -410,7 +414,7 @@ namespace zorro {
 			trading_session_status_queue.push(status);
 		} 
 		catch(FIX::FieldNotFound &error) {
-			spdlog::error(
+			log::error<false>(
 				"Application::onMessage[FIX44::TradingSessionStatus]: field not found {}",
 				error.what()
 			);
@@ -431,7 +435,7 @@ namespace zorro {
 			const auto& account = message.getField(FIX::FIELD::Account);
 			account_ids.insert(account);
 
-			spdlog::debug("Application::onMessage[FIX44::CollateralReport]: inserted account={}", account);
+			log::debug<dl0, false>("Application::onMessage[FIX44::CollateralReport]: inserted account={}", account);
 
 			// account balance, which is the cash balance in the account, not including any profit or losses on open trades
 			double balance = FIX::DoubleConvertor::convert(message.getField(FIX::FIELD::CashOutstanding));
@@ -475,7 +479,7 @@ namespace zorro {
 				.party_sub_ids = party_sub_ids
 			};
 
-			spdlog::debug(
+			log::debug<dl1, false>(
 				"Application::onMessage[FIX44::CollateralReport]: publish collateral report for account={} balance={}", 
 				account, balance
 			);
@@ -483,7 +487,7 @@ namespace zorro {
 			collateral_report_queue.push(collateral_report);
 		}
 		catch (FIX::FieldNotFound& error) {
-			spdlog::error(
+			log::error<false>(
 				"Application::onMessage[FIX44::CollateralReport]: field not found {}",
 				error.what()
 			);
@@ -501,7 +505,7 @@ namespace zorro {
 		// if a PositionReport is requested and no positions exist for that request, the Text field will
 		// indicate that no positions matched the requested criteria 
 		if (pos_req_result == FIX::PosReqResult_NO_POSITIONS_FOUND_THAT_MATCH_CRITERIA) {
-			spdlog::debug(
+			log::debug<dl1, false>(
 				"Application::onMessage[FIX44::RequestForPositionsAck]: publish empty position report list text={}",
 				message.getField(FIX::FIELD::Text)
 			);
@@ -551,7 +555,7 @@ namespace zorro {
 
 			int num_positions = FIX::IntConvertor::convert(message.getField(FIX::FIELD::NoPositions));
 			if (num_positions > 1) {
-				spdlog::error("Application::onMessage[FIX44::PositionReport] error: num_positions={} > 1 not expected", num_positions);
+				log::error<false>("Application::onMessage[FIX44::PositionReport] error: num_positions={} > 1 not expected", num_positions);
 			}
 			FIX44::PositionReport::NoPositions group;
 			message.getGroup(1, group);
@@ -564,7 +568,7 @@ namespace zorro {
 				position_qty = -std::abs(FIX::IntConvertor::convert(group.getField(FIX::FIELD::ShortQty)));
 			}
 			else {
-				spdlog::error("Application::onMessage[FIX44::PositionReport] error: neither LongQty nor ShortQty defined");
+				log::error<false>("Application::onMessage[FIX44::PositionReport] error: neither LongQty nor ShortQty defined");
 			}
 			
 			bool is_open = true;
@@ -581,7 +585,7 @@ namespace zorro {
 				close_cl_ord_id = message.getField(FXCM_CLOSE_CL_ORD_ID);
 			}
 			else {
-				spdlog::error("Application::onMessage[FIX44::PositionReport] error: unexpected pos_req_type={}", pos_req_type.getValue());
+				log::error<false>("Application::onMessage[FIX44::PositionReport] error: unexpected pos_req_type={}", pos_req_type.getValue());
 			}
 
 			bool is_closed = !is_open;
@@ -607,7 +611,7 @@ namespace zorro {
 
 			bool is_last = total_num_reports == position_report_list.size();
 			if (is_last) {
-				spdlog::debug("Application::onMessage[FIX44::PositionReport]: publish {} position reports", position_report_list.size());
+				log::debug<dl1, false>("Application::onMessage[FIX44::PositionReport]: publish {} position reports", position_report_list.size());
 
 				FXCMPositionReports reports{
 					.reports = position_report_list
@@ -617,7 +621,7 @@ namespace zorro {
 			}
 		}
 		catch (FIX::FieldNotFound& error) {
-			spdlog::error(
+			log::error<false>(
 				"Application::onMessage[FIX44::PositionReport]: field not found {}",
 				error.what()
 			);
@@ -670,12 +674,15 @@ namespace zorro {
 				session_low_price = price;
 			}
 			else {
-				spdlog::debug("Application::onMessage[FIX44::MarketDataSnapshotFullRefresh]: unexpected md entry type={} price={}", entry_type, price);
+				log::error<false>(
+					"Application::onMessage[FIX44::MarketDataSnapshotFullRefresh]: unexpected md entry type={} price={}", 
+					entry_type.getValue(), price.getValue()
+				);
 			}
 		}
 
 		if (log_market_data) {
-			spdlog::debug("Application::onMessage[FIX44::MarketDataSnapshotFullRefresh]: top={}", top_of_book.to_string());
+			log::debug<dl1, false>("Application::onMessage[FIX44::MarketDataSnapshotFullRefresh]: top={}", top_of_book.to_string());
 		}
 
 		top_of_book_queue.push(top_of_book); // publish snapshot related top of book
@@ -703,7 +710,7 @@ namespace zorro {
 
 			auto it = top_of_books.find(symbol);
 			if (it == top_of_books.end()) {
-				spdlog::debug("Application::onMessage[FIX44::MarketDataIncrementalRefresh]: did not find symbol={} in top of books", symbol);
+				log::debug<dl0, false>("Application::onMessage[FIX44::MarketDataIncrementalRefresh]: did not find symbol={} in top of books", symbol);
 				continue;
 			}
 
@@ -711,36 +718,42 @@ namespace zorro {
 				timestamp = parse_date_and_time(group);
 			}
 
-			group.get(size);
-			group.get(price);
 			group.get(entry_type);
-			auto& entry_type = group.getField(FIX::FIELD::MDEntryType);
-			if (entry_type[0] == FIX::MDEntryType_BID) { // Bid
+			group.get(price);
+
+			if (entry_type == FIX::MDEntryType_BID) {  
 				it->second.bid_price = price;
-				it->second.bid_volume = size;
+				if (group.getIfSet(size)) {
+					it->second.bid_volume = size;
+				}
 				it->second.timestamp = timestamp;
 				change_set.insert(&it->second);
 			}
-			else if (entry_type[0] == FIX::MDEntryType_OFFER) { // Ask (Offer)
+			else if (entry_type == FIX::MDEntryType_OFFER) { 
 				it->second.ask_price = price;
-				it->second.ask_volume = size;
+				if (group.getIfSet(size)) {
+					it->second.ask_volume = size;
+				}
 				it->second.timestamp = timestamp;
 				change_set.insert(&it->second);
 			}
-			else if (entry_type[0] == FIX::MDEntryType_TRADING_SESSION_HIGH_PRICE) {
+			else if (entry_type == FIX::MDEntryType_TRADING_SESSION_HIGH_PRICE) {
 				session_high_price = price;
 			}
-			else if (entry_type[0] == FIX::MDEntryType_TRADING_SESSION_LOW_PRICE) {
+			else if (entry_type == FIX::MDEntryType_TRADING_SESSION_LOW_PRICE) {
 				session_low_price = price;
 			}
 			else {
-				spdlog::debug("Application::onMessage[FIX44::MarketDataIncrementalRefresh]: unexpected md entry type={} price={}", entry_type, price);
+				log::error<false>(
+					"Application::onMessage[FIX44::MarketDataIncrementalRefresh]: unexpected md entry type={} price={}", 
+					entry_type.getValue(), price.getValue()
+				);
 			}
 		}
 
 		for (auto top_of_book : change_set) {
 			if (log_market_data) {
-				spdlog::debug("Application::onMessage[FIX44::MarketDataIncrementalRefresh]: top={}", top_of_book->to_string());
+				log::debug<dl1, false>("Application::onMessage[FIX44::MarketDataIncrementalRefresh]: top={}", top_of_book->to_string());
 			}
 
 			top_of_book_queue.push(*top_of_book); // publish snapshot related top of book
@@ -815,7 +828,7 @@ namespace zorro {
 
 	void Application::onMessage(const FIX44::MarketDataRequestReject& message, const FIX::SessionID& session_ID)
 	{
-		spdlog::error("onMessage[FIX44::MarketDataRequestReject]: {}", fix_string(message));
+		log::error<false>("onMessage[FIX44::MarketDataRequestReject]: {}", fix_string(message));
 	}
 
 	FIX::Message Application::market_data_snapshot(const FIX::Symbol& symbol) {
@@ -836,7 +849,7 @@ namespace zorro {
 		entry_types.setField(FIX::MDEntryType(FIX::MDEntryType_TRADING_SESSION_LOW_PRICE));
 		request.addGroup(entry_types);
 
-		spdlog::debug("Application::market_data_snapshot: {}", fix_string(request));
+		log::debug<dl1, false>("Application::market_data_snapshot: {}", fix_string(request));
 
 		FIX::Session::sendToTarget(request, market_data_session_id);
 
@@ -850,7 +863,7 @@ namespace zorro {
 		auto it = market_data_subscriptions.find(symbol.getString());
 
 		if (it != market_data_subscriptions.end()) {
-			spdlog::error("subscribe_market_data: error - market data already subscribed for symbol {}", symbol.getString());
+			log::error<true>("subscribe_market_data: error - market data already subscribed for symbol {}", symbol.getString());
 			return std::optional<FIX::Message>();
 		}
 		else {
@@ -873,7 +886,7 @@ namespace zorro {
 			entry_types.setField(FIX::MDEntryType(FIX::MDEntryType_TRADING_SESSION_LOW_PRICE));
 			request.addGroup(entry_types);
 
-			spdlog::debug("Application::subscribe_market_data: {}", fix_string(request));
+			log::debug<dl1, false>("Application::subscribe_market_data: {}", fix_string(request));
 
 			FIX::Session::sendToTarget(request, market_data_session_id);
 
@@ -904,14 +917,14 @@ namespace zorro {
 			entry_types.setField(FIX::MDEntryType(FIX::MDEntryType_TRADING_SESSION_LOW_PRICE));
 			request.addGroup(entry_types);
 
-			spdlog::debug("Application::unsubscribe_market_data: {}", fix_string(request));
+			log::debug<dl1, false>("Application::unsubscribe_market_data: {}", fix_string(request));
 
 			FIX::Session::sendToTarget(request, market_data_session_id);
 
 			return std::optional<FIX::Message>(request);
 		}
 		else {
-			spdlog::error("unsubscribe_market_data: error - market data not subscribed for symbol {}", symbol.getString());
+			log::error<true>("unsubscribe_market_data: error - market data not subscribed for symbol {}", symbol.getString());
 			return std::optional<FIX::Message>();
 		}
 	}
@@ -923,7 +936,7 @@ namespace zorro {
 		request.setField(FIX::TradingSessionID("FXCM"));
 		request.setField(FIX::SubscriptionRequestType(FIX::SubscriptionRequestType_SNAPSHOT));
 		
-		spdlog::debug("Application::trading_session_status_request: {}", fix_string(request));
+		log::debug<dl1, false>("Application::trading_session_status_request: {}", fix_string(request));
 
 		FIX::Session::sendToTarget(request, trading_session_id);
 
@@ -938,7 +951,7 @@ namespace zorro {
 		request.setField(FIX::TradingSessionID("FXCM"));
 		request.setField(FIX::SubscriptionRequestType(FIX::SubscriptionRequestType_SNAPSHOT));
 
-		spdlog::debug("Application::collateral_inquiry: {}", fix_string(request));
+		log::debug<dl1, false>("Application::collateral_inquiry: {}", fix_string(request));
 
 		FIX::Session::sendToTarget(request, trading_session_id);
 
@@ -968,7 +981,7 @@ namespace zorro {
 		parties_group.addGroup(sub_parties);
 		request.addGroup(parties_group);
 
-		spdlog::debug("Application::request_for_positions: {}", fix_string(request));
+		log::debug<dl1, false>("Application::request_for_positions: {}", fix_string(request));
 
 		FIX::Session::sendToTarget(request, trading_session_id);
 
@@ -1015,7 +1028,7 @@ namespace zorro {
 		if (ord_type == FIX::OrdType_STOP || ord_type == FIX::OrdType_STOP_LIMIT)
 			order.set(stop_price);
 
-		spdlog::debug("Application::newOrderSingle[{}]: {}" , trading_session_id.toString(), fix_string(order));
+		log::debug<dl1, false>("Application::newOrderSingle[{}]: {}" , trading_session_id.toString(), fix_string(order));
 
 		FIX::Session::sendToTarget(order, trading_session_id);
 
@@ -1051,7 +1064,7 @@ namespace zorro {
 			return std::optional<FIX::Message>();
 		}
 
-		spdlog::debug("Application::orderCancelRequest[{}]: {}", trading_session_id.toString(), fix_string(request));
+		log::debug<dl1, false>("Application::orderCancelRequest[{}]: {}", trading_session_id.toString(), fix_string(request));
 
 		FIX::Session::sendToTarget(request, trading_session_id);
 
@@ -1092,7 +1105,7 @@ namespace zorro {
 			return std::optional<FIX::Message>();
 		}
 
-		spdlog::debug("Application::orderCancelReplaceRequest[{}]: {}", trading_session_id.toString(), fix_string(request));
+		log::debug<dl1, false>("Application::orderCancelReplaceRequest[{}]: {}", trading_session_id.toString(), fix_string(request));
 
 		FIX::Session::sendToTarget(request, trading_session_id);
 
