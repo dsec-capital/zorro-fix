@@ -10,7 +10,7 @@ This project provides plugins for [Zorro](https://zorro-project.com/) to connect
 The project depends on the [QuickFix](https://quickfixengine.org) open source library.
 Performance-wise it is not as fast as commercial FIX implementations but provides a straightforward
 API and application framework to develop FIX based server and client applications. 
-Some of the core building blocks and `fix_sumulation_server` are inspired from their examples. 
+Some of the core building blocks and [fix_simulation_server](fix_simulation_server) are inspired from their examples. 
 
 Contributions, bug reports and constructive feedback are very welcome. 
 
@@ -28,8 +28,7 @@ Contributions, bug reports and constructive feedback are very welcome.
 
 The FXCM FIX client plugin implements the FXCM FIX 4.4. protocol, inlcuding their specific extensions as documented
 in the [FXCM FIX specification](https://apiwiki.fxcorporate.com/api/fix/docs/FXCM-FIX-BSI.pdf). 
-Market data is pulled via [FXCM ForexConnect SDK](https://fxcodebase.com/wiki/index.php/Download). 
-
+The [FXCM ForexConnect SDK](https://fxcodebase.com/wiki/index.php/Download) is used to fetch historical market data from FXCM. 
 
 
 ### Supported Features
@@ -46,7 +45,7 @@ The FXCM FIX client plugin implements all of Zorro's [broker plugin functions](h
   - Collateral inquiry (message CollateralReport)
   - Execution reports (message ExecReport)
 
-More details can be found in [FXCM FIX client application](zorro_fxcm_fix_plugin\Application.h). 
+More details can be found in [FXCM FIX client application](zorro_fxcm_fix_plugin/Application.h). 
 
 
 ### Installation
@@ -57,8 +56,8 @@ The FXCM FIX client plugin is built against ForexConnect SDK 1.6.5, which can be
   - [ForexConnect SDK 1.6.5 Win64](http://fxcodebase.com/bin/forexconnect/1.6.5/ForexConnectAPI-1.6.5-win64.exe)
 
 Note that the link libraries and headers are in the GitHub repository to facilitate the build process 
-and can be found under `zorro-fix\third-parties\fxcm\forex_connect`. For another version of ForexConnect SDK 
-the libraries and include files have to be changed accordingly. 
+and can be found in the [FXCM third party directory](third-parties/fxcm/forex_connect). 
+For another version of ForexConnect SDK the libraries and include files have to be changed accordingly. 
 
 The FXCM FIX client plugin requires the FXCM ForexConnect SDK in the search path. Add the FXCM ForexConnect SDK 
 `C:\Program Files (x86)\Candleworks\ForexConnectAPI\bin` directory to the system path. 
@@ -71,10 +70,10 @@ The project requires the following environment variables to be defined:
   - FIX_PASSWORD: password provided by FXCM
   - FIX_TARGET_SUBID: target subid provided by FXCM
 
-These environment variables are used in various automation scripts in the `scripts` folders 
+These environment variables are used in various automation scripts in the [scripts](scripts) folders 
 as well as in Visual Studio post build events. 
 
-Eventually it is necessary to update the [FIX session config template](zorro_fxcm_fix_plugin\zorro_fxcm_fix_client_template.cfg).
+Eventually it is necessary to update the [FIX session config template](zorro_fxcm_fix_plugin/zorro_fxcm_fix_client_template.cfg).
 Note that this file is configured appropriately from the values of the environment variables and copied to the 
 Zorro installation directory as part of the post build process. 
 
