@@ -179,7 +179,6 @@ namespace zorro {
       , trading_session_status_queue(trading_session_status_queue)
 	  , done(false)
 	  , logged_in(0)
-      , order_tracker("account")
 	  , log_market_data(false)
 	{
 		if (session_settings.get().has("AccountId")) {
@@ -802,8 +801,6 @@ namespace zorro {
 			leaves_qty.getValue(),
 			text.getString()
 		);
-
-		order_tracker.process(report); // we update a local tracker too, which is actually not needed
 
 		exec_report_queue.push(report);
 	}

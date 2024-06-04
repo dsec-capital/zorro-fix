@@ -89,7 +89,7 @@ namespace zorro
 
 	struct FXCMTradingSessionStatus {
 		common::fix::TradeSessionStatus trade_session_status{ common::fix::TradeSessionStatus::UNDEFINED };
-		std::string server_timezone_name;
+		std::string server_timezone_name{ "UTC" };
 		int server_timezone{ 0 };
 		std::map<std::string, std::string> session_parameters;
 		std::map<std::string, FXCMSecurityInformation> security_informations;
@@ -324,10 +324,8 @@ namespace zorro
 		std::unordered_map<std::string, std::string> market_data_subscriptions;
 		std::unordered_map<std::string, TopOfBook> top_of_books;
 		std::vector<FXCMPositionReport> position_report_list;
-		OrderTracker order_tracker;
 
 		bool log_market_data;
-
 
 		std::mutex mutex;
 

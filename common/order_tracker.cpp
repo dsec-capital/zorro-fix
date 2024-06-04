@@ -149,13 +149,16 @@ namespace common {
 			return false;
 		}
 
-		spdlog::debug("OrderTracker::process: processing report {}", report.to_string());
+		spdlog::debug("OrderTracker[{}]::process: processing report {}", account, report.to_string());
 
 		switch (report.exec_type) {
 			case FIX::ExecType_PENDING_NEW: {
 				auto [_, inserted] = pending_orders_by_cl_ord_id.emplace(report.cl_ord_id, std::move(OrderReport(report)));
 				if (!inserted) {
-					spdlog::error("OrderTracker::process[FIX::ExecType_PENDING_NEW]: failed to insert cl_ord_id={} report={}", report.cl_ord_id, report.to_string());
+					spdlog::error(
+						"OrderTracker[{}]::process[FIX::ExecType_PENDING_NEW]: failed to insert cl_ord_id={} report={}", 
+						account, report.cl_ord_id, report.to_string()
+					);
 					return false;
 				}
 				return true;
@@ -165,7 +168,10 @@ namespace common {
 				pending_orders_by_cl_ord_id.erase(report.cl_ord_id);
 				auto [_, inserted] = orders_by_ord_id.emplace(report.ord_id, std::move(OrderReport(report)));
 				if (!inserted) {
-					spdlog::error("OrderTracker::process[FIX::ExecType_NEW]: failed to insert ord_id={} report={}", report.ord_id, report.to_string());
+					spdlog::error(
+						"OrderTracker[{}]::process[FIX::ExecType_NEW]: failed to insert ord_id={} report={}", 
+						account, report.ord_id, report.to_string()
+					);
 					return false;
 				}
 				return true;
@@ -178,12 +184,18 @@ namespace common {
 					if (report.side == FIX::Side_BUY) {
 						auto prev = position.qty;
 						position.qty += report.last_qty;
-						spdlog::debug("OrderTracker::process[FIX::ExecType_TRADE]: buy fill updated net positon from {} to {}", prev, position.qty);
+						spdlog::debug(
+							"OrderTracker[{}]::process[FIX::ExecType_TRADE]: buy fill updated net positon from {} to {}", 
+							account, prev, position.qty
+						);
 					}
 					else if (report.side == FIX::Side_SELL) {
 						auto prev = position.qty;
 						position.qty -= report.last_qty;
-						spdlog::debug("OrderTracker::process[FIX::ExecType_TRADE]: sell fill updated net positon from {} to {}", prev, position.qty);
+						spdlog::debug(
+							"OrderTracker[{}]::process[FIX::ExecType_TRADE]: sell fill updated net positon from {} to {}", 
+							account, prev, position.qty
+						);
 					}
 					position.avg_px = report.avg_px;
 				}
@@ -206,20 +218,28 @@ namespace common {
 			}
 
 			case FIX::ExecType_REJECTED: {
-				spdlog::warn("OrderTracker::process[FIX::ExecType_REJECTED]: rejected {}", report.to_string());
+				spdlog::warn("OrderTracker[{}]::process[FIX::ExecType_REJECTED]: rejected {}", account, report.to_string());
 				return true;
 			}
 
 			default: {
-				spdlog::error("OrderTracker::process: invalid FIX::ExecType {}", report.exec_type);
+				spdlog::error("OrderTracker[{}]::process: invalid FIX::ExecType {}", account, report.exec_type);
 				return false;
 			}
 		}
 	}
 
+	void OrderTracker::set_account(const std::string& new_account) {
+		account = new_account;
+	}
+
+	const std::string& OrderTracker::get_account() const {
+		return account;
+	}
+
 	std::string OrderTracker::to_string() const {
 		std::string rows;
-		rows += "OrderTracker[\n";
+		rows += std::format("OrderTracker[{}][\n", account);
 		rows += "  pending orders:\n";
 		for (auto& [cl_ord_id, order] : pending_orders_by_cl_ord_id) {
 			rows += std::format("    cl_ord_id={} order={}\n", cl_ord_id, order.to_string());

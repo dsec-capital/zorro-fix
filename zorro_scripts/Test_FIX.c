@@ -43,11 +43,11 @@ function run()
 	}
 
 	var Close = priceClose();
-	var DepthPIPs = 2;
+	var DepthPIPs = 0.2;
 	var TopAsk = Close;
 	var TopBid = Close - Spread;
-	var LimitAsk = round_up(TopAsk + DepthPIPs * PIP, PIP);
-	var LimitBid = round_down(TopBid - DepthPIPs * PIP, PIP);
+	var LimitAsk = round_up(TopAsk + DepthPIPs * PIP, 0.1 * PIP);
+	var LimitBid = round_down(TopBid - DepthPIPs * PIP, 0.1 * PIP);
 
 	if (!is(LOOKBACK)) {
 		var Position = brokerCommand(GET_POSITION, Asset);

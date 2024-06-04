@@ -109,6 +109,10 @@ namespace common {
 
 		OrderTracker(const std::string& account);
 
+		void set_account(const std::string& account);
+
+		const std::string& get_account() const;
+
 		NetPosition& net_position(const std::string& symbol);
 
 		std::pair<typename OrderTracker::const_iterator, bool> get_pending_order(const std::string& ord_id) const;
