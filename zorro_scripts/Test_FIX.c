@@ -1,10 +1,4 @@
-#include <profile.c>
-#include <stdio.h>
-
-#define ORDERTYPE_GTC 2
-#define BROKER_CMD_CREATE_ASSET_LIST_FILE 2000
-#define BROKER_CMD_CREATE_SECURITY_INFO_FILE 2001
-#define BROKER_CMD_GET_POSITIONS 2002
+#include "Test_Common.h"
 
 static var startTime;
 static bool Quoting = false;
@@ -12,22 +6,8 @@ static bool Inventory = false;
 TRADE* BidTrade;
 TRADE* AskTrade;
 
-var round_up(var in, var multiple) {
-	var m = fmod(in, multiple);
-	if (m == 0.0) {
-		return in;
-	}
-	else {
-		var down = in - m;
-		return down + ifelse(in < 0.0, -multiple, multiple);
-	}
-}
-
-var round_down(var in, var multiple) {
-	return in - fmod(in, multiple);
-}
-
-void tick() {
+void tick() 
+{
 	if (is(LOOKBACK)) return;
 	var close = priceClose();
 	printf("\ntic [%s] %s ask=%.5f bid=%.5f spread=%.6f",
@@ -39,30 +19,8 @@ void tick() {
 	);
 }
 
-void tmf() {
-	var Close = priceClose();
-	var TopAsk = Close;
-	var TopBid = Close - Spread;
-	printf("\ntmf [%s] id=%d %s missed=%s pending=%s open=%s unfilled=%s TradePriceOpen=%.5f TradePriceClose=%.5f TradeFill=%.5f TradeProfit=%.5f",
-		strdate("%H:%M:%S.", NOW),
-		TradeID,
-		ifelse(TradeIsLong, "buy", "sell"),
-		ifelse(TradeIsMissed, "yes", "no"),
-		ifelse(TradeIsPending, "yes", "no"),
-		ifelse(TradeIsOpen, "yes", "no"),
-		ifelse(TradeIsUnfilled, "yes", "no"),
-		TradePriceOpen,
-		TradePriceClose,
-		TradeFill,
-		TradeProfit
-	);
-
-	return 0;
-
-}
-
-function run() {
-
+function run() 
+{
 	set(TICKS + LOGFILE + PLOTNOW + PRELOAD);
 	resf(BarMode, BR_WEEKEND);
 	setf(BarMode, BR_FLAT);
@@ -80,7 +38,8 @@ function run() {
 
 	if (is(INITRUN)) {
 		startTime = timer();
-		int n = brokerCommand(BROKER_CMD_CREATE_SECURITY_INFO_FILE, "Log/security_infos.csv");
+		brokerCommand(BROKER_CMD_CREATE_SECURITY_INFO_FILE, "Log/security_infos.csv");
+		brokerCommand(BROKER_CMD_GET_CLOSED_POSITIONS, "Log/positions_closed.csv");
 	}
 
 	var Close = priceClose();
@@ -110,11 +69,11 @@ function run() {
 		brokerCommand(SET_ORDERTYPE, ORDERTYPE_GTC);
 		Lots = 5;
 		OrderLimit = LimitAsk;
-		enterShort(tmf);
+		enterShort(diagnostics_tmf);
 		printf("\nenterShort: OrderLimit=%.5f", OrderLimit);
 
 		OrderLimit = LimitBid;
-		enterLong(tmf);
+		enterLong(diagnostics_tmf);
 		printf("\nenterLong: OrderLimit=%.5f", OrderLimit);
 
 		Quoting = true;
@@ -123,35 +82,12 @@ function run() {
 
 	if (!is(LOOKBACK) && !Inventory) {
 		Lots = 2;
-		enterLong(tmf);
+		enterLong(diagnostics_tmf);
 
-		int np = brokerCommand(BROKER_CMD_GET_POSITIONS, "Log/actual_positions.csv");
+		int np = brokerCommand(BROKER_CMD_GET_OPEN_POSITIONS, "Log/positions_open.csv");
 
 		Inventory = true;
 	}
 
-	for (open_trades)
-	{
-		printf("\n+++++ %d %s %s TradeLots(open)=%.6f TradeLotsTarget=%.6f TradePriceOpen=%.6f, TradeProfit=%.6f, TradeEntryLimit=%.6f",
-			TradeID,
-			ifelse(TradeIsOpen, "open", "pending"),
-			ifelse(TradeIsLong, "buy", "sell"),
-			(var)TradeLots,
-			(var)TradeLotsTarget,
-			(var)TradePriceOpen,
-			(var)TradeProfit,
-			(var)TradeEntryLimit);
-	}
-
-	for (closed_trades)
-	{
-		printf("\n----- %d %s %d TradePriceOpen=%.6f TradeProfit=%.6f TradeEntryLimit=%.6f TradePriceOpen=%.6f TradePriceClose=%.6f",
-			TradeID,
-			ifelse(TradeIsClosed, "closed", "unknown"),
-			ifelse(TradeIsLong, 1, -1),
-			(var)TradePriceOpen,
-			(var)TradeProfit,
-			(var)TradeEntryLimit,
-			(var)TradePriceClose);
-	}
+	diagnostics_trades();
 }

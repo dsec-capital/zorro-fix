@@ -16,9 +16,8 @@ void tick() {
 	);
 }
 
-
-function run() {
-
+function run() 
+{
 	set(TICKS + LOGFILE + PLOTNOW + PRELOAD);
 	resf(BarMode, BR_WEEKEND);
 	setf(BarMode, BR_FLAT);
@@ -36,8 +35,8 @@ function run() {
 
 	if (is(INITRUN)) {
 		startTime = timer();
-		int n = brokerCommand(BROKER_CMD_CREATE_SECURITY_INFO_FILE, "Log/security_infos.csv");
-		int np = brokerCommand(BROKER_CMD_GET_CLOSED_POSITIONS, "Log/positions_closed.csv");
+		brokerCommand(BROKER_CMD_CREATE_SECURITY_INFO_FILE, "Log/security_infos.csv");
+		brokerCommand(BROKER_CMD_GET_CLOSED_POSITIONS, "Log/positions_closed.csv");
 	}
 
 	var Close = priceClose();
