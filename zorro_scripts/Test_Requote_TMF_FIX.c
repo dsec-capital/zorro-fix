@@ -18,7 +18,7 @@ void tick() {
 	);
 }
 
-function run() 
+function run()
 {
 	set(TICKS + LOGFILE + PLOTNOW + PRELOAD);
 	resf(BarMode, BR_WEEKEND);
