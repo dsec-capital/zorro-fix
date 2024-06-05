@@ -107,7 +107,7 @@ namespace zorro {
 	int pop_exec_reports() {
 		auto n = exec_report_queue.pop_all(
 			[](const ExecReport& report) { 
-				auto ok = order_tracker.process(report); 
+				order_tracker.process(report); 
 			}
 		);
 		return n;
@@ -120,6 +120,86 @@ namespace zorro {
 			}
 		);
 		return n;
+	}
+
+	template<class R, class P>
+	std::optional<ExecReport> pop_exec_report_new(const std::string& expected_cl_ord_id, const std::chrono::duration<R, P>& timeout) {
+		log::debug<2, true>("pop_exec_report_new: expected_cl_ord_id={}", expected_cl_ord_id);
+		std::optional<ExecReport> target_report = std::optional<ExecReport>();
+		auto success = exec_report_queue.pop_until(
+			[&](const ExecReport& report) {
+				order_tracker.process(report);
+				auto done = report.exec_type == FIX::ExecType_NEW 
+					&& report.ord_status == FIX::OrdStatus_NEW
+					&& report.cl_ord_id == expected_cl_ord_id;
+				if (done) {
+					target_report = std::optional<ExecReport>(report);
+				}
+				return done;
+			}, timeout
+		);
+		log::debug<2, true>("pop_exec_report_new: report found={}", target_report.has_value());
+		return target_report;
+	}
+	
+	template<class R, class P>
+	std::optional<ExecReport> pop_exec_report_fill(const std::string& expected_cl_ord_id, const std::chrono::duration<R, P>& timeout) {
+		log::debug<2, true>("pop_exec_report_fill: expected_cl_ord_id={}", expected_cl_ord_id);
+		std::optional<ExecReport> target_report = std::optional<ExecReport>();
+		auto success = exec_report_queue.pop_until(
+			[&](const ExecReport& report) {
+				order_tracker.process(report);
+				auto done = report.exec_type == FIX::ExecType_TRADE
+					&& report.ord_status == FIX::OrdStatus_FILLED
+					&& report.cl_ord_id == expected_cl_ord_id;
+				if (done) {
+					target_report = std::optional<ExecReport>(report);
+				}
+				return done;
+			}, timeout
+		);
+		log::debug<2, true>("pop_exec_report_fill: report found={}", target_report.has_value());
+		return target_report;
+	}
+
+	template<class R, class P>
+	std::optional<ExecReport> pop_exec_report_cancel(const std::string& expected_ord_id, const std::chrono::duration<R, P>& timeout) {
+		log::debug<2, true>("pop_exec_report_cancel: expected_ord_id={}", expected_ord_id);
+		std::optional<ExecReport> target_report = std::optional<ExecReport>();
+		auto success = exec_report_queue.pop_until(
+			[&](const ExecReport& report) {
+				order_tracker.process(report);
+				auto done = report.exec_type == FIX::ExecType_CANCELED 
+					&& report.ord_status == FIX::OrdStatus_CANCELED
+					&& report.ord_id == expected_ord_id;
+				if (done) {
+					target_report = std::optional<ExecReport>(report);
+				}
+				return done;
+			}, timeout
+		);
+		log::debug<2, true>("pop_exec_report_cancel: report found={}", target_report.has_value());
+		return target_report;
+	}
+
+	template<class R, class P>
+	std::optional<ExecReport> pop_exec_report_cancel_replace(const std::string& expected_ord_id, const std::chrono::duration<R, P>& timeout) {
+		log::debug<2, true>("pop_exec_report_cancel_replace: expected_ord_id={}", expected_ord_id);
+		std::optional<ExecReport> target_report = std::optional<ExecReport>();
+		auto success = exec_report_queue.pop_until(
+			[&](const ExecReport& report) {
+				order_tracker.process(report);
+				auto done = report.exec_type == FIX::ExecType_REPLACED
+					&& report.ord_status == FIX::OrdStatus_REPLACED
+					&& report.ord_id == expected_ord_id;
+				if (done) {
+					target_report = std::optional<ExecReport>(report);
+				}
+				return done;
+			}, timeout
+		);
+		log::debug<2, true>("pop_exec_report_cancel_replace: report found={}", target_report.has_value());
+		return target_report;
 	}
 
 	double get_position_size(const std::string& symbol) {
@@ -275,6 +355,38 @@ namespace zorro {
 	}
 
 	/*
+	 * BrokerOpen
+	 *
+	 * First function to be called to start the plugin.
+	 */
+	DLLFUNC int BrokerOpen(char* Name, FARPROC fpError, FARPROC fpProgress) {
+		if (Name) {
+			strcpy_s(Name, 32, PLUGIN_NAME);
+		}
+
+		(FARPROC&)BrokerError = fpError;
+		(FARPROC&)BrokerProgress = fpProgress;
+
+		std::string cwd = std::filesystem::current_path().string();
+		log::info<1, true>("BrokerOpen: FXCM FIX plugin opened in {}", cwd);
+
+		try
+		{
+			if (!spd_logger) {
+				auto postfix = timestamp_posfix();
+				auto logger_name = std::format("Log/zorro_fxcm_fix_plugin_spdlog_{}.log", postfix);
+				spd_logger = create_file_logger(logger_name);
+			}
+		}
+		catch (const spdlog::spdlog_ex& ex)
+		{
+			log::error<true>("BrokerOpen: FIX plugin failed to init log: {}", ex.what());
+		}
+
+		return PLUGIN_VERSION;
+	}
+
+	/*
 	 * BrokerLogin
 	 * 
 	 * Login or logout to the broker's API server; called in [Trade] mode or for downloading historical price data. 
@@ -398,31 +510,6 @@ namespace zorro {
 		}
 	}
 
-	DLLFUNC int BrokerOpen(char* Name, FARPROC fpError, FARPROC fpProgress) {
-		if (Name) strcpy_s(Name, 32, PLUGIN_NAME);
-
-		(FARPROC&)BrokerError = fpError;
-		(FARPROC&)BrokerProgress = fpProgress;
-
-		std::string cwd = std::filesystem::current_path().string();
-		log::info<1, true>("BrokerOpen: FXCM FIX plugin opened in {}", cwd);
-
-		try
-		{
-			if (!spd_logger) {
-				auto postfix = timestamp_posfix();
-				auto logger_name = std::format("Log/zorro_fxcm_fix_plugin_spdlog_{}.log", postfix);
-				spd_logger = create_file_logger(logger_name);
-			}
-		}
-		catch (const spdlog::spdlog_ex& ex)
-		{
-			log::error<true>("BrokerOpen: FIX plugin failed to init log: {}", ex.what());
-		}
-
-		return PLUGIN_VERSION;
-	}
-
 	DLLFUNC int BrokerTime(DATE* pTimeGMT) 
 	{
 		if (!fix_thread) {
@@ -538,6 +625,7 @@ namespace zorro {
      *	pRollShort	Optional output, rollover fee for short trades.
      *	pCommission	Optional output, roundturn commission per 10,000 contracts for currencies, per contract for all other assets, 
 	 *			    in units of the account currency.
+	 * 
      * Returns:
      *	1 when the asset is available and the returned data is valid, 
 	 *  0 otherwise. An asset that returns 0 after subscription will trigger Error 053, and its trading will be disabled.
@@ -564,10 +652,6 @@ namespace zorro {
 		double* margin_cost, double* roll_long, double* roll_short) 
 	{
 		try {
-			if (fix_thread == nullptr) {
-				throw std::runtime_error("no FIX session");
-			}
-
 			auto& fix_app = fix_thread->fix_app();
 
 			// subscribe to Asset market data
@@ -621,6 +705,36 @@ namespace zorro {
 		}
 	}
 
+	// https://fxcm-api.readthedocs.io/en/latest/restapi.html#candle-request-limit
+	std::string get_timeframe(int n_tick_minutes) {
+		switch (n_tick_minutes) {
+		case 1:
+			return "m1";
+		case 5:
+			return "m5";
+		case 15:
+			return "m15";
+		case 30:
+			return "m30";
+		case 60:
+			return "h1";
+		case 120:
+			return "h2";
+		case 180:
+			return "h8";
+		case 240:
+			return "h4";
+		case 360:
+			return "h6";
+		case 480:
+			return "h8";
+		case 1440:
+			return "D1";
+		default:
+			return "";
+		}
+	}
+
 	/*
 	 * BrokerHistory2 
 	 * 
@@ -662,7 +776,7 @@ namespace zorro {
 	 *  script since the date and time functions will then return the local time instead of UTC, and time zone functions
 	 *	cannot be used.
 	 */
-	DLLFUNC int BrokerHistory2(char* Asset, DATE t_start, DATE t_end, int n_tick_minutes, int n_ticks, T6* ticks) {
+	DLLFUNC int BrokerHistory2(char* asset, DATE t_start, DATE t_end, int n_tick_minutes, int n_ticks, T6* ticks) {
 		auto bar_seconds = n_tick_minutes * 60;
 		auto t_bar = bar_seconds / SECONDS_PER_DAY;
 		auto t_start2 = t_end - n_ticks * t_bar;
@@ -670,8 +784,11 @@ namespace zorro {
 		auto to = zorro_date_to_string(t_end);
 		auto ticks_start = ticks;
 
-		// todo determing proper time frame
-		std::string timeframe = "m1";
+		std::string timeframe = get_timeframe(n_tick_minutes);
+		if (timeframe == "") {
+			log::error<true>("BrokerHistory2 {}: invalid time frame for n_tick_minutes={}", asset, n_tick_minutes);
+			return 0;
+		}
 		
 		auto now = common::get_current_system_clock();
 		auto now_zorro = zorro::convert_time_chrono(now);
@@ -679,7 +796,7 @@ namespace zorro {
 
 		log::debug<2, true>(
 			"BrokerHistory2 {}: requesting {} ticks bar period {} minutes from {}[{}] to {}[{}] at {}", 
-			Asset, n_ticks, n_tick_minutes, from, t_start2, to, t_end, now_str
+			asset, n_ticks, n_tick_minutes, from, t_start2, to, t_end, now_str
 		);
 
 		log::debug<2, true>("BrokerHistory2: t_start={}, t_start2={}, t_end={}, now_zorro={}", t_start, t_start2, t_end, now_zorro);
@@ -692,14 +809,14 @@ namespace zorro {
 			fxcm_password.c_str(), 
 			fxcm_connection.c_str(), 
 			fxcm::default_url, 
-			Asset, 
+			asset, 
 			timeframe.c_str(),
 			t_start2, 
 			t_end
 		);
 
 		if (!success) {
-			log::debug<2, true>("BrokerHistory2 {}: get_historical_prices failed - check logs", Asset);
+			log::error<true>("BrokerHistory2 {}: get_historical_prices failed", asset);
 			return 0;
 		}
 
@@ -713,7 +830,7 @@ namespace zorro {
 			if (end > t_end || end < t_start) {
 				log::debug<2, true>(
 					"BrokerHistory2 {}: skipping timestamp {} as it is out of bound t_start={} t_end={}", 
-					Asset, zorro_date_to_string(end), zorro_date_to_string(t_start), zorro_date_to_string(t_end)
+					asset, zorro_date_to_string(end), zorro_date_to_string(t_start), zorro_date_to_string(t_end)
 				);
 
 				continue;
@@ -740,7 +857,7 @@ namespace zorro {
 			write_to_file("Log/broker_hist.csv", 
 				std::format(
 					"{}, {}, {}, {}, {}, {}, {}, {}",
-					Asset, timeframe, zorro_date_to_string(t_start2), t_start2, zorro_date_to_string(t_end), t_end, n_ticks, count
+					asset, timeframe, zorro_date_to_string(t_start2), t_start2, zorro_date_to_string(t_end), t_end, n_ticks, count
 				),
 				"asset, timeframe, t_start2, t_start2[DATE], t_end, t_end[DATE], n_ticks, count"
 			);
@@ -757,14 +874,14 @@ namespace zorro {
 	 * cancelled when they are not completely filled within the wait time (usually 30 seconds).
 	 * 
 	 * Parameters:
-     *	Asset	  Input, asset symbol for trading (see Symbols).
-	 *	Amount	  Input, number of contracts, positive for a long trade and negative for a short trade. For currencies or CFDs, the number of contracts is the number of Lots multiplied with the LotAmount. 
-	 *            If LotAmount is < 1 (f.i. for a CFD or a fractional share with 0.1 contracts lot size), the number of lots is given here instead of the number of contracts.
-	 *	StopDist  Optional input, 'safety net' stop loss distance to the opening price when StopFactor was set, or 0 for no stop, or -1 for indicating that this function was called for closing a position. 
-	 *            This is not the real stop loss, which is handled by Zorro. Can be ignored if the API is NFA compliant and does not support a stop loss in a buy/sell order.
-	 *	Limit	  Optional input, fill price for limit orders, set up by OrderLimit, or 0 for market orders. Can be ignored if limit orders are not supported by the API.
-	 *	pPrice	  Optional output, the average fill price if the position was partially or fully filled.
-	 *	pFill	  Optional output, the fill amount, always positive.
+     *	Asset		Input, asset symbol for trading (see Symbols).
+	 *	Amount		Input, number of contracts, positive for a long trade and negative for a short trade. For currencies or CFDs, the number of contracts is the number of Lots multiplied with the LotAmount. 
+	 *				If LotAmount is < 1 (f.i. for a CFD or a fractional share with 0.1 contracts lot size), the number of lots is given here instead of the number of contracts.
+	 *	StopDist	Optional input, 'safety net' stop loss distance to the opening price when StopFactor was set, or 0 for no stop, or -1 for indicating that this function was called for closing a position. 
+	 *				This is not the real stop loss, which is handled by Zorro. Can be ignored if the API is NFA compliant and does not support a stop loss in a buy/sell order.
+	 *	Limit		Optional input, fill price for limit orders, set up by OrderLimit, or 0 for market orders. Can be ignored if limit orders are not supported by the API.
+	 *	pPrice		Optional output, the average fill price if the position was partially or fully filled.
+	 *	pFill		Optional output, the fill amount, always positive.
 	 * 
 	 * Returns see BrokerBuyStatus
 	 *  if successful 
@@ -776,27 +893,41 @@ namespace zorro {
 	 *	-2 when the broker API did not respond at all within the wait time. The plugin must then attempt to cancel the order. Zorro will display a "possible orphan" warning.
 	 *	-3 when the order was accepted, but got no ID yet. The ID is then taken from the next subsequent BrokerBuy call that returned a valid ID. This is used for combo positions that require several orders.
 	 */
-	DLLFUNC_C int BrokerBuy2(char* Asset, int amount, double stop, double limit, double* av_fill_price, int* fill_qty) {
-		log::debug<2, true>("BrokerBuy2 {}: amount={}, lot_amount={}, limit={}, stop={}", Asset, amount, lot_amount, limit, stop);
+	DLLFUNC_C int BrokerBuy2(char* asset, int amount, double stop, double limit, double* av_fill_price, int* fill_qty) {
+		log::debug<2, true>("BrokerBuy2 {}: amount={}, lot_amount={}, limit={}, stop={}", asset, amount, lot_amount, limit, stop);
 
-		if (!fix_thread) {
-			log::error<true>("BrokerBuy2: no FIX session");
-			return BrokerError::BrokerAPITimeout;
-		}
-
-		auto symbol = FIX::Symbol(Asset);
+		auto symbol = FIX::Symbol(asset);
 		FIX::OrdType ord_type;
 		if (limit && !stop) {
-			ord_type = FIX::OrdType_LIMIT;
+			ord_type = FIX::OrdType(FIX::OrdType_LIMIT);
 		} 
 		else if (limit && stop && stop != -1) {
-			ord_type = FIX::OrdType_STOP_LIMIT;
+			ord_type = FIX::OrdType(FIX::OrdType_STOP_LIMIT);
 		}
 		else if (!limit && stop && stop != -1) {
-			ord_type = FIX::OrdType_STOP;
+			ord_type = FIX::OrdType(FIX::OrdType_STOP);
 		}
 		else {
-			ord_type = FIX::OrdType_MARKET;	
+			ord_type = FIX::OrdType(FIX::OrdType_MARKET);
+		}
+
+		// currently FIX::OrdType_STOP_LIMIT and FIX::OrdType_STOP not supported!
+		if (ord_type == FIX::OrdType_STOP || ord_type == FIX::OrdType_STOP_LIMIT) {
+			log::error<true>("BrokerBuy2: FIX::OrdType_STOP and FIX::OrdType_STOP_LIMIT not yet supported");
+			return BrokerError::OrderRejectedOrTimeout;
+		}
+
+		if (amount == 0 && stop == -1) {
+			const auto& net_pos = order_tracker.net_position(asset);
+			amount = -static_cast<int>(net_pos.qty);
+			ord_type = FIX::OrdType(FIX::OrdType_MARKET);
+			stop = 0;
+			log::debug<2, true>("BrokerBuy2: setting amount={} from open net position net_pos.qty={} on stop == -1", amount, net_pos.qty);
+		}
+
+		if (stop == -1) {
+			log::debug<2, true>("BrokerBuy2: close out order with amount={}", amount);
+			stop = 0;
 		}
 
 		auto cl_ord_id = FIX::ClOrdID(next_client_order_id());
@@ -809,61 +940,47 @@ namespace zorro {
 			symbol, cl_ord_id, side, ord_type, time_in_force, qty, limit_price, stop_price
 		);
 
-		if (msg.has_value()) {
-			log::debug<2, true>("BrokerBuy2: NewOrderSingle {}", fix_string(msg.value()));
-		}
-		else {
+		if (!msg.has_value()) {
 			log::debug<2, true>("BrokerBuy2: failed to create NewOrderSingle");
-		}
-
-		ExecReport report;
-		bool success = exec_report_queue.pop(report, fix_exec_report_waiting_time);
-		if (!success) {
-			log::error<true>(
-				"BrokerBuy2 timeout while waiting for FIX exec report on order new after {}", 
-				fix_exec_report_waiting_time
-			);
 			return BrokerError::OrderRejectedOrTimeout;
 		}
-		else {
-			if (report.exec_type == FIX::ExecType_REJECTED || report.ord_status == FIX::OrdStatus_REJECTED) {
-				log::info<1, true>("BrokerBuy2: rejected {}", report.to_string());
+
+		log::debug<2, true>("BrokerBuy2: NewOrderSingle {}", fix_string(msg.value()));
+
+		if (ord_type.getValue() == FIX::OrdType_LIMIT || ord_type.getValue() == FIX::OrdType_MARKET) {
+			auto report = ord_type == FIX::OrdType_LIMIT 
+				? pop_exec_report_new(cl_ord_id.getString(), fix_exec_report_waiting_time)
+			    : pop_exec_report_fill(cl_ord_id.getString(), fix_exec_report_waiting_time);
+
+			if (!report.has_value()) {
+				log::error<true>(
+					"BrokerBuy2 timeout after {} while waiting for FIX exec report on new market order",
+					fix_exec_report_waiting_time
+				);
 				return BrokerError::OrderRejectedOrTimeout;
 			}
-			else if (report.cl_ord_id == cl_ord_id.getString()) { 
-				auto interal_id = next_internal_order_id();
-				order_id_by_internal_order_id.emplace(interal_id, report.ord_id);
-				auto ok = order_tracker.process(report);
 
-				if (report.ord_status == FIX::OrdStatus_FILLED || report.ord_status == FIX::OrdStatus_PARTIALLY_FILLED) {
-					if (av_fill_price) {
-						*av_fill_price = report.avg_px;
-					}
+			if (ord_type.getValue() == FIX::OrdType_MARKET) {
+				if (av_fill_price) {
+					*av_fill_price = report.value().avg_px;
 				}
 
 				if (fill_qty) {
-					*fill_qty = (int)report.cum_qty;  // assuming lot size
+					*fill_qty = static_cast<int>(report.value().cum_qty);  // assuming lot size, not it must always be positive
 				}
 
 				log::debug<2, true>(
-					"BrokerBuy2: interal_id={} processed={}\n{}\n{}", 
-					interal_id, report.to_string(), order_tracker.to_string(), order_mapping_string()
+					"BrokerBuy2: market order fill update av_fill_price={}, fill_qty={}", 
+					report.value().avg_px, static_cast<int>(report.value().cum_qty)
 				);
-
-				return interal_id;
 			}
-			else {
-				// TODO what should be done in this rare case?
-				// example: two orders at almost same time, 
-				// exec report of the second order arrives first 
-								
-				log::info<1, true>(
-					"BrokerBuy2: report {} does belong to given cl_ord_id={}", 
-					report.to_string(), cl_ord_id.getString()
-				);
 
-				return BrokerError::OrderRejectedOrTimeout;
-			}
+			auto interal_id = next_internal_order_id();
+			order_id_by_internal_order_id.emplace(interal_id, report.value().ord_id);
+			return interal_id;
+		}
+		else {
+			return BrokerError::OrderRejectedOrTimeout;
 		}		
 	}
 
@@ -875,16 +992,20 @@ namespace zorro {
 	 * 
 	 * Parameters:
      *	nTradeID	Input, order/trade ID as returned by BrokerBuy, or -1 when the trade UUID was set before with a SET_UUID command.
-	 *	pOpen	Optional output, the average fill price if the trade was partially or fully filled. If not available by the API, Zorro will estimate the values based on last price and asset parameters.
-	 *	pClose	Optional output, current bid or ask close price of the trade. If not available, Zorro will estimale the value based on current ask price and ask-bid spread.
-	 *	pCost	Optional output, total rollover fee (swap fee) of the trade so far. If not available, Zorro will estimate the swap from the asset parameters.
-	 *	pProfit	Optional output, current profit or loss of the trade in account currency units, without rollover and commission. If not available, Zorro will estimate the profit from the difference of current price and fill price.
+	 *	pOpen		Optional output, the average fill price if the trade was partially or fully filled. If not available by the API, 
+	 *				Zorro will estimate the values based on last price and asset parameters.
+	 *	pClose		Optional output, current bid or ask close price of the trade. If not available, Zorro will estimale the value based 
+	 *				on current ask price and ask-bid spread.
+	 *	pCost		Optional output, total rollover fee (swap fee) of the trade so far. If not available, Zorro will estimate the swap from the asset parameters.
+	 *	pProfit		Optional output, current profit or loss of the trade in account currency units, without rollover and commission. If not available, 
+	 *				Zorro will estimate the profit from the difference of current price and fill price.
 	 * 
 	 * Returns:
-	 *	Number of contracts or lots (as in BrokerBuy2) currently filled for the trade.
+	 *	  - Number of contracts or lots (as in BrokerBuy2) currently filled for the trade.
 	 *	  - -1 when the trade was completely closed.
 	 *	  - NAY (defined in trading.h) when the order or trade state was unavailable. Zorro will then assume that the order was completely filled, and keep the trade open.
-	 *	  - NAY-1 when the order was cancelled or removed by the broker. Zorro will then cancel the trade and book the profit or loss based on the current price and the last fill amount.
+	 *	  - NAY-1 when the order was cancelled or removed by the broker. Zorro will then cancel the trade and book the profit or loss based on the current price and the 
+	 *		last fill amount.
 	 */
 	DLLFUNC int BrokerTrade(int trade_id, double* open, double* close, double* cost, double* profit) {
 		// pop all the exec reports and markeet data from the queue to have up to date information
@@ -895,45 +1016,54 @@ namespace zorro {
 		if (it != order_id_by_internal_order_id.end()) {
 			auto [oit, success] = order_tracker.get_order(it->second);
 			if (success) {
-				if (open) {
-					*open = oit->second.avg_px;
-				}
-				if (profit) {
-					auto pit = top_of_books.find(oit->second.symbol);
-					if (pit != top_of_books.end()) {
-						*profit = oit->second.side == FIX::Side_BUY 
-							? (pit->second.ask_price - oit->second.avg_px) * oit->second.cum_qty
-							: (oit->second.avg_px - pit->second.bid_price) * oit->second.cum_qty;
-						*cost = 0; // TODO
-					}
-				}
-				auto filled = (int)oit->second.cum_qty;
+				const auto& order = oit->second;
+				auto pit = top_of_books.find(order.symbol);
+				auto filled = static_cast<int>(order.cum_qty);
 
-				auto o = open != nullptr ? *open : 0;
-				auto p = profit != nullptr ? *profit : 0;
-				auto side = oit->second.is_buy() ? "buy" : "sell";
+				if (order.ord_status == FIX::OrdStatus_CANCELED) {
+					return NAY - 1;
+				}
+
+				*cost = 0; // TODO
+				*open = order.avg_px;
+
+				if (pit != top_of_books.end()) {
+					*close = order.is_buy() ? pit->second.bid_price : pit->second.ask_price;
+				}
+
+				if (filled && pit != top_of_books.end()) {
+					*profit = order.is_buy()
+						? (pit->second.bid_price - order.avg_px) * order.cum_qty
+						: (order.avg_px - pit->second.ask_price) * order.cum_qty;
+				}
+				else {
+					*profit = 0;
+				}
+
 				log::debug<2, true>(
 					"BrokerTrade: nTradeID={} side={} avg_px={} profit={} filled={}", 
-					trade_id, side, o, p, filled
+					trade_id, order.is_buy() ? "buy" : "sell", *open, *profit, filled
 				);
 
 				return filled;
 			}
 		} 
 
-		return 0;
+		return NAY;
 	}
 
 	/* BrokerSell2
 	 *
-	 * Optional function; closes a trade - completely or partially - at market or at a limit price.If partial closing is not supported,
+	 * Optional function; closes a trade - completely or partially - at market or at a limit price. If partial closing is not supported,
 	 * nAmount is ignored and the trade is completely closed.Only used for not NFA compliant accounts that support individual closing of trades.
-	 * If this function is not provided or if the NFA flag is set, Zorro closes the trade by calling BrokerBuy2 with the negative amount and with StopDist at - 1.
+	 * If this function is not provided or if the NFA flag is set, Zorro closes the trade by calling BrokerBuy2 with the negative amount and with StopDist at -1.
 	 * 
 	 * Parameters:
 	 *	nTradeID	Input, trade/order ID as returned by BrokerBuy2, or -1 for a UUID to be set before with a SET_UUID command.
-	 *	Amount		Input, number of contracts resp. lots to be closed, positive for a long trade and negative for a short trade (see BrokerBuy). If less than the original size of the trade, the trade is partially closed.
-	 *	Limit		Optional input, fill price for a limit order, set up by OrderLimit, or 0 for closing at market. Can be ignored if limit orders are not supported by the API. 
+	 *	Amount		Input, number of contracts resp. lots to be closed, positive for a long trade and negative for a short trade (see BrokerBuy). 
+	 *              If less than the original size of the trade, the trade is partially closed.
+	 *	Limit		Optional input, fill price for a limit order, set up by OrderLimit, or 0 for closing at market. Can be ignored if limit orders 
+	 *				are not supported by the API. 
 	 *	pClose		Optional output, close price of the trade.
 	 *	pCost		Optional output, total rollover fee (swap fee) of the trade.
 	 *	pProfit		Optional output, total profit or loss of the trade in account currency units.
@@ -957,47 +1087,60 @@ namespace zorro {
 				log::debug<2, true>("BrokerSell2: found open order={}", order.to_string());
 
 				if (order.ord_status == FIX::OrdStatus_CANCELED || order.ord_status == FIX::OrdStatus_REJECTED) {
-					log::debug<2, true>("BrokerSell2: order rejected or already cancelled");
+					log::debug<2, true>("BrokerSell2: order rejected or already cancelled - nothing to cancel");
 					return 0;
 				}
 
-				// trade opposite quantity for a fully filled then offset the trade - here the amount is not needed
+				// trade opposite quantity for a fully filled order to offset the trade - here the amount is not needed
 				if (order.ord_status == FIX::OrdStatus_FILLED) {
-					double close_price;
-					int close_fill;
-					int signed_qty = (int)(order.side == FIX::Side_BUY ? -order.cum_qty : order.cum_qty);
+					int signed_qty = static_cast<int>(order.side == FIX::Side_BUY ? -order.cum_qty : order.cum_qty);
 
-					log::debug<2, true>("BrokerSell2: closing filled order with trade in opposite direction signed_qty={}, limit={}", signed_qty, limit);
+					log::debug<2, true>("BrokerSell2: closing filled order with market order in opposite direction signed_qty={}", signed_qty);
 
-					auto asset = const_cast<char*>(order.symbol.c_str());
-					auto trade_id_close = BrokerBuy2(asset, signed_qty, 0, limit, &close_price, &close_fill);
+					auto ord_type = FIX::OrdType(FIX::OrdType_MARKET);
+					auto cl_ord_id = FIX::ClOrdID(next_client_order_id());
+					auto side = signed_qty > 0 ? FIX::Side(FIX::Side_BUY) : FIX::Side(FIX::Side_SELL);
+					auto qty = FIX::OrderQty(std::abs(signed_qty));
+					
+					auto msg = fix_thread->fix_app().new_order_single(
+						FIX::Symbol(order.symbol), cl_ord_id, side, ord_type, time_in_force, qty, FIX::Price(0), FIX::StopPx(0)
+					);
 
-					if (trade_id_close) {
-						auto cit = order_id_by_internal_order_id.find(trade_id_close);
-						if (cit != order_id_by_internal_order_id.end()) {
-							auto [coit, success] = order_tracker.get_order(cit->second);
-							auto& close_order = coit->second;
-							if (close) {
-								*close = close_order.avg_px;
-							}
-							if (fill) {
-								*fill = (int)close_order.cum_qty;
-							}
-							if (profit) {
-								*profit = (close_order.avg_px - order.avg_px) * close_order.cum_qty;
-							}
-						}
-
-						return trade_id;
-					}
-					else {
-						log::error<true>("BrokerSell2: closing filled order failed");
+					if (!msg.has_value()) {
+						log::debug<2, true>("BrokerSell2: failed to create NewOrderSingle");
 						return 0;
 					}
+
+					auto report = pop_exec_report_fill(cl_ord_id.getString(), fix_exec_report_waiting_time);
+
+					if (!report.has_value()) {
+						log::error<true>(
+							"BrokerSell2 timeout after {} while waiting for FIX exec report on new market order",
+							fix_exec_report_waiting_time
+						);
+						return 0;
+					}
+
+					auto [coit, success] = order_tracker.get_order(report.value().ord_id);
+
+					if (!success) {
+						log::error<true>("BrokerSell2: could not find closing order in order tracker with order id={}", report.value().ord_id);
+						return 0;
+					}
+
+					auto& close_order = coit->second;
+					*close = close_order.avg_px;
+					*fill = (int)close_order.cum_qty;
+					*profit = order.is_buy() 
+						? (close_order.avg_px - order.avg_px) * close_order.cum_qty
+						: (order.avg_px - close_order.avg_px) * close_order.cum_qty;
+
+					return trade_id;
 				}
 
 				// if order is still working perform a cancel/replace here the amount should be always <= order_qty
-				if (order.ord_status == FIX::OrdStatus_PENDING_NEW || order.ord_status == FIX::OrdStatus_NEW || order.ord_status == FIX::OrdStatus_PARTIALLY_FILLED) {
+				// TODO discuss if the already filled part has to be closed in opposite direction as for a filled order?
+				if (order.ord_status == FIX::OrdStatus_NEW || order.ord_status == FIX::OrdStatus_PARTIALLY_FILLED) {
 					auto symbol = FIX::Symbol(order.symbol);
 					auto ord_id = FIX::OrderID(order.ord_id);
 					auto orig_cl_ord_id = FIX::OrigClOrdID(order.cl_ord_id);
@@ -1005,76 +1148,59 @@ namespace zorro {
 					auto side = FIX::Side(order.side);
 					auto ord_type = FIX::OrdType(order.ord_type);
 
-					if (std::abs(amount) > order.order_qty) {
-						log::error<true>("BrokerSell2: trying to cancel/replace with an amount={} > order.order_qty={}!", amount, order.order_qty);
-						return 0;
-					}
-
 					if (std::abs(amount) >= order.leaves_qty) {
-						log::debug<2, true>("BrokerSell2: cancel working order completely");
+						log::debug<2, true>("BrokerSell2: cancel remaining quantity {}", order.leaves_qty);
 
 						auto msg = fix_thread->fix_app().order_cancel_request(
-							symbol, ord_id, orig_cl_ord_id, cl_ord_id, side, FIX::OrderQty(order.leaves_qty)
+								symbol, ord_id, orig_cl_ord_id, cl_ord_id, side, FIX::OrderQty(order.leaves_qty)
 						);
 
-						ExecReport report;
-						bool success = exec_report_queue.pop(report, fix_exec_report_waiting_time);
-						if (!success) {
+						if (!msg.has_value()) {
+							log::debug<2, true>("BrokerSell2: failed to create OrderCancelRequest");
+							return 0;
+						}
+
+						auto report = pop_exec_report_cancel(ord_id.getString(), fix_exec_report_waiting_time);
+
+						if (!report.has_value()) {
 							log::error<true>(
-								"BrokerSell2: timeout while waiting for FIX exec report on order cancel after {}",
+								"BrokerSell2 timeout after {} while waiting for FIX exec report on cancel order",
 								fix_exec_report_waiting_time
 							);
 							return 0;
-						} 
-						else {
-							auto ok = order_tracker.process(report);
-							log::debug<2, true>(
-								"BrokerSell2: exec report processed={}\n{}\n{}", 
-								report.to_string(), order_tracker.to_string(), order_mapping_string()
-							);
 						}
-
-						return trade_id;
 					}
 					else {
-						int leaves_qty = (int)order.leaves_qty;
-						auto target_qty = leaves_qty - std::abs(amount);
+						int leaves_qty = static_cast<int>(order.leaves_qty);
+						auto new_qty = max(leaves_qty - std::abs(amount), 0);
 
-						log::debug<2, true>( 
-							"BrokerSell2: cancel/replace working order from leaves_qty={} to target_qty={}",
-							leaves_qty, target_qty
-						);
+						log::debug<2, true>("BrokerSell2: cancel/replace remaining quantity {} to new quantity {}", order.leaves_qty, new_qty);
 
-						auto new_qty = max(target_qty, 0);
 						auto msg = fix_thread->fix_app().order_cancel_replace_request(
-							symbol, ord_id, orig_cl_ord_id, cl_ord_id, side, ord_type, 
-							FIX::OrderQty(new_qty), FIX::Price(order.price)
+								symbol, ord_id, orig_cl_ord_id, cl_ord_id, side, ord_type, 
+								FIX::OrderQty(new_qty), FIX::Price(order.price)
 						);
 
-						ExecReport report;
-						bool success = exec_report_queue.pop(report, fix_exec_report_waiting_time);
+						if (!msg.has_value()) {
+							log::debug<2, true>("BrokerSell2: failed to create OrderCancelReplaceRequest");
+							return 0;
+						}
 
-						if (!success) {
+						auto report = pop_exec_report_cancel_replace(ord_id.getString(), fix_exec_report_waiting_time);
+
+						if (!report.has_value()) {
 							log::error<true>(
-								"BrokerSell2: timeout while waiting for FIX exec report on order cancel/replace after {}", 
+								"BrokerSell2 timeout after {} while waiting for FIX exec report on cancel/replace order",
 								fix_exec_report_waiting_time
 							);
 							return 0;
 						}
-						else {
-							auto ok = order_tracker.process(report);
-							log::debug<2, true>(
-								"BrokerSell2: exec report processed \n{}\n{}", 
-								order_tracker.to_string(), order_mapping_string()
-							);
-						}
-
-						return trade_id;
 					}
+
+					return trade_id;
 				}
 
 				log::error<true>("BrokerSell2: unexpected order status {}", ord_status_string(order.ord_status));
-				return 0;
 			}
 			else {
 				log::error<true>("BrokerSell2: could not find open order with ord_id={} ", it->second);
@@ -1119,6 +1245,11 @@ namespace zorro {
 	 */
 	DLLFUNC double BrokerCommand(int command, DWORD dw_parameter) {
 		switch (command) {
+			case GET_EXCHANGES: {
+				log::debug<dl1, true>("BrokerCommand {}[{}]() = {}", broker_command_string(command), command, "not implemented");
+				break;
+			}
+
 			case GET_COMPLIANCE: {
 				auto result = 2;
 				log::debug<dl1, true>("BrokerCommand {}[{}]() = {}", broker_command_string(command), command, result);
@@ -1131,7 +1262,7 @@ namespace zorro {
 			}
 
 			case GET_MAXTICKS: {
-				auto result = 1000;
+				auto result = 1440/4;
 				log::debug<dl1, true>("BrokerCommand {}[{}]() = {}", broker_command_string(command), command, result);
 				return result;
 			}
@@ -1170,7 +1301,8 @@ namespace zorro {
 				int trade_id = (int)dw_parameter;
 				log::debug<dl0, true>("BrokerCommand {}[{}](trade_id={})", broker_command_string(command), command, trade_id);
 
-				auto it = order_id_by_internal_order_id.find(trade_id); if (it != order_id_by_internal_order_id.end()) {
+				auto it = order_id_by_internal_order_id.find(trade_id); 
+				if (it != order_id_by_internal_order_id.end()) {
 					auto [oit, success] = order_tracker.get_order(it->second);
 
 					if (success) {
@@ -1179,12 +1311,12 @@ namespace zorro {
 						log::debug<dl0, true>("BrokerCommand[DO_CANCEL]: found open order={}", order.to_string());
 
 						if (order.ord_status == FIX::OrdStatus_FILLED) {
-							log::debug<dl0, true>("BrokerCommand[DO_CANCEL]: order already filled");
+							log::debug<dl0, true>("BrokerCommand[DO_CANCEL]: order already filled - nothing to cancel");
 							return 0;
 						}
 
 						if (order.ord_status == FIX::OrdStatus_CANCELED || order.ord_status == FIX::OrdStatus_REJECTED) {
-							log::debug<dl0, true>("BrokerCommand[DO_CANCEL]: order rejected or already cancelled");
+							log::debug<dl0, true>("BrokerCommand[DO_CANCEL]: order rejected or already cancelled - nothing to cancel");
 							return 0;
 						}
 
@@ -1201,30 +1333,40 @@ namespace zorro {
 							symbol, ord_id, orig_cl_ord_id, cl_ord_id, side, FIX::OrderQty(order.leaves_qty)
 						);
 
-						ExecReport report;
-						bool success = exec_report_queue.pop(report, fix_exec_report_waiting_time);
-						if (!success) {
-							log::error<true>(
-								"BrokerCommand[DO_CANCEL] timeout while waiting for FIX exec report on order cancel after {}",
-								fix_exec_report_waiting_time
-							);
-
+						if (!msg.has_value()) {
+							log::debug<2, true>("BrokerCommand[DO_CANCEL]: failed to create OrderCancelRequest");
 							return 0;
 						}
-						else {
-							auto ok = order_tracker.process(report);
-							log::debug<dl0, true>(
-								"BrokerCommand[DO_CANCEL]: exec report processed={}\n{}\n{}",
-								report.to_string(), order_tracker.to_string(), order_mapping_string()
-							);
 
-							return 1;
+						auto report = pop_exec_report_cancel(order.ord_id, fix_exec_report_waiting_time);
+
+						if (!report.has_value()) {
+							log::error<true>(
+								"BrokerCommand[DO_CANCEL]: timeout while waiting for FIX exec report on order cancel after {}",
+								fix_exec_report_waiting_time
+							);
+							return 0;							
 						}
 
+						log::debug<dl0, true>(
+							"BrokerCommand[DO_CANCEL]: exec report processed={}\n{}\n{}",
+							report.value().to_string(), order_tracker.to_string(), order_mapping_string()
+						);
+						return 1;
+					}
+					else {
+						log::error<true>(
+							"BrokerCommand[DO_CANCEL]: could not find order for order id {}", it->second
+						);
+						return 0;
 					}
 				}
-
-				return 0;
+				else {
+					log::error<true>(
+						"BrokerCommand[DO_CANCEL]: could not find order mapping for trade id {}", trade_id
+					);
+					return 0;
+				}
 			}
 
 			case SET_ORDERTEXT: {

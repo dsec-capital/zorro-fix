@@ -249,8 +249,6 @@ namespace zorro
 
 		bool is_market_data_session(const FIX::SessionID& sess_id) const;
 
-		bool is_market_data_message(const FIX::Message& message) const;
-
 		// custom FXCM FIX fields
 		enum FXCM_FIX_FIELDS
 		{

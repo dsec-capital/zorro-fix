@@ -211,11 +211,6 @@ namespace zorro {
 		return sess_id.getSenderCompID().getString().starts_with("MD_");
 	}
 
-	bool Application::is_market_data_message(const FIX::Message& message) const {
-		const auto& msg_type = message.getHeader().getField(FIX::FIELD::MsgType);
-		return msg_type == FIX::MsgType_MarketDataSnapshotFullRefresh || msg_type == FIX::MsgType_MarketDataIncrementalRefresh;
-	}
-
 	void Application::onCreate(const FIX::SessionID& sess_id) {
 		// FIX Session created. We must now logon. QuickFIX will automatically send the Logon(A) message
 		auto is_trading = true;
@@ -281,10 +276,16 @@ namespace zorro {
 	void Application::fromApp(const FIX::Message& message, const FIX::SessionID& sessionID)
 		EXCEPT(FIX::FieldNotFound, FIX::IncorrectDataFormat, FIX::IncorrectTagValue, FIX::UnsupportedMessageType)
 	{
-		auto mkt = is_market_data_message(message);
+		auto mkt = fix::is_market_data_message(message);
 		if (!mkt || (mkt && log_market_data)) {
 			log::debug<dl1, false>("Application::fromApp IN <{}> {}", sessionID.toString(), fix_string(message));
 		}
+
+		auto exec = fix::is_exec_report_message(message);
+		if (exec) {
+			log::debug<dl0, false>("Application::fromApp IN <{}> {}", sessionID.toString(), fix_string(message));
+		}
+
 		crack(message, sessionID);
 	}
 
