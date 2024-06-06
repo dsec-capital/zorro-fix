@@ -47,26 +47,26 @@ void diagnostics_tmf() {
 void diagnostics_trades() {
 	for (open_trades)
 	{
-		printf("\n+++++ %d %s %s TradeLots(open)=%.6f TradeLotsTarget=%.6f TradePriceOpen=%.6f, TradeProfit=%.6f, TradeEntryLimit=%.6f",
+		printf("\n+++++ %d %s %s TradeLots(open)=%.6f TradeLotsTarget=%.6f TradePriceOpen=%.6f TradeProfit=%.6f",
 			TradeID,
 			ifelse(TradeIsOpen, "open", "pending"),
 			ifelse(TradeIsLong, "buy", "sell"),
 			(var)TradeLots,
 			(var)TradeLotsTarget,
 			(var)TradePriceOpen,
-			(var)TradeProfit,
-			(var)TradeEntryLimit);
+			(var)TradeProfit);
 	}
 
 	for (closed_trades)
 	{
-		printf("\n----- %d %s %d TradePriceOpen=%.6f TradeProfit=%.6f TradeEntryLimit=%.6f TradePriceOpen=%.6f TradePriceClose=%.6f",
+		printf("\n+++++ %d %s %s TradeLots(open)=%.6f TradeLotsTarget=%.6f TradePriceOpen=%.6f TradePriceClose=%.6f TradeProfit=%.6f",
 			TradeID,
-			ifelse(TradeIsClosed, "closed", "unknown"),
-			ifelse(TradeIsLong, 1, -1),
+			ifelse(TradeIsOpen, "closed", "pending"),
+			ifelse(TradeIsLong, "buy", "sell"),
+			(var)TradeLots,
+			(var)TradeLotsTarget,
 			(var)TradePriceOpen,
-			(var)TradeProfit,
-			(var)TradeEntryLimit,
-			(var)TradePriceClose);
+			(var)TradePriceClose,
+			(var)TradeProfit);
 	}
 }

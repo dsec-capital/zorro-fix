@@ -135,12 +135,23 @@ namespace common {
             pushed_cond.notify_all();
         }
 
+        bool pop(T& item)
+        {
+            std::unique_lock<std::mutex> ul(mutex);
+            if (queue.empty()) {
+                return false;
+            }
+            item = std::move(queue.front());
+            queue.pop();
+            return true;
+        }
+
         template<class R, class P>
         bool pop(T& item, const std::chrono::duration<R, P>& timeout)
         {
             std::unique_lock<std::mutex> ul(mutex);
             if (queue.empty()) {
-                if (!pushed_cond.wait_for(ul, timeout, [this]() {return !this->queue.empty(); })) {
+                if (!pushed_cond.wait_for(ul, timeout, [this]() { return !this->queue.empty(); })) {
                     return false;
                 }
             }
@@ -149,15 +160,23 @@ namespace common {
             return true;
         }
 
-        bool pop(T& item)
+        template<class Op, class R, class P>
+        bool pop_until(Op op, const std::chrono::duration<R, P>& timeout)
         {
-           std::unique_lock<std::mutex> ul(mutex);
-           if (queue.empty()) {
-              return false;
-           }
-           item = std::move(queue.front());
-           queue.pop();
-           return true;
+            std::unique_lock<std::mutex> ul(mutex);
+            auto now = std::chrono::steady_clock::now();
+            auto until = now + timeout;
+            auto done = false;
+            while (!done) {
+                if (queue.empty()) {
+                    if (!pushed_cond.wait_until(ul, until, [this]() { return !this->queue.empty(); })) {
+                        return false;
+                    }
+                }
+                done = op(queue.front());
+                queue.pop();
+            }
+            return true;
         }
 
         template<class Op>
@@ -198,7 +217,7 @@ namespace common {
         {
             std::unique_lock<std::mutex> ul(mutex);
             if (queue.size() >= max_size) {
-                if (!popped_cond.wait_for(ul, timeout, [this]() {return this->queue.size() < this->max_size; }))
+                if (!popped_cond.wait_for(ul, timeout, [this]() { return this->queue.size() < this->max_size; }))
                     return false;
             }
             queue.push(std::move(item));
@@ -211,7 +230,7 @@ namespace common {
         {
             std::unique_lock<std::mutex> ul(mutex);
             if (queue.empty()) {
-                if (!pushed_cond.wait_for(ul, timeout, [this]() {return !this->queue.empty(); }))
+                if (!pushed_cond.wait_for(ul, timeout, [this]() { return !this->queue.empty(); }))
                     return false;
             }
             item = std::move(queue.front());

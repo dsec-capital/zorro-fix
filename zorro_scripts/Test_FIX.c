@@ -24,6 +24,10 @@ function run()
 	set(TICKS + LOGFILE + PLOTNOW + PRELOAD);
 	resf(BarMode, BR_WEEKEND);
 	setf(BarMode, BR_FLAT);
+	setf(TradeMode, TR_GTC);
+	setf(TradeMode, TR_FRC);
+	resf(TradeMode, TR_FILLED);
+
 	Verbose = 7 + DIAG + ALERT;
 	Hedge = 2;
 
@@ -34,20 +38,28 @@ function run()
 
 	Capital = 10000;
 
-	setf(TradeMode, TR_GTC);
 
 	if (is(INITRUN)) {
 		startTime = timer();
 		brokerCommand(BROKER_CMD_CREATE_SECURITY_INFO_FILE, "Log/security_infos.csv");
 		brokerCommand(BROKER_CMD_GET_CLOSED_POSITIONS, "Log/positions_closed.csv");
+
+		isf(TradeMode, TR_FILLED) {
+			printf("\n!!!!! attention TR_FILLDE is set");
+		}
+
+		isf(TradeMode, TR_FRC) {
+			printf("\n!!!!! fractional PIP mode is set - limit price and stop price not rounded to PIPs");
+		}
+
 	}
 
 	var Close = priceClose();
-	var DepthPIPs = 2;
+	var DepthPIPs = 0.2;
 	var TopAsk = Close;
 	var TopBid = Close - Spread;
-	var LimitAsk = round_up(TopAsk + DepthPIPs * PIP, PIP);
-	var LimitBid = round_down(TopBid - DepthPIPs * PIP, PIP);
+	var LimitAsk = round_up(TopAsk + DepthPIPs * PIP, 0.1 * PIP);
+	var LimitBid = round_down(TopBid - DepthPIPs * PIP, 0.1 * PIP);
 
 	if (!is(LOOKBACK)) {
 		var Position = brokerCommand(GET_POSITION, Asset);

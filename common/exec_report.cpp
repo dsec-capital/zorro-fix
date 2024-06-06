@@ -29,6 +29,12 @@ namespace common {
 			return "TRADE";
 		case FIX::ExecType_REJECTED:
 			return "REJECTED";
+		case FIX::ExecType_STOPPED:
+			return "STOPPED";
+		case FIX::ExecType_SUSPENDED:
+			return "SUSPENDED";
+		case FIX::ExecType_DONE_FOR_DAY:
+			return "DONE_FOR_DAY";
 		default:
 			return "UNKNOWN";
 		}
@@ -67,6 +73,12 @@ namespace common {
 			return "REPLACED";
 		case FIX::OrdStatus_REJECTED:
 			return "REJECTED";
+		case FIX::OrdStatus_STOPPED:
+			return "STOPPED";
+		case FIX::OrdStatus_SUSPENDED:
+			return "SUSPENDED";
+		case FIX::OrdStatus_DONE_FOR_DAY:
+			return "DONE_FOR_DAY";
 		default:
 			return "UNKNOWN";
 		}

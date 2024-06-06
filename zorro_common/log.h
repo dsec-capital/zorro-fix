@@ -10,9 +10,9 @@
 
 namespace zorro {
 
-	int logging_verbosity = 2;
-
 	namespace log {
+
+		extern std::size_t logging_verbosity;
 
 		namespace {
 			inline void _show(const std::string& msg) {

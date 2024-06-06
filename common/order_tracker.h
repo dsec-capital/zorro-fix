@@ -48,6 +48,10 @@ namespace common {
 		double cum_qty{ 0 };
 		double leaves_qty{ 0 };
 
+		bool is_buy() const;
+
+		bool is_sell() const;
+
 		bool is_filled() const;
 
 		bool is_cancelled() const;
@@ -108,6 +112,10 @@ namespace common {
 		typedef typename std::unordered_map<std::string, OrderReport>::const_iterator const_iterator;
 
 		OrderTracker(const std::string& account);
+
+		void set_account(const std::string& account);
+
+		const std::string& get_account() const;
 
 		NetPosition& net_position(const std::string& symbol);
 
