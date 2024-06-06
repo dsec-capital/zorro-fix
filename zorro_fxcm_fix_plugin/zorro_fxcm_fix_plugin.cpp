@@ -948,6 +948,8 @@ namespace zorro {
 		log::debug<2, true>("BrokerBuy2: NewOrderSingle {}", fix_string(msg.value()));
 
 		if (ord_type.getValue() == FIX::OrdType_LIMIT || ord_type.getValue() == FIX::OrdType_MARKET) {
+
+			// wait for a order status exec report NEW for limit orders and a FILL for market orders
 			auto report = ord_type == FIX::OrdType_LIMIT 
 				? pop_exec_report_new(cl_ord_id.getString(), fix_exec_report_waiting_time)
 			    : pop_exec_report_fill(cl_ord_id.getString(), fix_exec_report_waiting_time);
@@ -966,7 +968,7 @@ namespace zorro {
 				}
 
 				if (fill_qty) {
-					*fill_qty = static_cast<int>(report.value().cum_qty);  // assuming lot size, not it must always be positive
+					*fill_qty = static_cast<int>(report.value().cum_qty);  // assuming lot size, note it must always be positive
 				}
 
 				log::debug<2, true>(
@@ -1021,7 +1023,7 @@ namespace zorro {
 				auto filled = static_cast<int>(order.cum_qty);
 
 				if (order.ord_status == FIX::OrdStatus_CANCELED) {
-					return NAY - 1;
+					return NAY - 1; // ASK ZORRO team: do we have to set open and close and profit?
 				}
 
 				*cost = 0; // TODO
@@ -1031,6 +1033,7 @@ namespace zorro {
 					*close = order.is_buy() ? pit->second.bid_price : pit->second.ask_price;
 				}
 
+				// set pnl only if it can be calculated and we have a fill, otherwise set it to zero
 				if (filled && pit != top_of_books.end()) {
 					*profit = order.is_buy()
 						? (pit->second.bid_price - order.avg_px) * order.cum_qty
