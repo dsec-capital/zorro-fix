@@ -962,20 +962,14 @@ namespace zorro {
 				return BrokerError::OrderRejectedOrTimeout;
 			}
 
-			if (ord_type.getValue() == FIX::OrdType_MARKET) {
-				if (av_fill_price) {
-					*av_fill_price = report.value().avg_px;
-				}
+			*av_fill_price = report.value().avg_px;
+			*fill_qty = static_cast<int>(report.value().cum_qty);
 
-				if (fill_qty) {
-					*fill_qty = static_cast<int>(report.value().cum_qty);  // assuming lot size, note it must always be positive
-				}
-
-				log::debug<2, true>(
-					"BrokerBuy2: market order fill update av_fill_price={}, fill_qty={}", 
-					report.value().avg_px, static_cast<int>(report.value().cum_qty)
-				);
-			}
+			log::debug<2, true>(
+				"BrokerBuy2: {} order fill update av_fill_price={}, fill_qty={}",
+				ord_type.getValue() == FIX::OrdType_MARKET ? "market" : "limit",
+				report.value().avg_px, static_cast<int>(report.value().cum_qty)
+			);
 
 			auto interal_id = next_internal_order_id();
 			order_id_by_internal_order_id.emplace(interal_id, report.value().ord_id);
@@ -1058,7 +1052,7 @@ namespace zorro {
 	/* BrokerSell2
 	 *
 	 * Optional function; closes a trade - completely or partially - at market or at a limit price. If partial closing is not supported,
-	 * nAmount is ignored and the trade is completely closed.Only used for not NFA compliant accounts that support individual closing of trades.
+	 * nAmount is ignored and the trade is completely closed. Only used for not NFA compliant accounts that support individual closing of trades.
 	 * If this function is not provided or if the NFA flag is set, Zorro closes the trade by calling BrokerBuy2 with the negative amount and with StopDist at -1.
 	 * 
 	 * Parameters:
@@ -1142,7 +1136,8 @@ namespace zorro {
 				}
 
 				// if order is still working perform a cancel/replace here the amount should be always <= order_qty
-				// TODO discuss if the already filled part has to be closed in opposite direction as for a filled order?
+				// TODO check what has to be done with already filled part has to be closed in opposite direction as for a filled order?
+				// TODO check what has to be done with pnl calculation in case of partially filled order
 				if (order.ord_status == FIX::OrdStatus_NEW || order.ord_status == FIX::OrdStatus_PARTIALLY_FILLED) {
 					auto symbol = FIX::Symbol(order.symbol);
 					auto ord_id = FIX::OrderID(order.ord_id);
