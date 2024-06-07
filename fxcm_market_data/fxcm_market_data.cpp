@@ -9,6 +9,216 @@
 #include "LocalFormat.h"
 
 namespace fxcm {
+
+    ForexConnectData::ForexConnectData(
+        const std::string& login_user,
+        const std::string& password,
+        const std::string& connection,
+        const std::string& url,
+        const std::string& session_id,
+        const std::string& pin,
+        int timeout
+    ) : login_user(login_user)
+      , password(password)
+      , connection(connection)
+      , url(url)
+      , session_id(session_id)
+      , pin(pin)
+      , logged_in(false)
+    {
+        session = CO2GTransport::createSession();
+        statusListener = new SessionStatusListener(session, true, session_id.c_str(), pin.c_str(), timeout);
+
+        // subscribe IO2GSessionStatus interface implementation for the status events
+        session->subscribeSessionStatus(statusListener);
+        statusListener->reset();
+
+        // create an instance of IPriceHistoryCommunicator
+        pricehistorymgr::IError* error_ptr = NULL;
+        O2G2Ptr<pricehistorymgr::IPriceHistoryCommunicator> communicator(
+            pricehistorymgr::PriceHistoryCommunicatorFactory::createCommunicator(session, "History", &error_ptr)
+        );
+        O2G2Ptr<pricehistorymgr::IError> error(error_ptr);
+
+        if (!communicator)
+        {
+            auto msg = std::format(
+                "ForexConnectData::ForexConnectData: error {}", error->getMessage()
+            );
+            spdlog::error(msg);
+            throw std::runtime_error(msg);
+        }
+    }
+
+    ForexConnectData::~ForexConnectData() {
+        session->unsubscribeSessionStatus(statusListener);
+    }
+
+    bool ForexConnectData::login() {
+        logged_in = session->login(login_user.c_str(), password.c_str(), url.c_str(), connection.c_str());
+        statusListener->waitEvents();
+        logged_in &= statusListener->isConnected();
+        return logged_in;
+    }
+
+    void ForexConnectData::logout() {
+        if (logged_in) {
+            session->logout();
+            statusListener->waitEvents();
+        }
+    }
+
+    bool ForexConnectData::fetch(
+        std::vector<common::BidAskBar<DATE>>& bars,
+        const std::string& instrument,
+        const std::string& timeframe,
+        DATE date_from,
+        DATE date_to, 
+        int quotes_count
+    ) {
+        bars.clear();
+
+        if (!logged_in) {
+            return false;
+        }
+
+        O2G2Ptr<CommunicatorStatusListener> communicatorStatusListener(new CommunicatorStatusListener());
+        communicator->addStatusListener(communicatorStatusListener);
+
+        O2G2Ptr<ResponseListener> responseListener(new ResponseListener());
+        communicator->addListener(responseListener);
+
+        bool success = true;
+
+        if (communicator->isReady() ||
+            communicatorStatusListener->waitEvents() && communicatorStatusListener->isReady())
+        {
+            try 
+            {
+                O2G2Ptr<ResponseListener> responseListener(new ResponseListener());
+                communicator->addListener(responseListener);
+
+                O2G2Ptr<pricehistorymgr::ITimeframeFactory> timeframeFactory = communicator->getTimeframeFactory();
+                pricehistorymgr::IError* error = NULL;
+                O2G2Ptr<IO2GTimeframe> timeframeObj = timeframeFactory->create(timeframe.c_str(), &error);
+                O2G2Ptr<pricehistorymgr::IError> autoError(error);
+                
+                if (!timeframeObj) {
+                    throw std::runtime_error(std::format("timeframe {} invalid error={}", timeframe, error->getMessage()));
+                }
+
+                O2G2Ptr<pricehistorymgr::IPriceHistoryCommunicatorRequest> request = communicator->createRequest(
+                    instrument.c_str(), timeframeObj, date_from, date_to, quotes_count, &error
+                );
+
+                if (!request) {
+                    throw std::runtime_error(std::format("failded creating request error={}", error->getMessage()));
+                }
+
+                responseListener->setRequest(request);
+
+                if (!communicator->sendRequest(request, &error)) {
+                    throw std::runtime_error(std::format("failded sending request error={}", error->getMessage()));
+                }
+
+                responseListener->wait();
+                O2G2Ptr<pricehistorymgr::IPriceHistoryCommunicatorResponse> response = responseListener->getResponse();
+
+                if (!response) {
+                    throw std::runtime_error(std::format("failded receiving request error={}", error->getMessage()));
+                }
+
+                O2G2Ptr<IO2GMarketDataSnapshotResponseReader> reader = communicator->createResponseReader(response, &error);
+
+                if (!reader) {
+                    throw std::runtime_error(std::format("failded to create reader error={}", error->getMessage()));
+                }
+
+                if (!reader->isBar()) {
+                    throw std::runtime_error("failded sending requestexpected bars");
+                }
+
+                auto n = reader->size();
+
+                for (int i = 0; i < n; ++i) {
+                    DATE dt = reader->getDate(i); // timestamp of the beginning of the bar period
+
+                    if (dt < date_from) {
+                        continue;
+                    }
+
+                    common::BidAskBar<DATE> bar(
+                        dt,
+                        reader->getBidOpen(i),
+                        reader->getBidHigh(i),
+                        reader->getBidLow(i),
+                        reader->getBidClose(i),
+                        reader->getAskOpen(i),
+                        reader->getAskHigh(i),
+                        reader->getAskLow(i),
+                        reader->getAskClose(i),
+                        reader->getVolume(i)
+                    );
+
+                    bars.emplace_back(bar);
+                }
+
+                spdlog::debug(
+                    "ForexConnectData::fetch_bars [{} - {}]: loaded {} bars", 
+                    format.formatDate(date_from), format.formatDate(date_to), bars.size()
+                );
+                if (bars.size() > 0) {
+                    spdlog::debug(
+                        "ForexConnectData::fetch_bars [{} - {}]: \n  first bar timestamp={}, bar={}\n  last bar timestamp={}, bar={}",
+                        format.formatDate(date_from), format.formatDate(date_to),
+                        format.formatDate(bars.begin()->timestamp), bars.begin()->to_string(),
+                        format.formatDate(bars.rbegin()->timestamp), bars.rbegin()->to_string()
+                    );
+                }
+            }
+            catch (std::runtime_error& e) {
+                spdlog::error("ForexConnectData::fetch_bars error: {}", e.what());
+                success = false;
+            }
+        }
+
+        communicator->removeListener(responseListener);
+        communicator->removeStatusListener(communicatorStatusListener);
+        statusListener->reset();
+
+        return success;
+    }
+
+    bool ForexConnectData::fetch(
+        std::vector<common::Quote<DATE>>& quotes,
+        const std::string& instrument,
+        DATE date_from,
+        DATE date_to
+    ) {
+        quotes.clear();
+
+        if (!logged_in) {
+            return false;
+        }
+
+        O2G2Ptr<CommunicatorStatusListener> communicatorStatusListener(new CommunicatorStatusListener());
+        communicator->addStatusListener(communicatorStatusListener);
+
+        // wait until the communicator signals that it is ready
+        if (communicator->isReady() ||
+            communicatorStatusListener->waitEvents() && communicatorStatusListener->isReady())
+        {
+            O2G2Ptr<ResponseListener> responseListener(new ResponseListener());
+            communicator->addListener(responseListener);
+
+            communicator->removeListener(responseListener);
+        }
+
+        communicator->removeStatusListener(communicatorStatusListener);
+        statusListener->reset();
+
+        return true;
+    }
     
     bool fetch_historical_prices(
         std::vector<common::BidAskBar<DATE>>& bars,
@@ -155,23 +365,6 @@ namespace fxcm {
         }
     }
 
-    /*
-        Get historical bars
-
-        The name of the timeframe is the name of the timeframe measurement unit followed by the length of the time period.
-        The names of the units are:
-
-        Example(s)
-            t   Ticks       t1 - ticks
-            m   Minutes     m1 - 1 minute, m5 - 5 minutes, m30 - 30 minutes.
-            H   Hours       H1 - 1 hour, H6 - 6 hours, H12 - 12 hours.
-            D   Days        D1 - 1 day.
-            W   Weeks       W1 - 1 week.
-            M   Months      M1 - 1 month.
-
-        The timestamp of a bar is the beginning of the bar period.
-
-    */
     bool get_historical_prices(
         std::vector<common::BidAskBar<DATE>>& bars,
         const char* login,

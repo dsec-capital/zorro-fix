@@ -3,6 +3,9 @@
 #endif 
 
 #include "pch.h"
+
+#include "fxcm_market_data/fxcm_market_data.h"  // must be before includes from zorro_common
+
 #include "application.h"
 #include "fix_thread.h"
 #include "zorro_fxcm_fix_plugin.h"
@@ -17,8 +20,6 @@
 #include "zorro_common/utils.h"
 #include "zorro_common/enums.h"
 #include "zorro_common/broker_commands.h"
-
-#include "fxcm_market_data/fxcm_market_data.h"
 
 #include "nlohmann/json.h"
 #include "httplib/httplib.h"

@@ -19,9 +19,6 @@
     <None Include="zorro_fxcm_fix_client_template.cfg" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="framework.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="zorro_fxcm_fix_plugin.h">
       <Filter>Header Files</Filter>
     </ClInclude>

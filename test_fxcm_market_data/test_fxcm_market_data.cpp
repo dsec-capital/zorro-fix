@@ -5,11 +5,12 @@
 #include <cstdlib>
 #include <format>
 
+#include "fxcm_market_data/fxcm_market_data.h"  // must be before includes from zorro_common
+
 #include "common/bar.h"
 #include "common/time_utils.h"
 #include "zorro_common/utils.h"
 #include "zorro_common/log.h"
-#include "fxcm_market_data/fxcm_market_data.h"
 
 namespace zorro {
 	int(__cdecl* BrokerError)(const char* txt);
