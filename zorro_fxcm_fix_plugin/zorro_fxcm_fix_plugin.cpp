@@ -1052,7 +1052,7 @@ namespace zorro {
 	/* BrokerSell2
 	 *
 	 * Optional function; closes a trade - completely or partially - at market or at a limit price. If partial closing is not supported,
-	 * nAmount is ignored and the trade is completely closed.Only used for not NFA compliant accounts that support individual closing of trades.
+	 * nAmount is ignored and the trade is completely closed. Only used for not NFA compliant accounts that support individual closing of trades.
 	 * If this function is not provided or if the NFA flag is set, Zorro closes the trade by calling BrokerBuy2 with the negative amount and with StopDist at -1.
 	 * 
 	 * Parameters:
