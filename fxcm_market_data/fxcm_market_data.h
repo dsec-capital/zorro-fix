@@ -68,6 +68,8 @@ namespace fxcm {
             DATE date_to
         );
 
+        O2G2Ptr<quotesmgr::IInstrument> get_instrument(const std::string& instrument);
+
     private:
 
         std::string login_user;

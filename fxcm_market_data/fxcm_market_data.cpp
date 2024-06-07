@@ -219,6 +219,21 @@ namespace fxcm {
 
         return true;
     }
+
+    O2G2Ptr<quotesmgr::IInstrument> ForexConnectData::get_instrument(const std::string& instrument) {
+        O2G2Ptr<quotesmgr::IInstrument> instr = nullptr;
+
+        O2G2Ptr<quotesmgr::IQuotesManager> quotesManager = communicator->getQuotesManager();
+        quotesmgr::IError* error = NULL;
+        O2G2Ptr<quotesmgr::IInstruments> instruments = quotesManager->getInstruments(&error);
+        O2G2Ptr<quotesmgr::IError> autoError(error);
+        if (instruments)
+        {
+            O2G2Ptr<quotesmgr::IInstrument> instr = instruments->find(instrument.c_str());
+        }
+
+        return instr;
+    }
     
     bool fetch_historical_prices(
         std::vector<common::BidAskBar<DATE>>& bars,
