@@ -374,7 +374,7 @@ namespace zorro {
 		try
 		{
 			if (!spd_logger) {
-				auto postfix = timestamp_posfix();
+				auto postfix = timestamp_postfix();
 				auto logger_name = std::format("Log/zorro_fxcm_fix_plugin_spdlog_{}.log", postfix);
 				spd_logger = create_file_logger(logger_name);
 			}

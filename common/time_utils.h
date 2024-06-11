@@ -99,7 +99,7 @@ namespace common {
         return os.str();
     }
 
-    inline std::string timestamp_posfix() {
+    inline std::string timestamp_postfix() {
         const auto timer = system_clock::to_time_t(system_clock::now());
         const std::tm bt = localtime_xp(timer);
         std::ostringstream oss;

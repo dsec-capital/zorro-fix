@@ -25,8 +25,8 @@ namespace fxcm {
             const std::string& password,
             const std::string& connection,
             const std::string& url,
-            const std::string& session_id = nullptr,
-            const std::string& pin = nullptr,
+            const std::string& session_id = "",
+            const std::string& pin = "",
             int timeout = 10000
         );
 
@@ -58,7 +58,7 @@ namespace fxcm {
             const std::string& timeframe,
             DATE date_from,
             DATE date_to,
-            int quotes_count
+            int quotes_count = 0 
         );
 
         bool fetch(

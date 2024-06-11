@@ -27,7 +27,9 @@ namespace fxcm {
       , logged_in(false)
     {
         session = CO2GTransport::createSession();
-        statusListener = new SessionStatusListener(session, true, session_id.c_str(), pin.c_str(), timeout);
+        auto session_id_ptr = session_id.empty() ? nullptr : session_id.c_str();
+        auto pin_ptr = pin.empty() ? nullptr : pin.c_str();
+        statusListener = new SessionStatusListener(session, true, session_id_ptr, pin_ptr, timeout);
 
         // subscribe IO2GSessionStatus interface implementation for the status events
         session->subscribeSessionStatus(statusListener);
@@ -35,9 +37,7 @@ namespace fxcm {
 
         // create an instance of IPriceHistoryCommunicator
         pricehistorymgr::IError* error_ptr = NULL;
-        O2G2Ptr<pricehistorymgr::IPriceHistoryCommunicator> communicator(
-            pricehistorymgr::PriceHistoryCommunicatorFactory::createCommunicator(session, "History", &error_ptr)
-        );
+        communicator = pricehistorymgr::PriceHistoryCommunicatorFactory::createCommunicator(session, "History", &error_ptr);
         O2G2Ptr<pricehistorymgr::IError> error(error_ptr);
 
         if (!communicator)
@@ -227,9 +227,13 @@ namespace fxcm {
         quotesmgr::IError* error = NULL;
         O2G2Ptr<quotesmgr::IInstruments> instruments = quotesManager->getInstruments(&error);
         O2G2Ptr<quotesmgr::IError> autoError(error);
+
         if (instruments)
         {
             O2G2Ptr<quotesmgr::IInstrument> instr = instruments->find(instrument.c_str());
+        }
+        else {
+            spdlog::error("ForexConnectData::get_instrument error: {}", error->getMessage());
         }
 
         return instr;
