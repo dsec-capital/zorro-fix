@@ -1,75 +1,74 @@
 #include "pch.h"
 
-#include "ResponseListener.h"
+#include "response_listener.h"
 
 ResponseListener::ResponseListener()
 {
-    mSyncResponseEvent = CreateEvent(0, FALSE, FALSE, 0);
-
-    mResponse = NULL;
-    mRequest = NULL;
+    sync_response_event = CreateEvent(0, FALSE, FALSE, 0);
+    response = NULL;
+    request = NULL;
 }
 
 ResponseListener::~ResponseListener()
 {
-    CloseHandle(mSyncResponseEvent);
+    CloseHandle(sync_response_event);
 }
 
 bool ResponseListener::wait()
 {
-    return WaitForSingleObject(mSyncResponseEvent, INFINITE) == WAIT_OBJECT_0;
+    return WaitForSingleObject(sync_response_event, INFINITE) == WAIT_OBJECT_0;
 }
 
-pricehistorymgr::IPriceHistoryCommunicatorResponse* ResponseListener::getResponse()
+pricehistorymgr::IPriceHistoryCommunicatorResponse* ResponseListener::get_response()
 {
-    if (mResponse)
-        mResponse->addRef();
-    return mResponse;
+    if (response)
+        response->addRef();
+    return response;
 }
 
-void ResponseListener::setRequest(pricehistorymgr::IPriceHistoryCommunicatorRequest *request)
+void ResponseListener::set_request(pricehistorymgr::IPriceHistoryCommunicatorRequest *request)
 {
-    mResponse = NULL;
-    mRequest = request;
+    response = NULL;
+    request = request;
     request->addRef();
 }
 
 void ResponseListener::onRequestCompleted(pricehistorymgr::IPriceHistoryCommunicatorRequest *request, pricehistorymgr::IPriceHistoryCommunicatorResponse *response)
 {
-    if (mRequest == request)
+    if (request == request)
     {
-        mResponse = response;
-        mResponse->addRef();
-        SetEvent(mSyncResponseEvent);
+        response = response;
+        response->addRef();
+        SetEvent(sync_response_event);
     }
 }
 
 void ResponseListener::onRequestFailed(pricehistorymgr::IPriceHistoryCommunicatorRequest *request, pricehistorymgr::IError *error)
 {
-    if (mRequest == request)
+    if (request == request)
     {
         spdlog::error(
             "ResponseListener::onRequestFailed: error {}",
             error != nullptr ? error->getMessage() : "cannot retrieve error message as handler not initialized"
         );
 
-        mRequest = NULL;
-        mResponse = NULL;
+        request = NULL;
+        response = NULL;
 
-        SetEvent(mSyncResponseEvent);
+        SetEvent(sync_response_event);
     }
 }
 
 void ResponseListener::onRequestCancelled(pricehistorymgr::IPriceHistoryCommunicatorRequest *request)
 {
-    if (mRequest == request)
+    if (request == request)
     {
         spdlog::error("ResponseListener::onRequestCancelled: request cancelled");
 
-        mRequest = NULL;
-        mResponse = NULL;
+        request = NULL;
+        response = NULL;
 
-        SetEvent(mSyncResponseEvent);
+        SetEvent(sync_response_event);
     }
 }
 

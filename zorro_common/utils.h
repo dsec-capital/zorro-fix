@@ -13,6 +13,7 @@
 #define SECONDS_PER_DAY						86400.0
 #define MILLIS_PER_DAY                      86400000.0 
 #define MICROS_PER_DAY                      86400000000.0 
+#define NANOS_PER_DAY                       86400000000000.0 
 
 namespace zorro {
 
@@ -34,6 +35,5 @@ namespace zorro {
 
 	DATE convert_time_chrono(const std::chrono::nanoseconds& t);
 
-	std::string zorro_date_to_string(DATE date, bool millis = false);
-
+	std::string zorro_date_to_string(DATE date);
 }

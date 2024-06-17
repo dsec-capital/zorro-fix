@@ -2,13 +2,16 @@
 
 #include <string>
 #include <vector>
+#include <variant>
+#include <iostream>
 
 #include "common/bar.h"
+#include "common/blocking_queue.h"
 
 #include "ForexConnect.h"
 
-#include "LocalFormat.h"
-#include "SessionStatusListener.h"
+#include "local_format.h"
+#include "session_status_listener.h"
 
 namespace fxcm {
 
@@ -18,23 +21,33 @@ namespace fxcm {
 
     typedef double DATE;
 
-    class ForexConnectData {
+    typedef std::map<
+        std::string, std::variant<int, double, float, std::string>
+    > Message;
+
+
+    class ForexConnect {
     public:
-        ForexConnectData(
+        ForexConnect(
             const std::string& login_user,
             const std::string& password,
             const std::string& connection,
             const std::string& url,
             const std::string& session_id = "",
-            const std::string& pin = "",
-            int timeout = 10000
+            const std::string& pin = ""
         );
 
-        ~ForexConnectData();
+        ~ForexConnect();
 
         bool login();
 
+        bool wait_for_login(std::chrono::milliseconds timeout);
+
         void logout();
+
+        bool wait_for_logout(std::chrono::milliseconds timeout);
+
+        bool is_logged_in() const;
 
         /*
             Get historical bars
@@ -83,7 +96,7 @@ namespace fxcm {
         LocalFormat format;
 
         O2G2Ptr<IO2GSession> session;
-        O2G2Ptr<SessionStatusListener> statusListener;
+        O2G2Ptr<SessionStatusListener> status_listener;
         O2G2Ptr<pricehistorymgr::IPriceHistoryCommunicator> communicator;
     };
 

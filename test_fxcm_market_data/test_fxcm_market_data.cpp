@@ -4,8 +4,9 @@
 #include <iostream>
 #include <cstdlib>
 #include <format>
+#include "magic_enum/magic_enum.hpp"
 
-#include "fxcm_market_data/fxcm_market_data.h"  // must be before includes from zorro_common
+#include "fxcm_market_data/forex_connect.h"  // must be before includes from zorro_common
 
 #include "common/bar.h"
 #include "common/time_utils.h"
@@ -26,12 +27,13 @@ int show(const char* txt) {
 }
 
 using namespace zorro;
+using namespace std::literals::chrono_literals;
 
 void test_function()
 {
 	zorro::BrokerError = show;
 
-	zorro::create_file_logger("test_fxcm_market_data_function_spd.log");
+	auto logger = zorro::create_file_logger("test_fxcm_market_data_function.log");
 
 	int n_tick_minutes = 1;
 	int n_ticks = 2 * 1440;
@@ -81,7 +83,7 @@ void test_function()
 	);
 
 	for (auto it = bars.begin(); it != bars.end(); ++it) {
-		auto ts = zorro::zorro_date_to_string(it->timestamp, false);
+		auto ts = zorro::zorro_date_to_string(it->timestamp);
 		spdlog::debug("begin {} bar {}", ts, it->to_string());
 	}
 
@@ -91,7 +93,7 @@ void test_function()
 void test_class() {
 	zorro::BrokerError = show;
 
-	zorro::create_file_logger("test_fxcm_market_data_class_spd.log");
+	auto logger = zorro::create_file_logger("test_fxcm_market_data_class.log");
 
 	size_t len = 0;
 	char fxcm_login[256];
@@ -101,7 +103,7 @@ void test_class() {
 
 	log::debug<1, true>("fxcm_login={} fxcm_password={}", fxcm_login, fxcm_password);
 
-	auto connection = fxcm::ForexConnectData(
+	auto connection = fxcm::ForexConnect(
 		std::string(fxcm_login), 
 		std::string(fxcm_password),
 		std::string(fxcm::demo_connection),
@@ -133,7 +135,7 @@ void test_class() {
 
 	log::debug<1, true>("downloaded {} bars", bars1.size());
 	for (auto it = bars1.begin(); it != bars1.end(); ++it) {
-		auto ts = zorro::zorro_date_to_string(it->timestamp, false);
+		auto ts = zorro::zorro_date_to_string(it->timestamp);
 		log::debug<2, true>("begin {} bar {}", ts, it->to_string());
 	}
 	log::debug<1, true>("FXCM marktet data download completed: {} bars read", bars1.size());
@@ -153,7 +155,7 @@ void test_class() {
 
 	log::debug<1, true>("downloaded {} bars", bars2.size());
 	for (auto it = bars2.begin(); it != bars2.end(); ++it) {
-		auto ts = zorro::zorro_date_to_string(it->timestamp, false);
+		auto ts = zorro::zorro_date_to_string(it->timestamp);
 		log::debug<2, true>("begin {} bar {}", ts, it->to_string());
 	}
 	log::debug<1, true>("FXCM marktet data download completed: {} bars read", bars2.size());
@@ -162,9 +164,56 @@ void test_class() {
 	log::debug<1, true>("logged out");
 }
 
+void test_login() {
+	zorro::BrokerError = show;
+
+	auto logger = zorro::create_file_logger("test_fxcm_market_data_login.log");
+
+	size_t len = 0;
+	char fxcm_login[256];
+	char fxcm_password[256];
+	getenv_s(&len, fxcm_login, sizeof(fxcm_login), "FIX_USER_NAME");
+	getenv_s(&len, fxcm_password, sizeof(fxcm_password), "FIX_PASSWORD");
+
+	log::debug<1, true>("fxcm_login={} fxcm_password={}", fxcm_login, fxcm_password);
+
+	auto connection = fxcm::ForexConnect(
+		std::string(fxcm_login),
+		std::string(fxcm_password),
+		std::string(fxcm::demo_connection),
+		std::string(fxcm::default_url)
+	);
+
+	bool res = connection.login();
+	log::debug<1, true>("waiting for login res={}", res);
+
+	auto t0 = std::chrono::high_resolution_clock::now();
+
+	auto logged_in = connection.wait_for_login(10000ms);
+	
+	auto dt = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - t0);
+
+	log::debug<1, true>("logged in with logged_in={} in dt={}", logged_in, dt);
+
+
+	connection.logout();
+	log::debug<1, true>("waiting for logout");
+
+	t0 = std::chrono::high_resolution_clock::now();
+
+	auto logged_out = connection.wait_for_logout(15000ms);
+
+	dt = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - t0);
+
+	log::debug<1, true>("logged out with logged_out={} in dt={}", logged_out, dt);
+}
+
 int main(int argc, char* argv[])
 {
-	test_class();
+	test_login();
+	
+	//test_class();
+
 	//test_function();
 	
 	return 0;

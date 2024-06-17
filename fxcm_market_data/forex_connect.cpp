@@ -1,23 +1,21 @@
 #include "pch.h"
 
-#include "fxcm_market_data.h"
+#include "forex_connect.h"
 
-#include "ResponseListener.h"
-#include "SessionStatusListener.h"
-#include "CommonSources.h"
-#include "CommunicatorStatusListener.h"
-#include "LocalFormat.h"
+#include "response_listener.h"
+#include "session_status_listener.h"
+#include "communicator_status_listener.h"
+#include "local_format.h"
 
 namespace fxcm {
 
-    ForexConnectData::ForexConnectData(
+    ForexConnect::ForexConnect(
         const std::string& login_user,
         const std::string& password,
         const std::string& connection,
         const std::string& url,
         const std::string& session_id,
-        const std::string& pin,
-        int timeout
+        const std::string& pin
     ) : login_user(login_user)
       , password(password)
       , connection(connection)
@@ -29,11 +27,11 @@ namespace fxcm {
         session = CO2GTransport::createSession();
         auto session_id_ptr = session_id.empty() ? nullptr : session_id.c_str();
         auto pin_ptr = pin.empty() ? nullptr : pin.c_str();
-        statusListener = new SessionStatusListener(session, true, session_id_ptr, pin_ptr, timeout);
+        status_listener = new SessionStatusListener(session, true, session_id_ptr, pin_ptr, 10000);
 
         // subscribe IO2GSessionStatus interface implementation for the status events
-        session->subscribeSessionStatus(statusListener);
-        statusListener->reset();
+        session->subscribeSessionStatus(status_listener);
+        status_listener->reset();
 
         // create an instance of IPriceHistoryCommunicator
         pricehistorymgr::IError* error_ptr = NULL;
@@ -43,32 +41,44 @@ namespace fxcm {
         if (!communicator)
         {
             auto msg = std::format(
-                "ForexConnectData::ForexConnectData: error {}", error->getMessage()
+                "ForexConnect::ForexConnect: error {}", error->getMessage()
             );
             spdlog::error(msg);
             throw std::runtime_error(msg);
         }
     }
 
-    ForexConnectData::~ForexConnectData() {
-        session->unsubscribeSessionStatus(statusListener);
+    ForexConnect::~ForexConnect() {
+        session->unsubscribeSessionStatus(status_listener);
     }
 
-    bool ForexConnectData::login() {
+    bool ForexConnect::login() {
         logged_in = session->login(login_user.c_str(), password.c_str(), url.c_str(), connection.c_str());
-        statusListener->waitEvents();
-        logged_in &= statusListener->isConnected();
         return logged_in;
     }
 
-    void ForexConnectData::logout() {
+    bool ForexConnect::wait_for_login(std::chrono::milliseconds timeout) {
+        auto success = status_listener->wait_events(static_cast<DWORD>(timeout.count()));
+        logged_in &= success;
+        logged_in &= status_listener->is_connected();
+        return logged_in;
+    }
+
+    void ForexConnect::logout() {
         if (logged_in) {
             session->logout();
-            statusListener->waitEvents();
         }
     }
 
-    bool ForexConnectData::fetch(
+    bool ForexConnect::wait_for_logout(std::chrono::milliseconds timeout) {
+        return status_listener->wait_events(static_cast<DWORD>(timeout.count()));
+    }
+
+    bool ForexConnect::is_logged_in() const {
+        return logged_in;
+    }
+
+    bool ForexConnect::fetch(
         std::vector<common::BidAskBar<DATE>>& bars,
         const std::string& instrument,
         const std::string& timeframe,
@@ -91,7 +101,7 @@ namespace fxcm {
         bool success = true;
 
         if (communicator->isReady() ||
-            communicatorStatusListener->waitEvents() && communicatorStatusListener->isReady())
+            communicatorStatusListener->wait_events() && communicatorStatusListener->is_ready())
         {
             try 
             {
@@ -115,14 +125,14 @@ namespace fxcm {
                     throw std::runtime_error(std::format("failded creating request error={}", error->getMessage()));
                 }
 
-                responseListener->setRequest(request);
+                responseListener->set_request(request);
 
                 if (!communicator->sendRequest(request, &error)) {
                     throw std::runtime_error(std::format("failded sending request error={}", error->getMessage()));
                 }
 
                 responseListener->wait();
-                O2G2Ptr<pricehistorymgr::IPriceHistoryCommunicatorResponse> response = responseListener->getResponse();
+                O2G2Ptr<pricehistorymgr::IPriceHistoryCommunicatorResponse> response = responseListener->get_response();
 
                 if (!response) {
                     throw std::runtime_error(std::format("failded receiving request error={}", error->getMessage()));
@@ -164,32 +174,32 @@ namespace fxcm {
                 }
 
                 spdlog::debug(
-                    "ForexConnectData::fetch_bars [{} - {}]: loaded {} bars", 
-                    format.formatDate(date_from), format.formatDate(date_to), bars.size()
+                    "ForexConnect::fetch_bars [{} - {}]: loaded {} bars", 
+                    format.format_date(date_from), format.format_date(date_to), bars.size()
                 );
                 if (bars.size() > 0) {
                     spdlog::debug(
-                        "ForexConnectData::fetch_bars [{} - {}]: \n  first bar timestamp={}, bar={}\n  last bar timestamp={}, bar={}",
-                        format.formatDate(date_from), format.formatDate(date_to),
-                        format.formatDate(bars.begin()->timestamp), bars.begin()->to_string(),
-                        format.formatDate(bars.rbegin()->timestamp), bars.rbegin()->to_string()
+                        "ForexConnect::fetch_bars [{} - {}]: \n  first bar timestamp={}, bar={}\n  last bar timestamp={}, bar={}",
+                        format.format_date(date_from), format.format_date(date_to),
+                        format.format_date(bars.begin()->timestamp), bars.begin()->to_string(),
+                        format.format_date(bars.rbegin()->timestamp), bars.rbegin()->to_string()
                     );
                 }
             }
             catch (std::runtime_error& e) {
-                spdlog::error("ForexConnectData::fetch_bars error: {}", e.what());
+                spdlog::error("ForexConnect::fetch_bars error: {}", e.what());
                 success = false;
             }
         }
 
         communicator->removeListener(responseListener);
         communicator->removeStatusListener(communicatorStatusListener);
-        statusListener->reset();
+        status_listener->reset();
 
         return success;
     }
 
-    bool ForexConnectData::fetch(
+    bool ForexConnect::fetch(
         std::vector<common::Quote<DATE>>& quotes,
         const std::string& instrument,
         DATE date_from,
@@ -206,7 +216,7 @@ namespace fxcm {
 
         // wait until the communicator signals that it is ready
         if (communicator->isReady() ||
-            communicatorStatusListener->waitEvents() && communicatorStatusListener->isReady())
+            communicatorStatusListener->wait_events() && communicatorStatusListener->is_ready())
         {
             O2G2Ptr<ResponseListener> responseListener(new ResponseListener());
             communicator->addListener(responseListener);
@@ -215,12 +225,12 @@ namespace fxcm {
         }
 
         communicator->removeStatusListener(communicatorStatusListener);
-        statusListener->reset();
+        status_listener->reset();
 
         return true;
     }
 
-    O2G2Ptr<quotesmgr::IInstrument> ForexConnectData::get_instrument(const std::string& instrument) {
+    O2G2Ptr<quotesmgr::IInstrument> ForexConnect::get_instrument(const std::string& instrument) {
         O2G2Ptr<quotesmgr::IInstrument> instr = nullptr;
 
         O2G2Ptr<quotesmgr::IQuotesManager> quotesManager = communicator->getQuotesManager();
@@ -233,7 +243,7 @@ namespace fxcm {
             O2G2Ptr<quotesmgr::IInstrument> instr = instruments->find(instrument.c_str());
         }
         else {
-            spdlog::error("ForexConnectData::get_instrument error: {}", error->getMessage());
+            spdlog::error("ForexConnect::get_instrument error: {}", error->getMessage());
         }
 
         return instr;
@@ -253,7 +263,7 @@ namespace fxcm {
 
         spdlog::debug(
             "fetch_historical_prices: instrument={} timeframe={}, from={}, to={}, quotes_count={}",
-            instrument, timeframe, format.formatDate(from), format.formatDate(to), quotes_count
+            instrument, timeframe, format.format_date(from), format.format_date(to), quotes_count
         );
 
         if (!communicator->isReady())
@@ -286,7 +296,7 @@ namespace fxcm {
             return false;
         }
 
-        responseListener->setRequest(request);
+        responseListener->set_request(request);
         if (!communicator->sendRequest(request, &error))
         {
             spdlog::error(
@@ -300,7 +310,7 @@ namespace fxcm {
         responseListener->wait();
 
         // print results if any
-        O2G2Ptr<pricehistorymgr::IPriceHistoryCommunicatorResponse> response = responseListener->getResponse();
+        O2G2Ptr<pricehistorymgr::IPriceHistoryCommunicatorResponse> response = responseListener->get_response();
         if (response)
         {
             // use IO2GMarketDataSnapshotResponseReader to extract price data from the response object 
@@ -321,8 +331,8 @@ namespace fxcm {
                 if (n > 0) {
                     spdlog::debug(
                         "fetch_historical_prices: {} bars from {} to {} in request interval from {} to {}",
-                        n, format.formatDate(reader->getDate(0)), format.formatDate(reader->getDate(n - 1)),
-                        format.formatDate(from), format.formatDate(to)
+                        n, format.format_date(reader->getDate(0)), format.format_date(reader->getDate(n - 1)),
+                        format.format_date(from), format.format_date(to)
                     );
 
                     for (int i = 0; i < n; ++i) {
@@ -352,11 +362,11 @@ namespace fxcm {
                     if (bars.size() > 0) {
                         spdlog::debug(
                             "fetch_historical_prices [{} - {}]: first bar timestamp={}, bar={}",
-                             format.formatDate(from), format.formatDate(to), format.formatDate(bars.begin()->timestamp), bars.begin()->to_string()
+                             format.format_date(from), format.format_date(to), format.format_date(bars.begin()->timestamp), bars.begin()->to_string()
                         );
                         spdlog::debug(
                             "fetch_historical_prices [{} - {}]: last bar timestamp={}, bar={}",
-                            format.formatDate(from), format.formatDate(to), format.formatDate(bars.rbegin()->timestamp), bars.rbegin()->to_string()
+                            format.format_date(from), format.format_date(to), format.format_date(bars.rbegin()->timestamp), bars.rbegin()->to_string()
                         );
                     }
 
@@ -365,7 +375,7 @@ namespace fxcm {
                 else {
                     spdlog::error(
                         "fetch_historical_prices phm_error: no bars in request interval from {} to {}",
-                        n, format.formatDate(from), format.formatDate(to)
+                        n, format.format_date(from), format.format_date(to)
                     );
                     return false;
                 }
@@ -383,6 +393,8 @@ namespace fxcm {
             return false;
         }
     }
+
+    //***** TODO remove 
 
     bool get_historical_prices(
         std::vector<common::BidAskBar<DATE>>& bars,
@@ -403,17 +415,17 @@ namespace fxcm {
 
         spdlog::debug(
             "get_historical_prices: instrument={} timeframe={}, from={}, to={}",
-            instrument, timeframe, format.formatDate(date_from), format.formatDate(date_to)
+            instrument, timeframe, format.format_date(date_from), format.format_date(date_to)
         );
 
         try {
             // create the ForexConnect trading session
             O2G2Ptr<IO2GSession> session = CO2GTransport::createSession();
-            O2G2Ptr<SessionStatusListener> statusListener = new SessionStatusListener(session, true, session_id, pin, timeout);
+            O2G2Ptr<SessionStatusListener> status_listener = new SessionStatusListener(session, true, session_id, pin, timeout);
 
             // subscribe IO2GSessionStatus interface implementation for the status events
-            session->subscribeSessionStatus(statusListener);
-            statusListener->reset();
+            session->subscribeSessionStatus(status_listener);
+            status_listener->reset();
 
             // create an instance of IPriceHistoryCommunicator
             pricehistorymgr::IError* error = NULL;
@@ -438,14 +450,14 @@ namespace fxcm {
 
             bool success = false;
 
-            if (statusListener->waitEvents() && statusListener->isConnected())
+            if (status_listener->wait_events() && status_listener->is_connected())
             {
                 O2G2Ptr<CommunicatorStatusListener> communicatorStatusListener(new CommunicatorStatusListener());
                 communicator->addStatusListener(communicatorStatusListener);
 
                 // wait until the communicator signals that it is ready
                 if (communicator->isReady() ||
-                    communicatorStatusListener->waitEvents() && communicatorStatusListener->isReady())
+                    communicatorStatusListener->wait_events() && communicatorStatusListener->is_ready())
                 {
                     // attach the instance of the class that implements the IPriceHistoryCommunicatorListener interface to the communicator
                     O2G2Ptr<ResponseListener> responseListener(new ResponseListener());
@@ -468,13 +480,13 @@ namespace fxcm {
                         if (!bars.empty()) {
                             spdlog::debug(
                                 "get_historical_prices: done, read {} bars covering {} - {}",
-                                bars.size(), local_format.formatDate(bars.begin()->timestamp), local_format.formatDate(bars.rbegin()->timestamp)
+                                bars.size(), local_format.format_date(bars.begin()->timestamp), local_format.format_date(bars.rbegin()->timestamp)
                             );
                         }
                         else {
                             spdlog::debug(
                                 "get_historical_prices: done, could not load any bars in {} - {}",
-                                local_format.formatDate(date_from), local_format.formatDate(date_to)
+                                local_format.format_date(date_from), local_format.format_date(date_to)
                             );
                         }
                     }
@@ -486,13 +498,13 @@ namespace fxcm {
                 }
 
                 communicator->removeStatusListener(communicatorStatusListener);
-                statusListener->reset();
+                status_listener->reset();
 
                 session->logout();
-                statusListener->waitEvents();
+                status_listener->wait_events();
             }
 
-            session->unsubscribeSessionStatus(statusListener);
+            session->unsubscribeSessionStatus(status_listener);
 
             return success;
         }
@@ -556,7 +568,7 @@ namespace fxcm {
         }
 
         LocalFormat localFormat;
-        const char* separator = localFormat.getListSeparator();
+        const char* separator = localFormat.get_list_separator();
         int precision = get_instrument_precision(communicator, instrument);
 
         // use IO2GMarketDataSnapshotResponseReader to extract price data from the response object 
@@ -584,26 +596,26 @@ namespace fxcm {
             {
                 DATE dt = reader->getDate(i);
 
-                std::string time = localFormat.formatDate(dt);
+                std::string time = localFormat.format_date(dt);
                 if (reader->isBar())
                 {
                     fs << time << separator
-                        << localFormat.formatDouble(reader->getBidOpen(i), precision) << separator
-                        << localFormat.formatDouble(reader->getBidHigh(i), precision) << separator
-                        << localFormat.formatDouble(reader->getBidLow(i), precision) << separator
-                        << localFormat.formatDouble(reader->getBidClose(i), precision) << separator
-                        << localFormat.formatDouble(reader->getAskOpen(i), precision) << separator
-                        << localFormat.formatDouble(reader->getAskHigh(i), precision) << separator
-                        << localFormat.formatDouble(reader->getAskLow(i), precision) << separator
-                        << localFormat.formatDouble(reader->getAskClose(i), precision) << separator
-                        << localFormat.formatDouble(reader->getVolume(i), 0) << separator
+                        << localFormat.format_double(reader->getBidOpen(i), precision) << separator
+                        << localFormat.format_double(reader->getBidHigh(i), precision) << separator
+                        << localFormat.format_double(reader->getBidLow(i), precision) << separator
+                        << localFormat.format_double(reader->getBidClose(i), precision) << separator
+                        << localFormat.format_double(reader->getAskOpen(i), precision) << separator
+                        << localFormat.format_double(reader->getAskHigh(i), precision) << separator
+                        << localFormat.format_double(reader->getAskLow(i), precision) << separator
+                        << localFormat.format_double(reader->getAskClose(i), precision) << separator
+                        << localFormat.format_double(reader->getVolume(i), 0) << separator
                         << std::endl;
                 }
                 else
                 {
                     fs << time << separator
-                        << localFormat.formatDouble(reader->getBid(i), precision) << separator
-                        << localFormat.formatDouble(reader->getAsk(i), precision) << separator
+                        << localFormat.format_double(reader->getBid(i), precision) << separator
+                        << localFormat.format_double(reader->getAsk(i), precision) << separator
                         << std::endl;
                 }
             }

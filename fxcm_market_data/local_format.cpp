@@ -1,24 +1,24 @@
 #include "pch.h"
 
-#include "LocalFormat.h"
+#include "local_format.h"
 
 LocalFormat::LocalFormat()
 {
-    mListSeparator = "";
-    mDecimalSeparator = "";
+    list_separator = "";
+    decimal_separator = "";
 }
 
-const char *LocalFormat::getListSeparator()
+const char *LocalFormat::get_list_separator()
 {
     return ";";
 }
 
-const char *LocalFormat::getDecimalSeparator()
+const char *LocalFormat::get_decimal_separator()
 {
     return ".";
 }
 
-std::string LocalFormat::formatDouble(double value, int precision)
+std::string LocalFormat::format_double(double value, int precision)
 {
     char format[16];
     char buffer[64];
@@ -27,12 +27,12 @@ std::string LocalFormat::formatDouble(double value, int precision)
     sprintf_s(buffer, 64, format, value);
     char *point = strchr(buffer, '.');
     if (point != 0)
-        *point = getDecimalSeparator()[0];
+        *point = get_decimal_separator()[0];
 
     return std::string(buffer);
 }
 
-std::string LocalFormat::formatDate(DATE value)
+std::string LocalFormat::format_date(double value)
 {
     struct tm tmBuf = { 0 };
     CO2GDateUtils::OleTimeToCTime(value, &tmBuf);

@@ -181,14 +181,15 @@ robocopy "$(SolutionDir)spec" "%ZorroInstallDir%\Plugin\spec"
     <None Include="zorro_fxcm_fix_client_template.cfg" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="application.h" />
-    <ClInclude Include="fix_thread.h" />
+    <ClInclude Include="fix_client.h" />
+    <ClInclude Include="fix_service.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="zorro_fxcm_fix_plugin.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="application.cpp" />
+    <ClCompile Include="fix_client.cpp" />
     <ClCompile Include="dllmain.cpp" />
+    <ClCompile Include="fix_service.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>

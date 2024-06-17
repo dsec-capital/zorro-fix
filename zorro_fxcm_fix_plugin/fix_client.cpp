@@ -4,7 +4,7 @@
 
 #include "pch.h"
 
-#include "application.h"
+#include "fix_client.h"
 
 #include "quickfix/config.h"
 #include "quickfix/Session.h"
@@ -166,7 +166,7 @@ namespace zorro {
 		return ss.str();
 	}
 
-	Application::Application(
+	FixClient::FixClient(
 		const FIX::SessionSettings& session_settings,
 		unsigned int requests_on_logon,
 		BlockingTimeoutQueue<ExecReport>& exec_report_queue,
@@ -189,29 +189,29 @@ namespace zorro {
 			auto account = session_settings.get().getString("AccountId");
 			account_ids.insert(account);
 			log::debug<dl1, false>(
-				"Application::Application account id from session settings={}", account
+				"FixClient::FixClient account id from session settings={}", account
 			);
 		}
 	}
 
-	int Application::login_count() const {
+	int FixClient::login_count() const {
 		return logged_in.load();
 	}
 
-	std::set<std::string> Application::get_account_ids() {
+	std::set<std::string> FixClient::get_account_ids() {
 		std::unique_lock<std::mutex> ul(mutex);
 		return account_ids;
 	}
 
-	bool Application::is_trading_session(const FIX::SessionID& sess_id) const {
+	bool FixClient::is_trading_session(const FIX::SessionID& sess_id) const {
 		return !sess_id.getSenderCompID().getString().starts_with("MD_");
 	}
 
-	bool Application::is_market_data_session(const FIX::SessionID& sess_id) const {
+	bool FixClient::is_market_data_session(const FIX::SessionID& sess_id) const {
 		return sess_id.getSenderCompID().getString().starts_with("MD_");
 	}
 
-	void Application::onCreate(const FIX::SessionID& sess_id) {
+	void FixClient::onCreate(const FIX::SessionID& sess_id) {
 		// FIX Session created. We must now logon. QuickFIX will automatically send the Logon(A) message
 		auto is_trading = true;
 		if (is_market_data_session(sess_id)) {
@@ -222,14 +222,14 @@ namespace zorro {
 			trading_session_id = sess_id;
 		}
 		log::debug<dl1, false>(
-			"Application::onCreate is trading={}, sessionID={}", is_trading, sess_id.toString()
+			"FixClient::onCreate is trading={}, sessionID={}", is_trading, sess_id.toString()
 		);
 	}
 
-	void Application::onLogon(const FIX::SessionID& sess_id)
+	void FixClient::onLogon(const FIX::SessionID& sess_id)
 	{
 		logged_in++;
-		log::debug<dl0, false>("Application::onLogon sessionID={} login count={}", sess_id.toString(), logged_in.load());
+		log::debug<dl0, false>("FixClient::onLogon sessionID={} login count={}", sess_id.toString(), logged_in.load());
 
 		if (is_trading_session(sess_id)) {
 			if (requests_on_logon & static_cast<unsigned int>(RequestsOnLogon::RequestsOnLogon_TradingSessionStatus)) {
@@ -241,20 +241,20 @@ namespace zorro {
 		}
 	}
 
-	void Application::onLogout(const FIX::SessionID& sessionID)
+	void FixClient::onLogout(const FIX::SessionID& sessionID)
 	{
 		logged_in--;
-		log::debug<dl0, false>("Application::onLogout sessionID={}", sessionID.toString());
+		log::debug<dl0, false>("FixClient::onLogout sessionID={}", sessionID.toString());
 	}
 
-	void Application::fromAdmin(
+	void FixClient::fromAdmin(
 		const FIX::Message& message, const FIX::SessionID& sessionID
 	) EXCEPT(FIX::FieldNotFound, FIX::IncorrectDataFormat, FIX::IncorrectTagValue, FIX::RejectLogon)
 	{
-		log::debug<dl1, false>("Application::fromAdmin IN <{}> {}", sessionID.toString(), fix_string(message));
+		log::debug<dl1, false>("FixClient::fromAdmin IN <{}> {}", sessionID.toString(), fix_string(message));
 	}
 
-	void Application::toAdmin(FIX::Message& message, const FIX::SessionID& sessionID) 
+	void FixClient::toAdmin(FIX::Message& message, const FIX::SessionID& sessionID) 
 	{
 		// Logon (A) requires to set the Username and Password fields
 		const auto& msg_type = message.getHeader().getField(FIX::FIELD::MsgType);
@@ -270,26 +270,26 @@ namespace zorro {
 		auto sub_id = session_settings.get().getString("TargetSubID");
 		message.getHeader().setField(FIX::TargetSubID(sub_id));
 
-		log::debug<dl1, false>("Application::toAdmin OUT <{}> {}", sessionID.toString(), fix_string(message));
+		log::debug<dl1, false>("FixClient::toAdmin OUT <{}> {}", sessionID.toString(), fix_string(message));
 	}
 
-	void Application::fromApp(const FIX::Message& message, const FIX::SessionID& sessionID)
+	void FixClient::fromApp(const FIX::Message& message, const FIX::SessionID& sessionID)
 		EXCEPT(FIX::FieldNotFound, FIX::IncorrectDataFormat, FIX::IncorrectTagValue, FIX::UnsupportedMessageType)
 	{
 		auto mkt = fix::is_market_data_message(message);
 		if (!mkt || (mkt && log_market_data)) {
-			log::debug<dl1, false>("Application::fromApp IN <{}> {}", sessionID.toString(), fix_string(message));
+			log::debug<dl1, false>("FixClient::fromApp IN <{}> {}", sessionID.toString(), fix_string(message));
 		}
 
 		auto exec = fix::is_exec_report_message(message);
 		if (exec) {
-			log::debug<dl0, false>("Application::fromApp IN <{}> {}", sessionID.toString(), fix_string(message));
+			log::debug<dl0, false>("FixClient::fromApp IN <{}> {}", sessionID.toString(), fix_string(message));
 		}
 
 		crack(message, sessionID);
 	}
 
-	void Application::toApp(FIX::Message& message, const FIX::SessionID& sessionID) EXCEPT(FIX::DoNotSend)
+	void FixClient::toApp(FIX::Message& message, const FIX::SessionID& sessionID) EXCEPT(FIX::DoNotSend)
 	{
 		try
 		{
@@ -302,7 +302,7 @@ namespace zorro {
 		auto sub_ID = session_settings.get().getString("TargetSubID");
 		message.getHeader().setField(FIX::TargetSubID(sub_ID));
 
-		log::debug<dl1, false>("Application::toApp OUT <{}> {}", sessionID.toString(), fix_string(message));
+		log::debug<dl1, false>("FixClient::toApp OUT <{}> {}", sessionID.toString(), fix_string(message));
 	}
 
 	// The TradingSessionStatus message is used to provide an update on the status of the market. Furthermore, 
@@ -314,7 +314,7 @@ namespace zorro {
 	// You will notice that Text(58) field is always set to "Market is closed. Any trading
 	// functionality is not available." This field is always set to this value; therefore, do not 
 	// use this field value to determine if the trading desk is open. As stated above, use TradSesStatus for this purpose
-	void Application::onMessage(const FIX44::TradingSessionStatus& message, const FIX::SessionID& session_ID)
+	void FixClient::onMessage(const FIX44::TradingSessionStatus& message, const FIX::SessionID& session_ID)
 	{
 		try {
 			FXCMTradingSessionStatus status;
@@ -380,13 +380,13 @@ namespace zorro {
 				}
 				catch (FIX::FieldNotFound& error) {
 					log::error<false>(
-						"Application::onMessage[FIX44::TradingSessionStatus]: security info field not found {}",
+						"FixClient::onMessage[FIX44::TradingSessionStatus]: security info field not found {}",
 						error.what()
 					);
 				}
 				catch (...) {
 					log::error<false>(
-						"Application::onMessage[FIX44::TradingSessionStatus]: security info error"
+						"FixClient::onMessage[FIX44::TradingSessionStatus]: security info error"
 					);
 				}
 			}
@@ -408,7 +408,7 @@ namespace zorro {
 			}
 
 			log::debug<dl1, false>(
-				"Application::onMessage[FIX44::TradingSessionStatus]: publish trading session status {}",
+				"FixClient::onMessage[FIX44::TradingSessionStatus]: publish trading session status {}",
 				status.to_string()
 			);
 
@@ -416,13 +416,13 @@ namespace zorro {
 		} 
 		catch(FIX::FieldNotFound &error) {
 			log::error<false>(
-				"Application::onMessage[FIX44::TradingSessionStatus]: field not found {}",
+				"FixClient::onMessage[FIX44::TradingSessionStatus]: field not found {}",
 				error.what()
 			);
 		}
 	}
 
-	void Application::onMessage(const FIX44::CollateralInquiryAck& message, const FIX::SessionID& session_ID)
+	void FixClient::onMessage(const FIX44::CollateralInquiryAck& message, const FIX::SessionID& session_ID)
 	{
 
 	}
@@ -430,13 +430,13 @@ namespace zorro {
 	// CollateralReport is a message containing important information for each account under the login. It is returned
 	// as a response to CollateralInquiry. You will receive a CollateralReport for each account under your login.
 	// Notable fields include Account(1) which is the AccountID and CashOutstanding(901) which is the account balance
-	void Application::onMessage(const FIX44::CollateralReport& message, const FIX::SessionID& session_ID)
+	void FixClient::onMessage(const FIX44::CollateralReport& message, const FIX::SessionID& session_ID)
 	{
 		try {
 			const auto& account = message.getField(FIX::FIELD::Account);
 			account_ids.insert(account);
 
-			log::debug<dl0, false>("Application::onMessage[FIX44::CollateralReport]: inserted account={}", account);
+			log::debug<dl0, false>("FixClient::onMessage[FIX44::CollateralReport]: inserted account={}", account);
 
 			// account balance, which is the cash balance in the account, not including any profit or losses on open trades
 			double balance = FIX::DoubleConvertor::convert(message.getField(FIX::FIELD::CashOutstanding));
@@ -481,7 +481,7 @@ namespace zorro {
 			};
 
 			log::debug<dl1, false>(
-				"Application::onMessage[FIX44::CollateralReport]: publish collateral report for account={} balance={}", 
+				"FixClient::onMessage[FIX44::CollateralReport]: publish collateral report for account={} balance={}", 
 				account, balance
 			);
 
@@ -489,13 +489,13 @@ namespace zorro {
 		}
 		catch (FIX::FieldNotFound& error) {
 			log::error<false>(
-				"Application::onMessage[FIX44::CollateralReport]: field not found {}",
+				"FixClient::onMessage[FIX44::CollateralReport]: field not found {}",
 				error.what()
 			);
 		}
 	}
 
-	void Application::onMessage(const FIX44::RequestForPositionsAck& message, const FIX::SessionID& session_ID)
+	void FixClient::onMessage(const FIX44::RequestForPositionsAck& message, const FIX::SessionID& session_ID)
 	{
 		FIX::PosReqResult pos_req_result;
 		FIX::TotalNumPosReports total_num_reports;
@@ -507,14 +507,14 @@ namespace zorro {
 		// indicate that no positions matched the requested criteria 
 		if (pos_req_result == FIX::PosReqResult_NO_POSITIONS_FOUND_THAT_MATCH_CRITERIA) {
 			log::debug<dl1, false>(
-				"Application::onMessage[FIX44::RequestForPositionsAck]: publish empty position report list text={}",
+				"FixClient::onMessage[FIX44::RequestForPositionsAck]: publish empty position report list text={}",
 				message.getField(FIX::FIELD::Text)
 			);
 			position_reports_queue.push(FXCMPositionReports());
 		}
 	}
 
-	void Application::onMessage(const FIX44::PositionReport& message, const FIX::SessionID& session_ID)
+	void FixClient::onMessage(const FIX44::PositionReport& message, const FIX::SessionID& session_ID)
 	{
 		try {
 			FIX::Symbol symbol;
@@ -556,7 +556,7 @@ namespace zorro {
 
 			int num_positions = FIX::IntConvertor::convert(message.getField(FIX::FIELD::NoPositions));
 			if (num_positions > 1) {
-				log::error<false>("Application::onMessage[FIX44::PositionReport] error: num_positions={} > 1 not expected", num_positions);
+				log::error<false>("FixClient::onMessage[FIX44::PositionReport] error: num_positions={} > 1 not expected", num_positions);
 			}
 			FIX44::PositionReport::NoPositions group;
 			message.getGroup(1, group);
@@ -569,7 +569,7 @@ namespace zorro {
 				position_qty = -std::abs(FIX::IntConvertor::convert(group.getField(FIX::FIELD::ShortQty)));
 			}
 			else {
-				log::error<false>("Application::onMessage[FIX44::PositionReport] error: neither LongQty nor ShortQty defined");
+				log::error<false>("FixClient::onMessage[FIX44::PositionReport] error: neither LongQty nor ShortQty defined");
 			}
 			
 			bool is_open = true;
@@ -586,7 +586,7 @@ namespace zorro {
 				close_cl_ord_id = message.getField(FXCM_CLOSE_CL_ORD_ID);
 			}
 			else {
-				log::error<false>("Application::onMessage[FIX44::PositionReport] error: unexpected pos_req_type={}", pos_req_type.getValue());
+				log::error<false>("FixClient::onMessage[FIX44::PositionReport] error: unexpected pos_req_type={}", pos_req_type.getValue());
 			}
 
 			bool is_closed = !is_open;
@@ -612,7 +612,7 @@ namespace zorro {
 
 			bool is_last = total_num_reports == position_report_list.size();
 			if (is_last) {
-				log::debug<dl1, false>("Application::onMessage[FIX44::PositionReport]: publish {} position reports", position_report_list.size());
+				log::debug<dl1, false>("FixClient::onMessage[FIX44::PositionReport]: publish {} position reports", position_report_list.size());
 
 				FXCMPositionReports reports{
 					.reports = position_report_list
@@ -623,13 +623,13 @@ namespace zorro {
 		}
 		catch (FIX::FieldNotFound& error) {
 			log::error<false>(
-				"Application::onMessage[FIX44::PositionReport]: field not found {}",
+				"FixClient::onMessage[FIX44::PositionReport]: field not found {}",
 				error.what()
 			);
 		}
 	}
 
-	void Application::onMessage(const FIX44::MarketDataSnapshotFullRefresh& message, const FIX::SessionID& session_ID)
+	void FixClient::onMessage(const FIX44::MarketDataSnapshotFullRefresh& message, const FIX::SessionID& session_ID)
 	{
 		auto& symbol = message.getField(FIX::FIELD::Symbol);
 
@@ -676,20 +676,20 @@ namespace zorro {
 			}
 			else {
 				log::error<false>(
-					"Application::onMessage[FIX44::MarketDataSnapshotFullRefresh]: unexpected md entry type={} price={}", 
+					"FixClient::onMessage[FIX44::MarketDataSnapshotFullRefresh]: unexpected md entry type={} price={}", 
 					entry_type.getValue(), price.getValue()
 				);
 			}
 		}
 
 		if (log_market_data) {
-			log::debug<dl1, false>("Application::onMessage[FIX44::MarketDataSnapshotFullRefresh]: top={}", top_of_book.to_string());
+			log::debug<dl1, false>("FixClient::onMessage[FIX44::MarketDataSnapshotFullRefresh]: top={}", top_of_book.to_string());
 		}
 
 		top_of_book_queue.push(top_of_book); // publish snapshot related top of book
 	}
 
-	void Application::onMessage(const FIX44::MarketDataIncrementalRefresh& message, const FIX::SessionID&)
+	void FixClient::onMessage(const FIX44::MarketDataIncrementalRefresh& message, const FIX::SessionID&)
 	{
 		double session_high_price;
 		double session_low_price;
@@ -711,7 +711,7 @@ namespace zorro {
 
 			auto it = top_of_books.find(symbol);
 			if (it == top_of_books.end()) {
-				log::debug<dl0, false>("Application::onMessage[FIX44::MarketDataIncrementalRefresh]: did not find symbol={} in top of books", symbol);
+				log::debug<dl0, false>("FixClient::onMessage[FIX44::MarketDataIncrementalRefresh]: did not find symbol={} in top of books", symbol);
 				continue;
 			}
 
@@ -746,7 +746,7 @@ namespace zorro {
 			}
 			else {
 				log::error<false>(
-					"Application::onMessage[FIX44::MarketDataIncrementalRefresh]: unexpected md entry type={} price={}", 
+					"FixClient::onMessage[FIX44::MarketDataIncrementalRefresh]: unexpected md entry type={} price={}", 
 					entry_type.getValue(), price.getValue()
 				);
 			}
@@ -754,14 +754,14 @@ namespace zorro {
 
 		for (auto top_of_book : change_set) {
 			if (log_market_data) {
-				log::debug<dl1, false>("Application::onMessage[FIX44::MarketDataIncrementalRefresh]: top={}", top_of_book->to_string());
+				log::debug<dl1, false>("FixClient::onMessage[FIX44::MarketDataIncrementalRefresh]: top={}", top_of_book->to_string());
 			}
 
 			top_of_book_queue.push(*top_of_book); // publish snapshot related top of book
 		}
 	}
 
-	void Application::onMessage(const FIX44::ExecutionReport& message, const FIX::SessionID&) 
+	void FixClient::onMessage(const FIX44::ExecutionReport& message, const FIX::SessionID&) 
 	{
 		FIX::Symbol symbol;
 		FIX::ExecID exec_id;
@@ -819,20 +819,20 @@ namespace zorro {
 		exec_report_queue.push(report);
 	}
 	
-	void Application::onMessage(const FIX44::OrderCancelReject&, const FIX::SessionID&) 
+	void FixClient::onMessage(const FIX44::OrderCancelReject&, const FIX::SessionID&) 
 	{
 	}
 
-	void Application::onMessage(const FIX44::BusinessMessageReject&, const FIX::SessionID&)
+	void FixClient::onMessage(const FIX44::BusinessMessageReject&, const FIX::SessionID&)
 	{
 	}
 
-	void Application::onMessage(const FIX44::MarketDataRequestReject& message, const FIX::SessionID& session_ID)
+	void FixClient::onMessage(const FIX44::MarketDataRequestReject& message, const FIX::SessionID& session_ID)
 	{
 		log::error<false>("onMessage[FIX44::MarketDataRequestReject]: {}", fix_string(message));
 	}
 
-	FIX::Message Application::market_data_snapshot(const FIX::Symbol& symbol) {
+	FIX::Message FixClient::market_data_snapshot(const FIX::Symbol& symbol) {
 		FIX44::MarketDataRequest request;
 		auto request_id = std::format("{}_{}", symbol.getString(), id_generator.genID());
 		request.setField(FIX::MDReqID(request_id));
@@ -850,14 +850,14 @@ namespace zorro {
 		entry_types.setField(FIX::MDEntryType(FIX::MDEntryType_TRADING_SESSION_LOW_PRICE));
 		request.addGroup(entry_types);
 
-		log::debug<dl1, false>("Application::market_data_snapshot: {}", fix_string(request));
+		log::debug<dl1, false>("FixClient::market_data_snapshot: {}", fix_string(request));
 
 		FIX::Session::sendToTarget(request, market_data_session_id);
 
 		return request;
 	}
 
-	std::optional<FIX::Message> Application::subscribe_market_data(
+	std::optional<FIX::Message> FixClient::subscribe_market_data(
 		const FIX::Symbol& symbol, 
 		bool incremental
 	) {
@@ -887,7 +887,7 @@ namespace zorro {
 			entry_types.setField(FIX::MDEntryType(FIX::MDEntryType_TRADING_SESSION_LOW_PRICE));
 			request.addGroup(entry_types);
 
-			log::debug<dl1, false>("Application::subscribe_market_data: {}", fix_string(request));
+			log::debug<dl1, false>("FixClient::subscribe_market_data: {}", fix_string(request));
 
 			FIX::Session::sendToTarget(request, market_data_session_id);
 
@@ -897,7 +897,7 @@ namespace zorro {
 		}
 	}
 
-	std::optional<FIX::Message> Application::unsubscribe_market_data(const FIX::Symbol& symbol)
+	std::optional<FIX::Message> FixClient::unsubscribe_market_data(const FIX::Symbol& symbol)
 	{
 		auto it = market_data_subscriptions.find(symbol.getString());
 
@@ -918,7 +918,7 @@ namespace zorro {
 			entry_types.setField(FIX::MDEntryType(FIX::MDEntryType_TRADING_SESSION_LOW_PRICE));
 			request.addGroup(entry_types);
 
-			log::debug<dl1, false>("Application::unsubscribe_market_data: {}", fix_string(request));
+			log::debug<dl1, false>("FixClient::unsubscribe_market_data: {}", fix_string(request));
 
 			FIX::Session::sendToTarget(request, market_data_session_id);
 
@@ -930,21 +930,21 @@ namespace zorro {
 		}
 	}
 
-	FIX::Message Application::trading_session_status_request()
+	FIX::Message FixClient::trading_session_status_request()
 	{
 		FIX44::TradingSessionStatusRequest request;
 		request.setField(FIX::TradSesReqID(id_generator.genID()));
 		request.setField(FIX::TradingSessionID("FXCM"));
 		request.setField(FIX::SubscriptionRequestType(FIX::SubscriptionRequestType_SNAPSHOT));
 		
-		log::debug<dl1, false>("Application::trading_session_status_request: {}", fix_string(request));
+		log::debug<dl1, false>("FixClient::trading_session_status_request: {}", fix_string(request));
 
 		FIX::Session::sendToTarget(request, trading_session_id);
 
 		return request;
 	}
 
-	FIX::Message Application::collateral_inquiry()
+	FIX::Message FixClient::collateral_inquiry()
 	{
 		// will trigger a CollateralReport for each account under the login
 		FIX44::CollateralInquiry request;
@@ -952,14 +952,14 @@ namespace zorro {
 		request.setField(FIX::TradingSessionID("FXCM"));
 		request.setField(FIX::SubscriptionRequestType(FIX::SubscriptionRequestType_SNAPSHOT));
 
-		log::debug<dl1, false>("Application::collateral_inquiry: {}", fix_string(request));
+		log::debug<dl1, false>("FixClient::collateral_inquiry: {}", fix_string(request));
 
 		FIX::Session::sendToTarget(request, trading_session_id);
 
 		return request;
 	}
 
-	FIX::Message Application::request_for_positions(const std::string& account, int pos_req_type)
+	FIX::Message FixClient::request_for_positions(const std::string& account, int pos_req_type)
 	{
 		FIX44::RequestForPositions request;
 		request.setField(FIX::PosReqID(id_generator.genID()));
@@ -982,14 +982,14 @@ namespace zorro {
 		parties_group.addGroup(sub_parties);
 		request.addGroup(parties_group);
 
-		log::debug<dl1, false>("Application::request_for_positions: {}", fix_string(request));
+		log::debug<dl1, false>("FixClient::request_for_positions: {}", fix_string(request));
 
 		FIX::Session::sendToTarget(request, trading_session_id);
 
 		return request;
 	}
 
-	std::optional<FIX::Message> Application::new_order_single(
+	std::optional<FIX::Message> FixClient::new_order_single(
 		const FIX::Symbol& symbol, 
 		const FIX::ClOrdID& cl_ord_id, 
 		const FIX::Side& side, 
@@ -1029,14 +1029,14 @@ namespace zorro {
 		if (ord_type == FIX::OrdType_STOP || ord_type == FIX::OrdType_STOP_LIMIT)
 			order.set(stop_price);
 
-		log::debug<dl1, false>("Application::newOrderSingle[{}]: {}" , trading_session_id.toString(), fix_string(order));
+		log::debug<dl1, false>("FixClient::newOrderSingle[{}]: {}" , trading_session_id.toString(), fix_string(order));
 
 		FIX::Session::sendToTarget(order, trading_session_id);
 
 		return std::optional<FIX::Message>(order);
 	}	
 
-	std::optional<FIX::Message> Application::order_cancel_request(
+	std::optional<FIX::Message> FixClient::order_cancel_request(
 		const FIX::Symbol& symbol,
 		const FIX::OrderID& ord_id,
 		const FIX::OrigClOrdID& orig_cl_ord_iD,
@@ -1065,14 +1065,14 @@ namespace zorro {
 			return std::optional<FIX::Message>();
 		}
 
-		log::debug<dl1, false>("Application::orderCancelRequest[{}]: {}", trading_session_id.toString(), fix_string(request));
+		log::debug<dl1, false>("FixClient::orderCancelRequest[{}]: {}", trading_session_id.toString(), fix_string(request));
 
 		FIX::Session::sendToTarget(request, trading_session_id);
 
 		return std::optional<FIX::Message>(request);
 	}
 
-	std::optional<FIX::Message> Application::order_cancel_replace_request(
+	std::optional<FIX::Message> FixClient::order_cancel_replace_request(
 		const FIX::Symbol& symbol,
 		const FIX::OrderID& ord_id,
 		const FIX::OrigClOrdID& orig_cl_ord_id,
@@ -1106,18 +1106,18 @@ namespace zorro {
 			return std::optional<FIX::Message>();
 		}
 
-		log::debug<dl1, false>("Application::orderCancelReplaceRequest[{}]: {}", trading_session_id.toString(), fix_string(request));
+		log::debug<dl1, false>("FixClient::orderCancelReplaceRequest[{}]: {}", trading_session_id.toString(), fix_string(request));
 
 		FIX::Session::sendToTarget(request, trading_session_id);
 
 		return std::optional<FIX::Message>(request);
 	}
 
-	bool Application::has_book(const std::string& symbol) {
+	bool FixClient::has_book(const std::string& symbol) {
 		return top_of_books.contains(symbol);
 	}
 
-	TopOfBook Application::top_of_book(const std::string& symbol) {
+	TopOfBook FixClient::top_of_book(const std::string& symbol) {
 		auto it = top_of_books.find(symbol);
 		if (it != top_of_books.end()) {
 			return it->second;

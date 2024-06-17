@@ -4,10 +4,10 @@
 
 #include "pch.h"
 
-#include "fxcm_market_data/fxcm_market_data.h"  // must be before includes from zorro_common
+#include "fxcm_market_data/forex_connect.h"  // must be before includes from zorro_common
 
-#include "application.h"
-#include "fix_thread.h"
+#include "fix_client.h"
+#include "fix_service.h"
 #include "zorro_fxcm_fix_plugin.h"
 
 #include "common/market_data.h"
@@ -84,7 +84,8 @@ namespace zorro {
 	bool dump_bars_to_file = true;
 
 	std::shared_ptr<spdlog::logger> spd_logger = nullptr;
-	std::unique_ptr<FixThread> fix_thread = nullptr;
+	std::shared_ptr<fxcm::ForexConnect> forex_connect = nullptr;
+	std::unique_ptr<FixService> fix_thread = nullptr;
 	BlockingTimeoutQueue<ExecReport> exec_report_queue;
 	BlockingTimeoutQueue<TopOfBook> top_of_book_queue;
 	BlockingTimeoutQueue<FXCMPositionReports> position_report_queue;
@@ -410,7 +411,7 @@ namespace zorro {
 		try {
 			if (fix_thread == nullptr) {
 				log::debug<1, true>("BrokerLogin: FIX thread createing...");
-				fix_thread = std::unique_ptr<FixThread>(new FixThread(
+				fix_thread = std::unique_ptr<FixService>(new FixService(
 					settings_cfg_file,
 					requests_on_logon,
 					exec_report_queue, 
@@ -444,14 +445,24 @@ namespace zorro {
 				fix_thread->start();
 				log::debug<1, true>("BrokerLogin: FIX service running");
 
+				log::debug<1, true>("BrokerLogin: FXCM data connection starting...");
+				forex_connect = std::make_shared<fxcm::ForexConnect>(
+					fxcm_login,
+					fxcm_password,
+					fxcm_connection,
+					fxcm::default_url
+				);
+				auto fxcm_logged_in = forex_connect->login();
+				log::debug<1, true>("BrokerLogin: FXCM data connection logged in={}", fxcm_logged_in);
+
 				// TODO think about using a queue mechanism as well to wait for a ready event
 				auto count = 0;
 				auto start = std::chrono::system_clock::now();
 				log::debug<1, true>("BrokerLogin: waiting for all session log in");
-				auto login_count = fix_thread->fix_app().login_count();
+				auto login_count = fix_thread->client().login_count();
 				while (login_count < num_fix_sessions && count < 50) {
 					std::this_thread::sleep_for(100ms);
-					login_count = fix_thread->fix_app().login_count();
+					login_count = fix_thread->client().login_count();
 				}
 				auto dt = std::chrono::system_clock::now() - start;
 				auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(dt);
@@ -490,14 +501,21 @@ namespace zorro {
 			}
 			else {
 				log::debug<1, true>("BrokerLogin: waiting {} before stopping FIX service...", fix_termination_waiting_time);
+				
 				std::this_thread::sleep_for(fix_termination_waiting_time);
 				auto n = pop_exec_reports();
+				
 				log::debug<1, true>(
 					"BrokerLogin: processed {} final exec reports\n{}\n{}\nFIX service stopping...", 
 					n, order_tracker.to_string(), order_mapping_string()
 				);
+
 				fix_thread->cancel();
-				log::debug<1, true>("BrokerLogin: FIX service stopped\n");
+				log::debug<1, true>("BrokerLogin: FIX service stopped");
+
+				forex_connect->logout();
+				log::debug<1, true>("BrokerLogin: FXCM data connection logged out\n");
+
 				return BrokerLoginStatus::LoggedOut; 
 			}
 		}
@@ -569,7 +587,7 @@ namespace zorro {
 			return 1;
 		}
 		else {
-			fix_thread->fix_app().collateral_inquiry();
+			fix_thread->client().collateral_inquiry();
 
 			FXCMCollateralReport collateral_report;
 			auto success = collateral_report_queue.pop(collateral_report, fix_waiting_time);
@@ -653,12 +671,12 @@ namespace zorro {
 		double* margin_cost, double* roll_long, double* roll_short) 
 	{
 		try {
-			auto& fix_app = fix_thread->fix_app();
+			auto& client = fix_thread->client();
 
 			// subscribe to Asset market data
 			if (!price) {  
 				FIX::Symbol symbol(asset);
-				fix_app.subscribe_market_data(symbol, false);
+				client.subscribe_market_data(symbol, false);
 
 				log::info<1, true>("BrokerAsset: subscription request sent for symbol {}", asset);
 
@@ -937,7 +955,7 @@ namespace zorro {
 		auto limit_price = FIX::Price(limit);
 		auto stop_price = FIX::StopPx(stop);
 
-		auto msg = fix_thread->fix_app().new_order_single(
+		auto msg = fix_thread->client().new_order_single(
 			symbol, cl_ord_id, side, ord_type, time_in_force, qty, limit_price, stop_price
 		);
 
@@ -1100,7 +1118,7 @@ namespace zorro {
 					auto side = signed_qty > 0 ? FIX::Side(FIX::Side_BUY) : FIX::Side(FIX::Side_SELL);
 					auto qty = FIX::OrderQty(std::abs(signed_qty));
 					
-					auto msg = fix_thread->fix_app().new_order_single(
+					auto msg = fix_thread->client().new_order_single(
 						FIX::Symbol(order.symbol), cl_ord_id, side, ord_type, time_in_force, qty, FIX::Price(0), FIX::StopPx(0)
 					);
 
@@ -1150,7 +1168,7 @@ namespace zorro {
 					if (std::abs(amount) >= order.leaves_qty) {
 						log::debug<2, true>("BrokerSell2: cancel remaining quantity {}", order.leaves_qty);
 
-						auto msg = fix_thread->fix_app().order_cancel_request(
+						auto msg = fix_thread->client().order_cancel_request(
 								symbol, ord_id, orig_cl_ord_id, cl_ord_id, side, FIX::OrderQty(order.leaves_qty)
 						);
 
@@ -1175,7 +1193,7 @@ namespace zorro {
 
 						log::debug<2, true>("BrokerSell2: cancel/replace remaining quantity {} to new quantity {}", order.leaves_qty, new_qty);
 
-						auto msg = fix_thread->fix_app().order_cancel_replace_request(
+						auto msg = fix_thread->client().order_cancel_replace_request(
 								symbol, ord_id, orig_cl_ord_id, cl_ord_id, side, ord_type, 
 								FIX::OrderQty(new_qty), FIX::Price(order.price)
 						);
@@ -1216,7 +1234,7 @@ namespace zorro {
 		log::debug<dl1, true>("BrokerCommand {}[{}](filename={})", cmd_str, cmd, filename);
 
 		if (fix_thread) {
-			fix_thread->fix_app().request_for_positions(fxcm_account, pos_req_type);
+			fix_thread->client().request_for_positions(fxcm_account, pos_req_type);
 
 			FXCMPositionReports reports;
 			bool success = position_report_queue.pop(reports, 4 * fix_waiting_time);
@@ -1328,7 +1346,7 @@ namespace zorro {
 
 						log::debug<dl0, true>("BrokerCommand[DO_CANCEL]: cancel working order");
 
-						auto msg = fix_thread->fix_app().order_cancel_request(
+						auto msg = fix_thread->client().order_cancel_request(
 							symbol, ord_id, orig_cl_ord_id, cl_ord_id, side, FIX::OrderQty(order.leaves_qty)
 						);
 

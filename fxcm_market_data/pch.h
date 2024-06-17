@@ -19,11 +19,10 @@
 
 #include "ForexConnect.h"
 
-#include "CommonSources.h"
-
 #include "spdlog/spdlog.h"
 
 #include "common/bar.h"
+#include "common/utils.h"
 
 constexpr auto _TIMEOUT = 30000;
 

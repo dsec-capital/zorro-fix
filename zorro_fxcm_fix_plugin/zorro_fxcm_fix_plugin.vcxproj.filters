@@ -25,10 +25,10 @@
     <ClInclude Include="pch.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="application.h">
+    <ClInclude Include="fix_client.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="fix_thread.h">
+    <ClInclude Include="fix_service.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -42,7 +42,10 @@
     <ClCompile Include="pch.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="application.cpp">
+    <ClCompile Include="fix_client.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="fix_service.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

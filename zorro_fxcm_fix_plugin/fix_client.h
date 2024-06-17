@@ -1,5 +1,4 @@
-#ifndef APPLICATION_H
-#define APPLICATION_H
+#pragma once
 
 #include "quickfix/Application.h"
 #include "quickfix/MessageCracker.h"
@@ -169,10 +168,10 @@ namespace zorro
 	 * FXCM FIX Client Application
 	 * 
 	 */
-	class Application: public FIX::Application, public FIX::MessageCracker
+	class FixClient: public FIX::Application, public FIX::MessageCracker
 	{
 	public:
-		Application(
+		FixClient(
 			const FIX::SessionSettings& session_settings,
 			unsigned int requests_on_logon,
 			BlockingTimeoutQueue<ExecReport>& exec_report_queue,
@@ -372,4 +371,3 @@ namespace zorro
 	};
 }
 
-#endif

@@ -18,25 +18,22 @@
     <ClInclude Include="pch.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="CommonSources.h">
+    <ClInclude Include="communicator_status_listener.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="CommunicatorStatusListener.h">
+    <ClInclude Include="local_format.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="LocalFormat.h">
+    <ClInclude Include="response_listener.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="ResponseListener.h">
+    <ClInclude Include="session_status_listener.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="SessionStatusListener.h">
+    <ClInclude Include="thread_safe_add_ref_impl.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="ThreadSafeAddRefImpl.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="fxcm_market_data.h">
+    <ClInclude Include="forex_connect.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -44,22 +41,19 @@
     <ClCompile Include="pch.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="CommonSources.cpp">
+    <ClCompile Include="communicator_status_listener.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="CommunicatorStatusListener.cpp">
+    <ClCompile Include="local_format.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="LocalFormat.cpp">
+    <ClCompile Include="forex_connect.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="fxcm_market_data.cpp">
+    <ClCompile Include="response_listener.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="ResponseListener.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="SessionStatusListener.cpp">
+    <ClCompile Include="session_status_listener.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

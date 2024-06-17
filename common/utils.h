@@ -5,6 +5,16 @@
 
 namespace common {
 
+    inline bool is_nan(double value) {
+        return value != value;
+    }
+
+    inline std::string upper_string(const std::string& str) {
+        std::string upper;
+        std::transform(str.begin(), str.end(), std::back_inserter(upper), toupper);
+        return upper;
+    }
+
     inline std::string toml_str_to_symbol_str(const std::string& toml) {
         auto symbol = std::string(toml);
         std::replace(symbol.begin(), symbol.end(), '_', '/');

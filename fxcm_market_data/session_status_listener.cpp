@@ -1,32 +1,33 @@
 #include "pch.h"
 
-#include "SessionStatusListener.h"
+#include "session_status_listener.h"
 
 SessionStatusListener::SessionStatusListener(IO2GSession *session, bool printSubsessions, const char *sessionID, const char *pin, int timeout)
 {
     if (sessionID != 0)
-        mSessionID = sessionID;
+        session_id = sessionID;
     else
-        mSessionID = "";
+        session_id = "";
     if (pin != 0)
-        mPin = pin;
+        pin = pin;
     else
-        mPin = "";
-    mSession = session;
-    mSession->addRef();
+        pin = "";
+    session = session;
+    session->addRef();
     reset();
-    mPrintSubsessions = printSubsessions;
+    print_subsessions = printSubsessions;
     mRefCount = 1;
-    mSessionEvent = CreateEvent(0, FALSE, FALSE, 0);
-    mTimeout = timeout;
+    session_event = CreateEvent(0, FALSE, FALSE, 0);
+    timeout = timeout;
+    last_result = 0;
 }
 
 SessionStatusListener::~SessionStatusListener()
 {
-    mSession->release();
-    mSessionID.clear();
-    mPin.clear();
-    CloseHandle(mSessionEvent);
+    session->release();
+    session_id.clear();
+    pin.clear();
+    CloseHandle(session_event);
 }
 
 long SessionStatusListener::addRef()
@@ -44,14 +45,15 @@ long SessionStatusListener::release()
 
 void SessionStatusListener::reset()
 {
-    mConnected = false;
-    mDisconnected = false;
+    connected = false;
+    disconnected = false;
+    last_result = 0;
 }
 
 void SessionStatusListener::onLoginFailed(const char *error)
 {
     spdlog::error("SessionStatusListener::onLoginFailed: error {}", error);
-    SetEvent(mSessionEvent);
+    SetEvent(session_event);
 }
 
 void SessionStatusListener::onSessionStatusChanged(IO2GSessionStatus::O2GSessionStatus status)
@@ -60,9 +62,9 @@ void SessionStatusListener::onSessionStatusChanged(IO2GSessionStatus::O2GSession
     {
     case IO2GSessionStatus::Disconnected:
         spdlog::debug("SessionStatusListener::onSessionStatusChanged: IO2GSessionStatus::Disconnected");
-        mConnected = false;
-        mDisconnected = true;
-        SetEvent(mSessionEvent);
+        connected = false;
+        disconnected = true;
+        SetEvent(session_event);
         break;
 
     case IO2GSessionStatus::Connecting:
@@ -72,31 +74,31 @@ void SessionStatusListener::onSessionStatusChanged(IO2GSessionStatus::O2GSession
     case IO2GSessionStatus::TradingSessionRequested: 
         {
             spdlog::debug("SessionStatusListener::onSessionStatusChanged: IO2GSessionStatus::TradingSessionRequested");
-            O2G2Ptr<IO2GSessionDescriptorCollection> descriptors = mSession->getTradingSessionDescriptors();
+            O2G2Ptr<IO2GSessionDescriptorCollection> descriptors = session->getTradingSessionDescriptors();
             bool found = false;
             if (descriptors)
             {
                 std::stringstream strBuf;
-                if (mPrintSubsessions) {
+                if (print_subsessions) {
                     strBuf << "SessionStatusListener::onSessionStatusChanged: descriptors available:" << std::endl;
                 }
                 
                 for (int i = 0; i < descriptors->size(); ++i)
                 {
                     O2G2Ptr<IO2GSessionDescriptor> descriptor = descriptors->get(i);
-                    if (mPrintSubsessions)
+                    if (print_subsessions)
                         strBuf << "  id:='" << descriptor->getID()
                                << "' name='" << descriptor->getName()
                                << "' description='" << descriptor->getDescription()
                                << "' " << (descriptor->requiresPin() ? "requires pin" : "") << std::endl;
-                    if (mSessionID == descriptor->getID())
+                    if (session_id == descriptor->getID())
                     {
                         found = true;
                         break;
                     }
                 }
 
-                if (mPrintSubsessions) {
+                if (print_subsessions) {
                     spdlog::info(strBuf.str());
                 }
             }
@@ -106,16 +108,16 @@ void SessionStatusListener::onSessionStatusChanged(IO2GSessionStatus::O2GSession
             }
             else
             {
-                mSession->setTradingSession(mSessionID.c_str(), mPin.c_str());
+                session->setTradingSession(session_id.c_str(), pin.c_str());
             }
         }
         break;
 
     case IO2GSessionStatus::Connected:
         spdlog::info("SessionStatusListener::onSessionStatusChanged: IO2GSessionStatus::Connected");
-        mConnected = true;
-        mDisconnected = false;
-        SetEvent(mSessionEvent);
+        connected = true;
+        disconnected = false;
+        SetEvent(session_event);
         break;
 
     case IO2GSessionStatus::Reconnecting:
@@ -133,18 +135,19 @@ void SessionStatusListener::onSessionStatusChanged(IO2GSessionStatus::O2GSession
     }
 }
 
-bool SessionStatusListener::isConnected() const
+bool SessionStatusListener::is_connected() const
 {
-    return mConnected;
+    return connected;
 }
 
-bool SessionStatusListener::isDisconnected() const
+bool SessionStatusListener::is_disconnected() const
 {
-    return mDisconnected;
+    return disconnected;
 }
 
-bool SessionStatusListener::waitEvents()
+bool SessionStatusListener::wait_events(DWORD t)
 {
-    return WaitForSingleObject(mSessionEvent, mTimeout) == 0;
+    last_result = WaitForSingleObject(session_event, t > 0 ? t : timeout);
+    return last_result == 0;
 }
 

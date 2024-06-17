@@ -16,10 +16,12 @@
 #include <mutex>
 #include <atomic>
 #include <thread>
+#include <future>
 #include <type_traits>
 #include <filesystem>
 #include <unordered_map>
 #include <format>
+#include <stdexcept>
 
 #define WIN32_LEAN_AND_MEAN             
 #include <windows.h>
