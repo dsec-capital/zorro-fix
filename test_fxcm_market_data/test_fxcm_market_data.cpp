@@ -4,14 +4,19 @@
 #include <iostream>
 #include <cstdlib>
 #include <format>
+#include <filesystem>
+
 #include "magic_enum/magic_enum.hpp"
+
+#include "spdlog/spdlog.h"
+#include "spdlog/sinks/basic_file_sink.h"
+#include "spdlog/sinks/stdout_color_sinks.h"
 
 #include "fxcm_market_data/forex_connect.h"  // must be before includes from zorro_common
 
 #include "common/bar.h"
 #include "common/time_utils.h"
 #include "zorro_common/utils.h"
-#include "zorro_common/log.h"
 
 namespace zorro {
 	int(__cdecl* BrokerError)(const char* txt);
@@ -32,8 +37,6 @@ using namespace std::literals::chrono_literals;
 void test_function()
 {
 	zorro::BrokerError = show;
-
-	auto logger = zorro::create_file_logger("test_fxcm_market_data_function.log");
 
 	int n_tick_minutes = 1;
 	int n_ticks = 2 * 1440;
@@ -58,8 +61,6 @@ void test_function()
 	getenv_s(&len, fxcm_login, sizeof(fxcm_login), "FIX_USER_NAME");
 	getenv_s(&len, fxcm_password, sizeof(fxcm_password), "FIX_PASSWORD");
 
-	log::debug<0, true>("fxcm_login={} fxcm_password={}", fxcm_login, fxcm_password);
-
 	auto now = common::get_current_system_clock();
 	fxcm::DATE t_end = zorro::convert_time_chrono(now);
 	fxcm::DATE bar_seconds = n_tick_minutes * 60;
@@ -67,8 +68,8 @@ void test_function()
 	fxcm::DATE t_start = t_end - n_ticks * t_bar;
 
 	// alternative range 
-	t_end = 45442.10972890354;
-	t_start = 45441.41528445909;
+	t_end = 0;
+	t_start = 45460.166666666664;
 
 	auto success = fxcm::get_historical_prices(
 		bars,
@@ -86,14 +87,10 @@ void test_function()
 		auto ts = zorro::zorro_date_to_string(it->timestamp);
 		spdlog::debug("begin {} bar {}", ts, it->to_string());
 	}
-
-	log::debug<1, true>("FXCM marktet data download completed: {} bars read", bars.size());
 }
 
 void test_class() {
 	zorro::BrokerError = show;
-
-	auto logger = zorro::create_file_logger("test_fxcm_market_data_class.log");
 
 	size_t len = 0;
 	char fxcm_login[256];
@@ -101,7 +98,7 @@ void test_class() {
 	getenv_s(&len, fxcm_login, sizeof(fxcm_login), "FIX_USER_NAME");
 	getenv_s(&len, fxcm_password, sizeof(fxcm_password), "FIX_PASSWORD");
 
-	log::debug<1, true>("fxcm_login={} fxcm_password={}", fxcm_login, fxcm_password);
+	spdlog::debug("fxcm_login={} fxcm_password={}", fxcm_login, fxcm_password);
 
 	auto connection = fxcm::ForexConnect(
 		std::string(fxcm_login), 
@@ -111,7 +108,15 @@ void test_class() {
 	);
 
 	connection.login();
-	log::debug<1, true>("logged in");
+	spdlog::debug("logged in");
+
+	auto t0 = std::chrono::high_resolution_clock::now();
+
+	auto logged_in = connection.wait_for_login(10000ms);
+
+	auto dt = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - t0);
+
+	spdlog::debug("logged in with logged_in={} in dt={}", logged_in, dt.count());
 
 	int n_tick_minutes = 1;
 	int n_ticks = 2*1440;
@@ -133,12 +138,12 @@ void test_class() {
 		t_end
 	);
 
-	log::debug<1, true>("downloaded {} bars", bars1.size());
+	spdlog::debug("downloaded {} bars", bars1.size());
 	for (auto it = bars1.begin(); it != bars1.end(); ++it) {
 		auto ts = zorro::zorro_date_to_string(it->timestamp);
-		log::debug<2, true>("begin {} bar {}", ts, it->to_string());
+		spdlog::debug("begin {} bar {}", ts, it->to_string());
 	}
-	log::debug<1, true>("FXCM marktet data download completed: {} bars read", bars1.size());
+	spdlog::debug("FXCM marktet data download completed: {} bars read", bars1.size());
 
 	// other fixed range 
 	t_end = 45442.10972890354;
@@ -153,21 +158,19 @@ void test_class() {
 		t_end
 	);
 
-	log::debug<1, true>("downloaded {} bars", bars2.size());
+	spdlog::debug("downloaded {} bars", bars2.size());
 	for (auto it = bars2.begin(); it != bars2.end(); ++it) {
 		auto ts = zorro::zorro_date_to_string(it->timestamp);
-		log::debug<2, true>("begin {} bar {}", ts, it->to_string());
+		spdlog::debug("begin {} bar {}", ts, it->to_string());
 	}
-	log::debug<1, true>("FXCM marktet data download completed: {} bars read", bars2.size());
+	spdlog::debug("FXCM marktet data download completed: {} bars read", bars2.size());
 
 	connection.logout();
-	log::debug<1, true>("logged out");
+	spdlog::debug("logged out");
 }
 
 void test_login() {
 	zorro::BrokerError = show;
-
-	auto logger = zorro::create_file_logger("test_fxcm_market_data_login.log");
 
 	size_t len = 0;
 	char fxcm_login[256];
@@ -175,7 +178,7 @@ void test_login() {
 	getenv_s(&len, fxcm_login, sizeof(fxcm_login), "FIX_USER_NAME");
 	getenv_s(&len, fxcm_password, sizeof(fxcm_password), "FIX_PASSWORD");
 
-	log::debug<1, true>("fxcm_login={} fxcm_password={}", fxcm_login, fxcm_password);
+	spdlog::debug("fxcm_login={} fxcm_password={}", fxcm_login, fxcm_password);
 
 	auto connection = fxcm::ForexConnect(
 		std::string(fxcm_login),
@@ -185,7 +188,7 @@ void test_login() {
 	);
 
 	bool res = connection.login();
-	log::debug<1, true>("waiting for login res={}", res);
+	spdlog::debug("waiting for login res={}", res);
 
 	auto t0 = std::chrono::high_resolution_clock::now();
 
@@ -193,11 +196,10 @@ void test_login() {
 	
 	auto dt = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - t0);
 
-	log::debug<1, true>("logged in with logged_in={} in dt={}", logged_in, dt);
-
+	spdlog::debug("logged in with logged_in={} in dt={}", logged_in, dt.count());
 
 	connection.logout();
-	log::debug<1, true>("waiting for logout");
+	spdlog::debug("waiting for logout");
 
 	t0 = std::chrono::high_resolution_clock::now();
 
@@ -205,16 +207,35 @@ void test_login() {
 
 	dt = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - t0);
 
-	log::debug<1, true>("logged out with logged_out={} in dt={}", logged_out, dt);
+	spdlog::debug("logged out with logged_out={} in dt={}", logged_out, dt.count());
 }
 
 int main(int argc, char* argv[])
 {
-	test_login();
+	auto cwd = std::filesystem::current_path().string();
+
+	auto logger_name = "fxcm_proxy_server";
+	auto log_level = spdlog::level::debug;
+	auto flush_interval = std::chrono::seconds(2);
+	std::vector<spdlog::sink_ptr> sinks{
+		std::make_shared<spdlog::sinks::stdout_color_sink_mt>(),
+		std::make_shared<spdlog::sinks::basic_file_sink_mt>("file", "fxcm_proxy_server"),
+	};
+	auto spd_logger = std::make_shared<spdlog::logger>("name", begin(sinks), end(sinks));
+	spdlog::register_logger(spd_logger);
+	spd_logger->set_level(log_level);
+
+	spdlog::set_level(log_level);
+	spdlog::flush_every(flush_interval);
+
+	spdlog::debug("Logging started, logger_name={}, level={}, cwd={}", logger_name, (int)spd_logger->level(), cwd);
+
+
+	//test_login();
 	
 	//test_class();
 
-	//test_function();
+	test_function();
 	
 	return 0;
 }

@@ -35,11 +35,24 @@
 #include "common/book.h"
 #include "common/fix.h"
 
+#include <variant>
+
 namespace zorro
 {
 	using namespace common;
 
 	std::string fix_string(const FIX::Message& msg);
+
+	// Service message structure:
+	// Required key: "type" std::string type of message
+	typedef std::map<
+		std::string, std::variant<bool, int, unsigned int, double, std::string>
+	> ServiceMessage;
+
+	constexpr std::string_view SERVICE_MESSAGE_TYPE = "type";
+	constexpr std::string_view SERVICE_MESSAGE_LOGON_STATUS = "logon_status";
+	constexpr std::string_view SERVICE_MESSAGE_LOGON_STATUS_READY = "ready";
+	constexpr std::string_view SERVICE_MESSAGE_LOGON_STATUS_SESSION_LOGINS = "session_logins";
 
 	enum FXCMProductId {
 		UnknownProductId = 0,
@@ -174,14 +187,18 @@ namespace zorro
 		FixClient(
 			const FIX::SessionSettings& session_settings,
 			unsigned int requests_on_logon,
+			unsigned int num_required_session_logins, 
 			BlockingTimeoutQueue<ExecReport>& exec_report_queue,
 			BlockingTimeoutQueue<TopOfBook>& top_of_book_queue,
+			BlockingTimeoutQueue<ServiceMessage>& service_message_queue,
 			BlockingTimeoutQueue<FXCMPositionReports>& position_reports_queue,
 			BlockingTimeoutQueue<FXCMCollateralReport>& collateral_report_queue,
 			BlockingTimeoutQueue<FXCMTradingSessionStatus>& trading_session_status_queue
 		);
 
-		int login_count() const;
+		std::future<bool> login_state();
+
+		unsigned int get_session_logins();
 
 		std::set<std::string> get_account_ids();
 
@@ -244,6 +261,8 @@ namespace zorro
 
 	private:
 
+		ServiceMessage logon_service_message() const;
+
 		bool is_trading_session(const FIX::SessionID& sess_id) const;
 
 		bool is_market_data_session(const FIX::SessionID& sess_id) const;
@@ -304,8 +323,10 @@ namespace zorro
 
 		FIX::SessionSettings session_settings;
 		unsigned int requests_on_logon;
+		unsigned int num_required_session_logins;
 		BlockingTimeoutQueue<ExecReport>& exec_report_queue;
 		BlockingTimeoutQueue<TopOfBook>& top_of_book_queue;
+		BlockingTimeoutQueue<ServiceMessage>& service_message_queue;
 		BlockingTimeoutQueue<FXCMPositionReports>& position_reports_queue;
 		BlockingTimeoutQueue<FXCMCollateralReport>& collateral_report_queue;
 		BlockingTimeoutQueue<FXCMTradingSessionStatus>& trading_session_status_queue;
@@ -314,12 +335,13 @@ namespace zorro
 		FIX::SessionID market_data_session_id;
 		std::set<std::string> account_ids;
 
+		std::map<std::string, bool> session_login_status;
+		std::promise<bool> login_promise;
 		std::atomic<bool> done;
-		std::atomic<int> logged_in;
 		IDGenerator id_generator;
 
-		std::unordered_map<std::string, std::string> market_data_subscriptions;
-		std::unordered_map<std::string, TopOfBook> top_of_books;
+		std::map<std::string, std::string> market_data_subscriptions;
+		std::map<std::string, TopOfBook> top_of_books;
 		std::vector<FXCMPositionReport> position_report_list;
 
 		bool log_market_data;

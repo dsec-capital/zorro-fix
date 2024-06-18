@@ -27,6 +27,17 @@ namespace zorro {
 		std::replace(s.begin(), s.end(), '\x1', '|');  
 		return s;
 	}
+	
+	template<class T>
+	inline T get_or_else(const ServiceMessage& map, const std::string_view& key, const T& other) {
+		auto it = map.find(std::string(key));
+		if (it != map.end()) {
+			return std::get<T>(it->second);
+		}
+		else {
+			return other;
+		}
+	}
 
 	template<typename G>
 	inline std::chrono::nanoseconds parse_date_and_time(const G& g, int date_field = FIX::FIELD::MDEntryDate, int time_field = FIX::FIELD::MDEntryTime) {
@@ -169,20 +180,23 @@ namespace zorro {
 	FixClient::FixClient(
 		const FIX::SessionSettings& session_settings,
 		unsigned int requests_on_logon,
+		unsigned int num_required_session_logins,
 		BlockingTimeoutQueue<ExecReport>& exec_report_queue,
 		BlockingTimeoutQueue<TopOfBook>& top_of_book_queue,
+		BlockingTimeoutQueue<ServiceMessage>& service_message_queue,
 		BlockingTimeoutQueue<FXCMPositionReports>& position_reports_queue,
 		BlockingTimeoutQueue<FXCMCollateralReport>& collateral_report_queue,
 		BlockingTimeoutQueue<FXCMTradingSessionStatus>& trading_session_status_queue
 	) : session_settings(session_settings)
       , requests_on_logon(requests_on_logon)
+      , num_required_session_logins(num_required_session_logins)
 	  , exec_report_queue(exec_report_queue)
 	  , top_of_book_queue(top_of_book_queue)
+      , service_message_queue(service_message_queue)
 	  , position_reports_queue(position_reports_queue)
       , collateral_report_queue(collateral_report_queue)
       , trading_session_status_queue(trading_session_status_queue)
 	  , done(false)
-	  , logged_in(0)
 	  , log_market_data(false)
 	{
 		if (session_settings.get().has("AccountId")) {
@@ -194,8 +208,17 @@ namespace zorro {
 		}
 	}
 
-	int FixClient::login_count() const {
-		return logged_in.load();
+	std::future<bool> FixClient::login_state() {
+		return login_promise.get_future();
+	}
+
+	unsigned int FixClient::get_session_logins() {
+		std::unique_lock<std::mutex> ul(mutex);
+		unsigned int count = 0;
+		for (const auto& [sess_id, logged_in] : session_login_status) {
+			count += logged_in ? 1 : 0;
+		}
+		return count;
 	}
 
 	std::set<std::string> FixClient::get_account_ids() {
@@ -212,24 +235,55 @@ namespace zorro {
 	}
 
 	void FixClient::onCreate(const FIX::SessionID& sess_id) {
-		// FIX Session created. We must now logon. QuickFIX will automatically send the Logon(A) message
-		auto is_trading = true;
+		// FIX Session created - QuickFIX will automatically send the Logon(A) message
+		bool is_trading;
 		if (is_market_data_session(sess_id)) {
 			market_data_session_id = sess_id;
 			is_trading = false;
 		}
 		else {
 			trading_session_id = sess_id;
+			is_trading = true;
 		}
+		session_login_status.insert_or_assign(sess_id.toString(), false);
 		log::debug<dl1, false>(
 			"FixClient::onCreate is trading={}, sessionID={}", is_trading, sess_id.toString()
 		);
 	}
+	
+	ServiceMessage FixClient::logon_service_message() const {
+		ServiceMessage service_msg{
+			{std::string(SERVICE_MESSAGE_TYPE), std::string(SERVICE_MESSAGE_LOGON_STATUS)}
+		};
+
+		unsigned int session_logins = 0;
+		for (const auto& [sess_id, logged_in] : session_login_status) {
+			session_logins += logged_in ? 1 : 0;
+			service_msg.emplace(sess_id, logged_in);
+		}
+
+		service_msg.emplace(SERVICE_MESSAGE_LOGON_STATUS_SESSION_LOGINS, session_logins);
+		service_msg.emplace(SERVICE_MESSAGE_LOGON_STATUS_READY, session_logins == num_required_session_logins);
+
+		return service_msg;
+	}
+
 
 	void FixClient::onLogon(const FIX::SessionID& sess_id)
 	{
-		logged_in++;
-		log::debug<dl0, false>("FixClient::onLogon sessionID={} login count={}", sess_id.toString(), logged_in.load());
+		std::unique_lock<std::mutex> ul(mutex);
+		
+		session_login_status.insert_or_assign(sess_id.toString(), true);
+		
+		auto service_msg = logon_service_message();
+		auto session_logins = get_or_else<unsigned int>(service_msg, SERVICE_MESSAGE_LOGON_STATUS_SESSION_LOGINS, 0);
+
+		log::debug<dl0, false>(
+			"FixClient::onLogon sessionID={} login count={} status={}", 
+			sess_id.toString(), session_logins, session_logins == num_required_session_logins ? "ready" : "waiting" 
+		);
+
+		service_message_queue.push(service_msg);
 
 		if (is_trading_session(sess_id)) {
 			if (requests_on_logon & static_cast<unsigned int>(RequestsOnLogon::RequestsOnLogon_TradingSessionStatus)) {
@@ -241,10 +295,14 @@ namespace zorro {
 		}
 	}
 
-	void FixClient::onLogout(const FIX::SessionID& sessionID)
+	void FixClient::onLogout(const FIX::SessionID& sess_id)
 	{
-		logged_in--;
-		log::debug<dl0, false>("FixClient::onLogout sessionID={}", sessionID.toString());
+		std::unique_lock<std::mutex> ul(mutex);
+		session_login_status.insert_or_assign(sess_id.toString(), false);
+		log::debug<dl0, false>("FixClient::onLogout sessionID={}", sess_id.toString());
+
+		auto service_msg = logon_service_message();
+		service_message_queue.push(service_msg);
 	}
 
 	void FixClient::fromAdmin(

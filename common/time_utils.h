@@ -11,6 +11,25 @@ namespace common {
     typedef time_point<system_clock> time_point_t;
     typedef time_point<steady_clock> steady_time_point_t;
 
+    constexpr auto DAYS_BETWEEN_1899_12_30_1979_01_01 = 25569.0;
+    constexpr auto SECONDS_PER_DAY = 86400.0;
+    constexpr auto MILLIS_PER_DAY = 86400000.0;
+    constexpr auto MICROS_PER_DAY = 86400000000.0;
+    constexpr auto NANOS_PER_DAY = 86400000000000.0;
+    constexpr auto SECONDS_PER_MINUTE = 60;
+    constexpr auto SECONDS_PER_HOURS = 3600;
+
+    inline double nanos_to_date(const std::chrono::nanoseconds& t) {
+        auto ns = t.count();
+        return (double)ns / NANOS_PER_DAY + DAYS_BETWEEN_1899_12_30_1979_01_01;
+    }
+
+    inline std::chrono::nanoseconds date_to_nanos(double date) {
+        auto count = (long long)((date - DAYS_BETWEEN_1899_12_30_1979_01_01) * MICROS_PER_DAY);
+        auto us = std::chrono::microseconds(count);
+        return std::chrono::duration_cast<std::chrono::nanoseconds>(us);
+    }
+
     // parsing datetime string for example "2017-09-15 13:11:34.356648"
     inline nanoseconds parse_datetime(const std::string& d) {
        std::istringstream in(d);

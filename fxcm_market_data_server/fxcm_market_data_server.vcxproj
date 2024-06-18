@@ -29,8 +29,8 @@
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
-    <ProjectGuid>{298bfc0f-af3a-4205-983f-aebd6f362be3}</ProjectGuid>
-    <RootNamespace>testfxcmmarketdata</RootNamespace>
+    <ProjectGuid>{43b4c44c-2d2d-4640-a772-6a2be191ea34}</ProjectGuid>
+    <RootNamespace>fxcmmarketdataserver</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -105,12 +105,14 @@
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>$(SolutionDir);$(SolutionDir)\third-parties;$(SolutionDir)third-parties\fxcm\forex_connect\$(LibrariesArchitecture)\include</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpplatest</LanguageStandard>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);ws2_32.lib;common.lib;zorro_common.lib;pricehistorymgr.lib;ForexConnect.lib</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(SolutionDir)$(Configuration);$(SolutionDir)third-parties\fxcm\forex_connect\$(LibrariesArchitecture)\lib</AdditionalLibraryDirectories>
-      <AdditionalDependencies>ws2_32.lib;common.lib;zorro_common.lib;fxcm_market_data.lib;pricehistorymgr.lib;ForexConnect.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -129,8 +131,8 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);ws2_32.lib;common.lib;zorro_common.lib;pricehistorymgr.lib;ForexConnect.lib</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(SolutionDir)$(Configuration);$(SolutionDir)third-parties\fxcm\forex_connect\$(LibrariesArchitecture)\lib</AdditionalLibraryDirectories>
-      <AdditionalDependencies>ws2_32.lib;common.lib;zorro_common.lib;fxcm_market_data.lib;pricehistorymgr.lib;ForexConnect.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -139,6 +141,8 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
+      <AdditionalIncludeDirectories>$(SolutionDir);$(SolutionDir)\third-parties;$(SolutionDir)third-parties\fxcm\forex_connect\$(LibrariesArchitecture)\include</AdditionalIncludeDirectories>
+      <LanguageStandard>stdcpplatest</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -153,6 +157,8 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
+      <AdditionalIncludeDirectories>$(SolutionDir);$(SolutionDir)\third-parties;$(SolutionDir)third-parties\fxcm\forex_connect\$(LibrariesArchitecture)\include</AdditionalIncludeDirectories>
+      <LanguageStandard>stdcpplatest</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -190,7 +196,21 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="test_fxcm_market_data.cpp" />
+    <ClCompile Include="CommunicatorStatusListener.cpp" />
+    <ClCompile Include="fxcm_market_data_server.cpp" />
+    <ClCompile Include="LocalFormat.cpp" />
+    <ClCompile Include="log.cpp" />
+    <ClCompile Include="ResponseListener.cpp" />
+    <ClCompile Include="SessionStatusListener.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="CommunicatorStatusListener.h" />
+    <ClInclude Include="LocalFormat.h" />
+    <ClInclude Include="log.h" />
+    <ClInclude Include="pch.h" />
+    <ClInclude Include="proxy_server.h" />
+    <ClInclude Include="ResponseListener.h" />
+    <ClInclude Include="SessionStatusListener.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

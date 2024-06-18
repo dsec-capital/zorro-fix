@@ -42,6 +42,38 @@ namespace common {
 		return std::make_pair(j, count);
 	}
 
+	inline json to_json(const std::vector<BidAskBar<double>>& bars) {
+		std::vector<double> timestamp;
+		std::vector<double> bid_open, bid_close, bid_high, bid_low, ask_open, ask_close, ask_high, ask_low, volume;
+		int count = 0;
+		for (const auto& bar : bars) {
+			timestamp.emplace_back(bar.timestamp);
+			bid_open.emplace_back(bar.bid_open);
+			bid_high.emplace_back(bar.bid_high);
+			bid_low.emplace_back(bar.bid_low);
+			bid_close.emplace_back(bar.bid_close);
+			ask_open.emplace_back(bar.ask_open);
+			ask_high.emplace_back(bar.ask_high);
+			ask_low.emplace_back(bar.ask_low);
+			ask_close.emplace_back(bar.ask_close);
+			volume.emplace_back(bar.volume);
+		}
+
+		json j;
+		j["timestamp"] = timestamp;
+		j["bid_open"] = bid_open;
+		j["bid_high"] = bid_high;
+		j["bid_low"] = bid_low;
+		j["bid_close"] = bid_close;
+		j["ask_open"] = ask_open;
+		j["ask_high"] = ask_high;
+		j["ask_low"] = ask_low;
+		j["ask_close"] = ask_close;
+		j["volume"] = volume;
+
+		return j;
+	}
+
 	inline void from_json(const json& j, std::map<std::chrono::nanoseconds, Bar>& bars) {
 		auto end = j["end"].get<std::vector<long long>>();
 		auto open = j["open"].get<std::vector<double>>();
@@ -61,6 +93,40 @@ namespace common {
 				low[i],
 				close[i]
 			);
+		}
+	}
+
+	inline void from_json(const json& j, std::vector<BidAskBar<double>>& bars) {
+		auto timestamp = j["timestamp"].get<std::vector<double>>();
+		auto n = timestamp.size();
+
+		auto bid_open = j["bid_open"].get<std::vector<double>>();
+		auto bid_high = j["bid_high"].get<std::vector<double>>();
+		auto bid_low = j["bid_low"].get<std::vector<double>>();
+		auto bid_close = j["bid_close"].get<std::vector<double>>();
+		assert(bid_open.size() == n && bid_high.size() == n && bid_low.size() == n && bid_close.size() == n);
+
+		auto ask_open = j["ask_open"].get<std::vector<double>>();
+		auto ask_high = j["ask_high"].get<std::vector<double>>();
+		auto ask_low = j["ask_low"].get<std::vector<double>>();
+		auto ask_close = j["ask_close"].get<std::vector<double>>();
+		auto volume = j["volume"].get<std::vector<double>>();
+		assert(ask_open.size() == n && ask_high.size() == n && ask_low.size() == n && ask_close.size() == n && volume.size() == n);
+
+		bars.clear();
+		for (size_t i = 0; i < n; ++i) {
+			bars.emplace_back(
+				timestamp[i],
+				bid_open[i],
+				bid_high[i],
+				bid_low[i],
+				bid_close[i],
+				ask_open[i],
+				ask_high[i],
+				ask_low[i],
+				ask_close[i],
+				volume[i]
+				);
 		}
 	}
 

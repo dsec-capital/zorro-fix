@@ -21,11 +21,6 @@ namespace fxcm {
 
     typedef double DATE;
 
-    typedef std::map<
-        std::string, std::variant<int, double, float, std::string>
-    > Message;
-
-
     class ForexConnect {
     public:
         ForexConnect(

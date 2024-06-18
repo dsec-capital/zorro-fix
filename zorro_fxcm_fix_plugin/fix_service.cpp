@@ -15,8 +15,10 @@ namespace zorro {
 	FixService::FixService(
 		const std::string& settings_cfg_file,
 		unsigned int requests_on_logon,
+		unsigned int num_required_session_logins,
 		BlockingTimeoutQueue<ExecReport>& exec_report_queue,
 		BlockingTimeoutQueue<TopOfBook>& top_of_book_queue,
+		BlockingTimeoutQueue<ServiceMessage>& service_message_queue,
 		BlockingTimeoutQueue<FXCMPositionReports>& position_reports_queue,
 		BlockingTimeoutQueue<FXCMCollateralReport>& collateral_report_queue,
 		BlockingTimeoutQueue<FXCMTradingSessionStatus>& trading_session_status_queue
@@ -28,8 +30,10 @@ namespace zorro {
 		fix_client = new FixClient(
 			*settings,
 			requests_on_logon,
+			num_required_session_logins,
 			exec_report_queue,
 			top_of_book_queue,
+			service_message_queue,
 			position_reports_queue,
 			collateral_report_queue,
 			trading_session_status_queue
@@ -53,8 +57,10 @@ namespace zorro {
 	FixService::FixService(
 		const std::string& settings_cfg_file,
 		unsigned int requests_on_logon,
+		unsigned int num_required_session_logins,
 		BlockingTimeoutQueue<ExecReport>& exec_report_queue,
 		BlockingTimeoutQueue<TopOfBook>& top_of_book_queue,
+		BlockingTimeoutQueue<ServiceMessage>& service_message_queue,
 		BlockingTimeoutQueue<FXCMPositionReports>& position_reports_queue,
 		BlockingTimeoutQueue<FXCMCollateralReport>& collateral_report_queue,
 		BlockingTimeoutQueue<FXCMTradingSessionStatus>& trading_session_status_queue
@@ -67,8 +73,10 @@ namespace zorro {
 		application = new Application(
 			*settings,
 			requests_on_logon,
+			num_required_session_logins,
 			exec_report_queue,
 			top_of_book_queue,
+			service_message_queue,
 			position_reports_queue,
 			collateral_report_queue,
 			trading_session_status_queue

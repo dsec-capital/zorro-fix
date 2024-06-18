@@ -9,6 +9,8 @@
 
 namespace fxcm {
 
+    constexpr const char* UNKNOW_ERROR = "unknow error";
+
     ForexConnect::ForexConnect(
         const std::string& login_user,
         const std::string& password,
@@ -40,9 +42,7 @@ namespace fxcm {
 
         if (!communicator)
         {
-            auto msg = std::format(
-                "ForexConnect::ForexConnect: error {}", error->getMessage()
-            );
+            auto msg = std::format("ForexConnect::ForexConnect: error {}", error ? error->getMessage() : UNKNOW_ERROR);
             spdlog::error(msg);
             throw std::runtime_error(msg);
         }
@@ -114,7 +114,7 @@ namespace fxcm {
                 O2G2Ptr<pricehistorymgr::IError> autoError(error);
                 
                 if (!timeframeObj) {
-                    throw std::runtime_error(std::format("timeframe {} invalid error={}", timeframe, error->getMessage()));
+                    throw std::runtime_error(std::format("timeframe {} invalid error={}", timeframe, error ? error->getMessage() : UNKNOW_ERROR));
                 }
 
                 O2G2Ptr<pricehistorymgr::IPriceHistoryCommunicatorRequest> request = communicator->createRequest(
@@ -122,26 +122,26 @@ namespace fxcm {
                 );
 
                 if (!request) {
-                    throw std::runtime_error(std::format("failded creating request error={}", error->getMessage()));
+                    throw std::runtime_error(std::format("failded creating request error={}", error ? error->getMessage() : UNKNOW_ERROR));
                 }
 
                 responseListener->set_request(request);
 
                 if (!communicator->sendRequest(request, &error)) {
-                    throw std::runtime_error(std::format("failded sending request error={}", error->getMessage()));
+                    throw std::runtime_error(std::format("failded sending request error={}", error ? error->getMessage() : UNKNOW_ERROR));
                 }
 
                 responseListener->wait();
                 O2G2Ptr<pricehistorymgr::IPriceHistoryCommunicatorResponse> response = responseListener->get_response();
 
                 if (!response) {
-                    throw std::runtime_error(std::format("failded receiving request error={}", error->getMessage()));
+                    throw std::runtime_error(std::format("failded receiving request error={}", error ? error->getMessage() : UNKNOW_ERROR));
                 }
 
                 O2G2Ptr<IO2GMarketDataSnapshotResponseReader> reader = communicator->createResponseReader(response, &error);
 
                 if (!reader) {
-                    throw std::runtime_error(std::format("failded to create reader error={}", error->getMessage()));
+                    throw std::runtime_error(std::format("failded to create reader error={}", error ? error->getMessage() : UNKNOW_ERROR));
                 }
 
                 if (!reader->isBar()) {
@@ -186,8 +186,12 @@ namespace fxcm {
                     );
                 }
             }
-            catch (std::runtime_error& e) {
+            catch (std::exception& e) {
                 spdlog::error("ForexConnect::fetch_bars error: {}", e.what());
+                success = false;
+            }
+            catch (...) {
+                spdlog::error("ForexConnect::fetch_bars error: unknown exception");
                 success = false;
             }
         }
@@ -243,7 +247,7 @@ namespace fxcm {
             O2G2Ptr<quotesmgr::IInstrument> instr = instruments->find(instrument.c_str());
         }
         else {
-            spdlog::error("ForexConnect::get_instrument error: {}", error->getMessage());
+            spdlog::error("ForexConnect::get_instrument error: {}", error ? error->getMessage() : UNKNOW_ERROR);
         }
 
         return instr;
@@ -450,7 +454,7 @@ namespace fxcm {
 
             bool success = false;
 
-            if (status_listener->wait_events() && status_listener->is_connected())
+            if (status_listener->wait_events(10000) && status_listener->is_connected())
             {
                 O2G2Ptr<CommunicatorStatusListener> communicatorStatusListener(new CommunicatorStatusListener());
                 communicator->addStatusListener(communicatorStatusListener);

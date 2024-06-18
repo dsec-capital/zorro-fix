@@ -1,0 +1,11 @@
+[2024-06-18 11:29:37.368] [standard] [debug] Logging started, logger_name=fxcm_proxy_server, level=1, cwd=C:\Users\dani\source\repos\zorro-fix\fxcm_market_data_server
+[2024-06-18 11:29:37.436] [standard] [debug] SessionStatusListener::onSessionStatusChanged: IO2GSessionStatus::Connecting
+[2024-06-18 11:29:37.439] [standard] [info] waiting for login res=true
+[2024-06-18 11:29:38.466] [standard] [info] logged in with logged_in=false in dt=1027ms
+[2024-06-18 11:29:38.470] [standard] [info] ====> rest server stated on 0.0.0.0:8000
+[2024-06-18 11:34:54.414] [standard] [debug] Logging started, logger_name=fxcm_proxy_server, level=1, cwd=C:\Users\dani\source\repos\zorro-fix\fxcm_market_data_server
+[2024-06-18 11:34:54.467] [standard] [debug] SessionStatusListener::onSessionStatusChanged: IO2GSessionStatus::Connecting
+[2024-06-18 11:34:54.470] [standard] [info] waiting for login res=true
+[2024-06-18 11:34:55.543] [standard] [info] logged in with logged_in=false in dt=1056msms
+[2024-06-18 11:34:55.557] [standard] [info] ====> rest server stated on 0.0.0.0:8000
+[2024-06-18 11:35:00.868] [standard] [info] SessionStatusListener::onSessionStatusChanged: IO2GSessionStatus::Connected

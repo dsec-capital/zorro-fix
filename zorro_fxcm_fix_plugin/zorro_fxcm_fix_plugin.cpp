@@ -4,8 +4,6 @@
 
 #include "pch.h"
 
-#include "fxcm_market_data/forex_connect.h"  // must be before includes from zorro_common
-
 #include "fix_client.h"
 #include "fix_service.h"
 #include "zorro_fxcm_fix_plugin.h"
@@ -24,6 +22,7 @@
 #include "nlohmann/json.h"
 #include "httplib/httplib.h"
 #include "magic_enum/magic_enum.hpp"
+
 #include "spdlog/spdlog.h"
 #include "spdlog/sinks/basic_file_sink.h"
 
@@ -53,12 +52,14 @@ namespace zorro {
 
 	int max_snaphsot_waiting_iterations = 10; 
 	std::chrono::milliseconds fix_waiting_time = 2000ms;
+	std::chrono::milliseconds fix_login_waiting_time = 10000ms;
 	std::chrono::milliseconds fix_exec_report_waiting_time = 500ms;
 	std::chrono::milliseconds fix_termination_waiting_time = 4000ms;
 	std::string settings_cfg_file = "Plugin/zorro_fxcm_fix_client.cfg";
 	unsigned int requests_on_logon =
 		static_cast<unsigned int>(RequestsOnLogon::RequestsOnLogon_TradingSessionStatus) +
 		static_cast<unsigned int>(RequestsOnLogon::RequestsOnLogon_CollateralReport);
+	unsigned int num_required_session_logins = 2;
 
 	int client_order_id = 0;
 	int internal_order_id = 1000;
@@ -84,10 +85,10 @@ namespace zorro {
 	bool dump_bars_to_file = true;
 
 	std::shared_ptr<spdlog::logger> spd_logger = nullptr;
-	std::shared_ptr<fxcm::ForexConnect> forex_connect = nullptr;
 	std::unique_ptr<FixService> fix_thread = nullptr;
 	BlockingTimeoutQueue<ExecReport> exec_report_queue;
 	BlockingTimeoutQueue<TopOfBook> top_of_book_queue;
+	BlockingTimeoutQueue<ServiceMessage> service_message_queue;
 	BlockingTimeoutQueue<FXCMPositionReports> position_report_queue;
 	BlockingTimeoutQueue<FXCMCollateralReport> collateral_report_queue;
 	BlockingTimeoutQueue<FXCMTradingSessionStatus> trading_session_status_queue;
@@ -96,6 +97,10 @@ namespace zorro {
 	std::map<std::string, FXCMCollateralReport> collateral_reports;
 	FXCMTradingSessionStatus trading_session_status;
 	OrderTracker order_tracker("unknown-account");
+
+	std::chrono::milliseconds elappsed(const std::chrono::system_clock::time_point& reference) {
+		return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - reference);
+	}
 
 	std::string order_mapping_string() {
 		std::string str = "OrderMapping[\n";
@@ -202,6 +207,42 @@ namespace zorro {
 		);
 		log::debug<2, true>("pop_exec_report_cancel_replace: report found={}", target_report.has_value());
 		return target_report;
+	}
+
+	template<class T>
+	inline const T& get_or_else(const ServiceMessage& map, const std::string_view& key, const T& other) {
+		auto it = map.find(std::string(key));
+		if (it != map.end()) {
+			return std::get<T>(it->second);
+		}
+		else {
+			return other;
+		}
+	}
+
+	template<class R, class P>
+	std::optional<ServiceMessage> pop_login_service_message(int expected_num_logins, const std::chrono::duration<R, P>& timeout) {
+		log::debug<2, true>("pop_login_service_message: expected_num_logins={}", expected_num_logins);
+		std::optional<ServiceMessage> message = std::optional<ServiceMessage>();
+		auto success = service_message_queue.pop_until(
+			[&](const ServiceMessage& msg) {
+				bool done = false;
+				auto msg_type = get_or_else<std::string>(msg, SERVICE_MESSAGE_TYPE, "unknown");
+				log::debug<2, true>("pop_login_service_message: service message type={}", msg_type);
+				if (msg_type == SERVICE_MESSAGE_LOGON_STATUS) {
+					auto ready = get_or_else<bool>(msg, SERVICE_MESSAGE_LOGON_STATUS_READY, false);
+					auto session_logins = get_or_else<unsigned int>(msg, SERVICE_MESSAGE_LOGON_STATUS_SESSION_LOGINS, 0);
+					log::debug<2, true>("pop_login_service_message: ready={} session_logins={}", ready, session_logins);
+					done = ready && session_logins == expected_num_logins;
+					if (done) {
+						message = std::optional<ServiceMessage>(msg);
+					}
+				}
+				return done;
+			}, timeout
+		);
+		log::debug<2, true>("pop_login_service_message: message found={}", message.has_value());
+		return message;
 	}
 
 	double get_position_size(const std::string& symbol) {
@@ -349,6 +390,40 @@ namespace zorro {
 		write_to_file(filename, rows.str(), headers.str(), std::fstream::trunc);
 	}
 
+	std::optional<std::pair<bool, std::string>> fxcm_proxy_server_status() {
+		auto request = "/status";
+		auto res = rest_client.Get(request);
+		if (res->status == httplib::StatusCode::OK_200) {
+			auto j = json::parse(res->body);
+			auto ready = j["ready"].get<bool>();
+			auto started = j["started"].get<std::string>();
+			return std::make_optional(std::make_pair(ready, started));
+		}
+		else {
+			std::optional<std::pair<bool, std::string>>();
+		}
+	}
+
+	// get historical data - note time is in UTC
+	// http://localhost:8080/bars?symbol=EUR/USD&from=2024-03-30 12:00:00&to=2024-03-30 16:00:00
+	int get_historical_bars(const char* Asset, const std::string& timeframe, DATE from, DATE to, std::vector<BidAskBar<DATE>>& bars) {
+		auto from_str = zorro_date_to_string(from);
+		auto to_str = zorro_date_to_string(to);
+		auto request = std::format("/bars?symbol={}&timeframe={}&from={}&to={}", Asset, timeframe, from_str, to_str);
+		auto res = rest_client.Get(request);
+		if (res->status == httplib::StatusCode::OK_200) {
+			auto j = json::parse(res->body);
+			from_json(j, bars);
+
+			log::debug<4, true>(
+				"get_historical_bars: Asset={} from={} to={} num bars={}",
+				Asset, from_str, to_str, bars.size()
+			);
+		}
+
+		return res->status;
+	}
+
 	DLLFUNC_C void BrokerHTTP(FARPROC fp_send, FARPROC fp_status, FARPROC fp_result, FARPROC fp_free) {
 		(FARPROC&)http_send = fp_send;
 		(FARPROC&)http_status = fp_status;
@@ -414,8 +489,10 @@ namespace zorro {
 				fix_thread = std::unique_ptr<FixService>(new FixService(
 					settings_cfg_file,
 					requests_on_logon,
+					num_required_session_logins,
 					exec_report_queue, 
 					top_of_book_queue,
+					service_message_queue,
 					position_report_queue,
 					collateral_report_queue,
 					trading_session_status_queue
@@ -424,56 +501,44 @@ namespace zorro {
 			}
 
 			if (user) {
+				auto fxcm_proxy_ready = fxcm_proxy_server_status();
+				if (fxcm_proxy_ready.has_value() && fxcm_proxy_ready.value().first) {
+					log::info<1, true>(
+						"BrokerLogin: FXCM proxy server ready started at={}", fxcm_proxy_ready.value().second
+					);
+				}
+				else {
+					log::error<true>("BrokerLogin: FXCM proxy server not started or not properly logged in");
+					return 0; // not ready
+				}
+
 				fxcm_login = std::string(user);
 				fxcm_password = std::string(password);
 				fxcm_account = std::string(account);
 				order_tracker.set_account(fxcm_account);
-
-				if (strcmp(type, "Real") == 0) {
-					fxcm_connection = fxcm::real_connection;
-				}
-				else {
-					fxcm_connection = fxcm::demo_connection;
-				}
 
 				log::info<1, true>(
 					"BrokerLogin: FXCM credentials login={} password={} connection={} account={}", 
 					fxcm_login, fxcm_password, fxcm_connection, fxcm_account
 				);
 
+				auto start = std::chrono::system_clock::now();
+
 				log::debug<1, true>("BrokerLogin: FIX service starting...");
 				fix_thread->start();
 				log::debug<1, true>("BrokerLogin: FIX service running");
 
-				log::debug<1, true>("BrokerLogin: FXCM data connection starting...");
-				forex_connect = std::make_shared<fxcm::ForexConnect>(
-					fxcm_login,
-					fxcm_password,
-					fxcm_connection,
-					fxcm::default_url
-				);
-				auto fxcm_logged_in = forex_connect->login();
-				log::debug<1, true>("BrokerLogin: FXCM data connection logged in={}", fxcm_logged_in);
+				log::debug<1, true>("BrokerLogin: waiting for FIX login...");
+				auto fix_login_msg = pop_login_service_message(num_required_session_logins, fix_login_waiting_time);
 
-				// TODO think about using a queue mechanism as well to wait for a ready event
-				auto count = 0;
-				auto start = std::chrono::system_clock::now();
-				log::debug<1, true>("BrokerLogin: waiting for all session log in");
-				auto login_count = fix_thread->client().login_count();
-				while (login_count < num_fix_sessions && count < 50) {
-					std::this_thread::sleep_for(100ms);
-					login_count = fix_thread->client().login_count();
-				}
-				auto dt = std::chrono::system_clock::now() - start;
-				auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(dt);
-				if (login_count < num_fix_sessions) {
+				if (!fix_login_msg) {
 					fix_thread->cancel();
-					throw std::runtime_error(std::format("login timeout after {} login count={}", ms, login_count));
+					throw std::runtime_error(std::format("FIX login timeout after {}", elappsed(start)));
 				}
 				else {
-					log::info<1, true>("BrokerLogin: FIX login after {}", ms);
+					log::info<1, true>("BrokerLogin: FIX login after {}", elappsed(start));
 				}
-
+				
 				bool success = trading_session_status_queue.pop(trading_session_status, fix_waiting_time);
 				if (!success) {
 					fix_thread->cancel();
@@ -512,9 +577,6 @@ namespace zorro {
 
 				fix_thread->cancel();
 				log::debug<1, true>("BrokerLogin: FIX service stopped");
-
-				forex_connect->logout();
-				log::debug<1, true>("BrokerLogin: FXCM data connection logged out\n");
 
 				return BrokerLoginStatus::LoggedOut; 
 			}
@@ -821,21 +883,13 @@ namespace zorro {
 		log::debug<2, true>("BrokerHistory2: t_start={}, t_start2={}, t_end={}, now_zorro={}", t_start, t_start2, t_end, now_zorro);
 
 		std::vector<BidAskBar<DATE>> bars;
-
-		auto success = fxcm::get_historical_prices(
-			bars, 
-			fxcm_login.c_str(),
-			fxcm_password.c_str(), 
-			fxcm_connection.c_str(), 
-			fxcm::default_url, 
-			asset, 
-			timeframe.c_str(),
-			t_start2, 
-			t_end
-		);
+		auto status = get_historical_bars(asset, timeframe, t_start2, t_end, bars);
+		auto success = status == httplib::StatusCode::OK_200;
 
 		if (!success) {
-			log::error<true>("BrokerHistory2 {}: get_historical_prices failed", asset);
+			log::error<true>(
+				"BrokerHistory2: get_historical_prices failed status={} Asset={} timeframe={} from={} to={}",
+				status, asset, timeframe, t_start2, t_end);
 			return 0;
 		}
 

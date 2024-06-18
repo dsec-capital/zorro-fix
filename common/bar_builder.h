@@ -10,6 +10,7 @@
 #include "bar.h"
 #include "utils.h"
 #include "time_utils.h"
+#include "market_data.h"
 
 namespace common {
 
