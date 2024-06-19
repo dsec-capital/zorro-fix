@@ -18,6 +18,7 @@ Contributions, bug reports and constructive feedback are very welcome.
 
 ## Version History
 
+  - v2.1.0 FXCM ForexConnect is accessed through a proxy server, smaller bug fixes, order status messages, 64 bit version 
   - v2.0.0 First FXCM FIX plugin, separated and updated Simulation FIX plugin 
   - v1.0.1 Improving order cancellation and many smaller bug fixing
   - v1.0.0 First official release
@@ -35,11 +36,40 @@ header only third party components:
   - [magic_enum](third_parties/magic_enum)
   - [spdlog](third_parties/spdlog)
 
-Library dependencies are:
 
-  - [QuickFix](third_parties/quickfix) with prebuilt static libraries included
-  - [FXCM ForexConnect SDK](third_parties/fxcm) which requires separate installation, see below
+### Library Dependencies
 
+  - [QuickFix](third_parties/quickfix) with prebuilt static libraries included for x86 and x64
+  - [FXCM ForexConnect SDK](third_parties/fxcm) which requires separate installation 
+   - [x86](http://fxcodebase.com/bin/forexconnect/1.6.5/ForexConnectAPI-1.6.5-win32.exe)
+   - [x64](http://fxcodebase.com/bin/forexconnect/1.6.5/ForexConnectAPI-1.6.5-win64.exe)
+
+
+### Environtment Configuration
+
+The environment variable `%ZorroInstallDir%` has to point to the Zorro installation 
+
+```
+echo %ZorroInstallDir%
+C:\zorro\Zorro_2614
+```
+
+
+The installation of FXCM ForexConnect SDK sets the following environment variables
+
+```
+echo %FOREXCONNECT_PATH_X64%
+C:\Program Files\Candleworks\ForexConnectAPIx64
+```
+
+respectively
+
+```
+echo %FOREXCONNECT_PATH_X86%
+C:\Program Files (x86)\Candleworks\ForexConnectAPI
+```
+
+Assure that they point to the installed version of the ForexConnect SDK.
 
 
 ## FXCM FIX Plugin  
@@ -69,6 +99,34 @@ The FXCM FIX client plugin implements all of Zorro's [broker plugin functions](h
   - Execution reports (message ExecReport)
 
 More details can be found in [FXCM FIX client application](zorro_fxcm_fix_plugin/application.h). 
+
+## FXCM Market Data Proxy Server
+
+From version 2.1.0 the FXCM ForexConnect API is not directly integrated anymore with the Zorro FIX plugin but is running as a 
+standalone proxy server `fxcm_market_data_server`, exposing various rest endpoints. It can be directly started from Visual Studio 
+and extends the system path with the respective path to the FXCM ForexConnect dlls:
+
+Project Properties fxcm_market_data_server -> Configuration Properties -> Debugging -> Environment 
+```
+Path=$(Path);$(FOREXCONNECT_PATH_X64)\bin
+```
+for platform x64, respectively for x86 or Win32
+```
+Path=$(Path);$(FOREXCONNECT_PATH_X86)\bin
+```
+
+Start `fxcm_market_data_server` with the proper path setting
+
+```
+C:\repos\zorro-fix\x64\Debug>fxcm_market_data_server.exe
+[2024-06-19 20:23:51.874] [combined] [debug] Logging started, logger_name=combined, level=1, cwd=C:\repos\zorro-fix\x64\Debug
+[2024-06-19 20:23:51.899] [combined] [info] session status connecting
+[2024-06-19 20:24:00.263] [combined] [info] session status connected
+[2024-06-19 20:24:00.264] [combined] [info] connected - server ready to accept service requests
+[2024-06-19 20:24:00.266] [combined] [info] server stated on 0.0.0.0:8080
+```
+
+It logs to the screen as well as to the log file `fxcm_proxy_server.log`.
 
 
 ### Installation

@@ -15,6 +15,7 @@ SET SOURCE="%SCRIPT_DIR%..\zorro_scripts"
 
 ECHO Copy strategy files to %ZORRO_STRATEGY_DIR%...
 robocopy %SOURCE% %ZORRO_STRATEGY_DIR% "*.c" > nul
+robocopy %SOURCE% %ZORRO_STRATEGY_DIR% "*.cpp" > nul
 robocopy %SOURCE% %ZORRO_STRATEGY_DIR% "*.h" > nul
 
 ECHO Copy asset files to %ZORRO_HISTORY_DIR%...

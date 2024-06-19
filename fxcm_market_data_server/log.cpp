@@ -22,6 +22,7 @@ namespace fxcm {
         };
         auto spd_logger = std::make_shared<spdlog::logger>(logger_name, begin(sinks), end(sinks));
         spdlog::register_logger(spd_logger);
+        spdlog::set_default_logger(spd_logger);
         spdlog::set_level(log_level);
         spdlog::flush_every(std::chrono::seconds(1));
 
