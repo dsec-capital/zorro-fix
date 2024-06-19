@@ -3,6 +3,8 @@
 #include <string>
 #include <iostream>
 
+#include <Windows.h>
+
 #include "ForexConnect.h"
 
 #include "ThreadSafeAddRefImpl.h"

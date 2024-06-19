@@ -150,7 +150,7 @@ namespace common {
 	}
 
 	int OrderTracker::num_orders() const {
-		return orders_by_ord_id.size();
+		return static_cast<int>(orders_by_ord_id.size());
 	}
 
 	bool OrderTracker::process(const ExecReport& report) {

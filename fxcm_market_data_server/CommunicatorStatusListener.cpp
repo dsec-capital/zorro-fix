@@ -1,5 +1,7 @@
 #include "CommunicatorStatusListener.h"
 
+#include "spdlog/spdlog.h"
+
 constexpr auto _TIMEOUT = 30000;
 
 CommunicatorStatusListener::CommunicatorStatusListener()
@@ -28,7 +30,7 @@ bool CommunicatorStatusListener::waitEvents()
 {
     int res = WaitForSingleObject(mSyncCommunicatorEvent, _TIMEOUT);
     if (res != 0)
-        std::cout << "Timeout occurred during waiting for communicator status is ready" << std::endl;
+        spdlog::error("Timeout occurred during waiting for communicator status is ready");
     return res == 0;
 }
 
@@ -41,6 +43,6 @@ void CommunicatorStatusListener::onCommunicatorStatusChanged(bool ready)
 void CommunicatorStatusListener::onCommunicatorInitFailed(pricehistorymgr::IError *error)
 {
     mError = true;
-    std::cout << "Communicator initialization error: " << error->getMessage() << std::endl;
+    spdlog::error("communicator initialization error: {}", error ? error->getMessage() : "unknown error");
     SetEvent(mSyncCommunicatorEvent);
 }

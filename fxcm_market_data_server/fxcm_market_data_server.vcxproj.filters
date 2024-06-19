@@ -38,9 +38,6 @@
     <ClInclude Include="proxy_server.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="pch.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="CommunicatorStatusListener.h">
       <Filter>Header Files</Filter>
     </ClInclude>

@@ -1,4 +1,4 @@
-#define WIN32_LEAN_AND_MEAN  
+//#define WIN32_LEAN_AND_MEAN  
 
 #include <stdlib.h>
 #include <iostream>
@@ -38,18 +38,9 @@ int main(int argc, char* argv[])
 
     if (server.is_ready()) {
         server.run();
-        spdlog::info("server running");
     } 
 
-    spdlog::info("press <q> to quit");
-
-    while (true)
-    {
-        std::string value;
-        std::cin >> value;
-        if (value == "q")
-            break;
-    }
+    spdlog::info("server stopped");
 
     return 0;
 }

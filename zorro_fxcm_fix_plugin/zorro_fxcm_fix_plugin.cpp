@@ -400,7 +400,7 @@ namespace zorro {
 			return std::make_optional(std::make_pair(ready, started));
 		}
 		else {
-			std::optional<std::pair<bool, std::string>>();
+			return std::optional<std::pair<bool, std::string>>();
 		}
 	}
 
@@ -1300,7 +1300,7 @@ namespace zorro {
 			}
 
 			write_position_reports(reports, filename);
-			return reports.reports.size();
+			return static_cast<int>(reports.reports.size());
 		}
 		else {
 			log::error<true>("BrokerCommand {}[{}] FIX service not running", cmd_str, cmd);
@@ -1355,7 +1355,7 @@ namespace zorro {
 			}
 
 			case GET_POSITION: {
-				position_symbol = std::string((const char*)dw_parameter);
+				position_symbol = std::string((const char*)(dw_parameter));
 				auto result = get_position_size(position_symbol);
 				log::debug<dl0, true>("BrokerCommand {}[{}](position_symbol={}) = {}", broker_command_string(command), command, position_symbol, result);
 				return result;

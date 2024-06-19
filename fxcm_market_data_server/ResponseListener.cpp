@@ -2,6 +2,8 @@
 
 #include <iostream>
 
+#include "spdlog/spdlog.h"
+
 constexpr auto _TIMEOUT = 30000;
 
 ResponseListener::ResponseListener()
@@ -53,7 +55,7 @@ void ResponseListener::onRequestFailed(pricehistorymgr::IPriceHistoryCommunicato
 {
     if (mRequest == request)
     {
-        std::cout << "Request failed: " << error->getMessage() << std::endl;
+        spdlog::error("request failed: {}", error ? error->getMessage() : "unknown error");
 
         mRequest = NULL;
         mResponse = NULL;
@@ -66,7 +68,7 @@ void ResponseListener::onRequestCancelled(pricehistorymgr::IPriceHistoryCommunic
 {
     if (mRequest == request)
     {
-        std::cout << "Request cancelled." << std::endl;
+        spdlog::info("request cancelled");
 
         mRequest = NULL;
         mResponse = NULL;

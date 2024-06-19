@@ -72,15 +72,19 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <TargetName>zorro_fxcm_fix_plugin</TargetName>
+    <OutDir>$(ZorroInstallDir)\Plugin64\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <TargetName>zorro_fxcm_fix_plugin</TargetName>
+    <OutDir>$(ZorroInstallDir)\Plugin\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <TargetName>zorro_fxcm_fix_plugin</TargetName>
+    <OutDir>$(ZorroInstallDir)\Plugin\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <TargetName>zorro_fxcm_fix_plugin</TargetName>
+    <OutDir>$(ZorroInstallDir)\Plugin64\</OutDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -91,23 +95,17 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <AdditionalIncludeDirectories>$(SolutionDir);$(SolutionDir)\third-parties;$(SolutionDir)third-parties\quickfix\$(LibrariesArchitecture)-$(Configuration)\include;$(SolutionDir)third-parties\fxcm\forex_connect\$(LibrariesArchitecture)\include</AdditionalIncludeDirectories>
-      <LanguageStandard>stdcpp20</LanguageStandard>
+      <LanguageStandard>stdcpplatest</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
-      <AdditionalLibraryDirectories>$(SolutionDir)$(Configuration);$(SolutionDir)third-parties\quickfix\$(LibrariesArchitecture)-$(Configuration)\lib</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(SolutionDir)$(LibrariesArchitecture)\$(Configuration);$(SolutionDir)third-parties\quickfix\$(LibrariesArchitecture)-$(Configuration)\lib</AdditionalLibraryDirectories>
       <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);quickfixd.lib;ws2_32.lib;common.lib;zorro_common.lib</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>echo %ZorroInstallDir%
-copy /y "$(SolutionDir)$(Configuration)\zorro_fxcm_fix_plugin.dll" "%ZorroInstallDir%\Plugin\zorro_fxcm_fix_plugin.dll"
-robocopy "$(SolutionDir)spec" "%ZorroInstallDir%\Plugin\spec"  
-"$(SolutionDir)scripts\generate_fxcm_fix_client_cfg.bat" "$(ProjectDir)zorro_fxcm_fix_client_template.cfg" "%ZorroInstallDir%\Plugin\zorro_fxcm_fix_client.cfg"
-"$(SolutionDir)scripts\check_fxcm_dlls.bat"  
-"$(SolutionDir)scripts\copy_zorro_scripts.bat"
-</Command>
+      <Command>"$(SolutionDir)scripts\copy_zorro_scripts_x86.bat"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -121,7 +119,7 @@ robocopy "$(SolutionDir)spec" "%ZorroInstallDir%\Plugin\spec"
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <AdditionalIncludeDirectories>$(SolutionDir);$(SolutionDir)\third-parties;$(SolutionDir)third-parties\quickfix\$(LibrariesArchitecture)-$(Configuration)\include;$(SolutionDir)third-parties\fxcm\forex_connect\$(LibrariesArchitecture)\include</AdditionalIncludeDirectories>
-      <LanguageStandard>stdcpp20</LanguageStandard>
+      <LanguageStandard>stdcpplatest</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -129,17 +127,12 @@ robocopy "$(SolutionDir)spec" "%ZorroInstallDir%\Plugin\spec"
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
-      <AdditionalLibraryDirectories>$(SolutionDir)$(Configuration);$(SolutionDir)third-parties\quickfix\$(LibrariesArchitecture)-$(Configuration)\lib</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(SolutionDir)$(LibrariesArchitecture)\$(Configuration);$(SolutionDir)third-parties\quickfix\$(LibrariesArchitecture)-$(Configuration)\lib</AdditionalLibraryDirectories>
       <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);quickfix.lib;ws2_32.lib;common.lib;zorro_common.lib</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>echo %ZorroInstallDir%
-copy /y "$(SolutionDir)$(Configuration)\zorro_fxcm_fix_plugin.dll" "%ZorroInstallDir%\Plugin\zorro_fxcm_fix_plugin.dll"
-robocopy "$(SolutionDir)spec" "%ZorroInstallDir%\Plugin\spec"
-"$(SolutionDir)scripts\generate_fxcm_fix_client_cfg.bat" "$(ProjectDir)zorro_fxcm_fix_client_template.cfg" "%ZorroInstallDir%\Plugin\zorro_fxcm_fix_client.cfg"
-"$(SolutionDir)scripts\check_fxcm_dlls.bat"
-"$(SolutionDir)scripts\copy_zorro_scripts.bat"
- </Command>
+      <Command>"$(SolutionDir)scripts\copy_zorro_scripts_x86.bat"
+</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -150,12 +143,19 @@ robocopy "$(SolutionDir)spec" "%ZorroInstallDir%\Plugin\spec"
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <LanguageStandard>stdcpplatest</LanguageStandard>
+      <AdditionalIncludeDirectories>$(SolutionDir);$(SolutionDir)\third-parties;$(SolutionDir)third-parties\quickfix\$(LibrariesArchitecture)-$(Configuration)\include;$(SolutionDir)third-parties\fxcm\forex_connect\$(LibrariesArchitecture)\include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
+      <AdditionalLibraryDirectories>$(SolutionDir)$(LibrariesArchitecture)\$(Configuration);$(SolutionDir)third-parties\quickfix\$(LibrariesArchitecture)-$(Configuration)\lib</AdditionalLibraryDirectories>
+      <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);quickfixd.lib;common.lib;zorro_common.lib</AdditionalDependencies>
     </Link>
+    <PostBuildEvent>
+      <Command>"$(SolutionDir)scripts\copy_zorro_scripts_x64.bat"</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -167,6 +167,8 @@ robocopy "$(SolutionDir)spec" "%ZorroInstallDir%\Plugin\spec"
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <LanguageStandard>stdcpplatest</LanguageStandard>
+      <AdditionalIncludeDirectories>$(SolutionDir);$(SolutionDir)\third-parties;$(SolutionDir)third-parties\quickfix\$(LibrariesArchitecture)-$(Configuration)\include;$(SolutionDir)third-parties\fxcm\forex_connect\$(LibrariesArchitecture)\include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -174,7 +176,12 @@ robocopy "$(SolutionDir)spec" "%ZorroInstallDir%\Plugin\spec"
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
+      <AdditionalLibraryDirectories>$(SolutionDir)$(LibrariesArchitecture)\$(Configuration);$(SolutionDir)third-parties\quickfix\$(LibrariesArchitecture)-$(Configuration)\lib</AdditionalLibraryDirectories>
+      <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);quickfix.lib;common.lib;zorro_common.lib</AdditionalDependencies>
     </Link>
+    <PostBuildEvent>
+      <Command>"$(SolutionDir)scripts\copy_zorro_scripts_x64.bat"</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <None Include="cpp.hint" />

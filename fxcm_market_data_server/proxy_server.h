@@ -63,7 +63,7 @@ namespace fxcm {
         ) : server_host(server_host)
           , server_port(server_port)
         {
-            spd_logger = create_logger();
+            spd_logger = create_logger(); // BUG does not log to file, although it should see https://github.com/gabime/spdlog/issues/1037
 
             char* pin = nullptr;
             char* session_id = nullptr;
@@ -95,8 +95,13 @@ namespace fxcm {
                 spdlog::error("connectiion timeout - incomming service requests will be rejected");
             }
 
+            server.Get("/stop", [&](const auto& /*req*/, auto& /*res*/) {
+                server.stop();
+            });
+
             // http://localhost:8080/status
             server.Get("/status", [this](const Request& req, Response& res) {
+                spdlog::info("<==== /status ready={} startd={}", ready, common::to_string(started));
                 json j;
                 j["started"] = common::to_string(started);
                 j["ready"] = ready;
@@ -143,8 +148,6 @@ namespace fxcm {
                     auto date_from = common::nanos_to_date(from);
                     auto date_to = common::nanos_to_date(to);
                     auto quotes_count = 0;
-
-                    spdlog::debug("fetch symbol={} timeframe={} date_from={} date_to={}", symbol, timeframe, date_from, date_to);
 
                     O2G2Ptr<CommunicatorStatusListener> communicatorStatusListener(new CommunicatorStatusListener());
                     communicator->addStatusListener(communicatorStatusListener);
@@ -288,20 +291,8 @@ namespace fxcm {
         }
 
         void run() {
-            thread = std::thread([&]() {
-                server.listen(server_host, server_port);
-                done = true;
-                if (ready) {
-
-                }
-            });
-
-            //while (!server.is_running() && !done)
-            //    std::this_thread::sleep_for(std::chrono::milliseconds{ 10 });
-            //server.stop();
-            //thread.join();
-
             spdlog::info("server stated on {}:{}", server_host, server_port);
+            server.listen(server_host, server_port);
         }
     };
 }
