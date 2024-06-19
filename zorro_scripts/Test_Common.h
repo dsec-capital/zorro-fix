@@ -23,8 +23,8 @@ var round_down(var in, var multiple) {
 	return in - fmod(in, multiple);
 }
 
-void diagnostics_tmf() {
-	var Close = priceClose();
+int diagnostics_tmf() {
+	var Close = priceClose(0);
 	var TopAsk = Close;
 	var TopBid = Close - Spread;
 	printf("\ntmf [%s] id=%d %s missed=%s pending=%s open=%s unfilled=%s TradePriceOpen=%.5f TradePriceClose=%.5f TradeFill=%.5f TradeProfit=%.5f",

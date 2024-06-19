@@ -1,19 +1,6 @@
 #include <zorro.h>
 
-var round_up(var in, var multiple) {
-	var m = fmod(in, multiple);
-	if (m == 0.0) {
-		return in;
-	}
-	else {
-		var down = in - m;
-		return down + ifelse(in < 0.0, -multiple, multiple);
-	}
-}
-
-var round_down(var in, var multiple) {
-	return in - fmod(in, multiple);
-}
+#include "Test_Common.h"
 
 static var startTime;
 static bool Quoting = false;
@@ -21,7 +8,7 @@ static bool Inventory = false;
 TRADE* BidTrade;
 TRADE* AskTrade;
 
-void tick() 
+DLLFUNC void tick() 
 {
 	if (is(LOOKBACK)) return;
 	var close = priceClose(0);
@@ -33,6 +20,7 @@ void tick()
 		Spread
 	);
 }
+
 
 DLLFUNC void run() 
 {
@@ -58,14 +46,13 @@ DLLFUNC void run()
 		//brokerCommand(BROKER_CMD_CREATE_SECURITY_INFO_FILE, "Log/security_infos.csv");
 		//brokerCommand(BROKER_CMD_GET_CLOSED_POSITIONS, "Log/positions_closed.csv");
 
-		isf(TradeMode, TR_FILLED) {
+		if (isf(TradeMode, TR_FILLED)) {
 			printf("\n!!!!! attention TR_FILLDE is set");
 		}
 
-		isf(TradeMode, TR_FRC) {
+		if (isf(TradeMode, TR_FRC)) {
 			printf("\n!!!!! fractional PIP mode is set - limit price and stop price not rounded to PIPs");
 		}
-
 	}
 
 	var Close = priceClose(0);
@@ -74,6 +61,7 @@ DLLFUNC void run()
 	var TopBid = Close - Spread;
 	var LimitAsk = round_up(TopAsk + DepthPIPs * PIP, 0.1 * PIP);
 	var LimitBid = round_down(TopBid - DepthPIPs * PIP, 0.1 * PIP);
+
 
 	if (!is(LOOKBACK)) {
 		var Position = brokerCommand(GET_POSITION, Asset);
@@ -89,23 +77,31 @@ DLLFUNC void run()
 		);
 	}
 
+
 	MaxLong = 10;
 	MaxShort = 10;
 	if (!is(LOOKBACK) && !Quoting) {
+		
 		brokerCommand(SET_ORDERTYPE, ORDERTYPE_GTC);
+		
 		Lots = 5;
+		
+
 		OrderLimit = LimitAsk;
 		enterShort(diagnostics_tmf);
 		printf("\nenterShort: OrderLimit=%.5f", OrderLimit);
+
 
 		OrderLimit = LimitBid;
 		enterLong(diagnostics_tmf);
 		printf("\nenterLong: OrderLimit=%.5f", OrderLimit);
 
+
 		Quoting = true;
 		OrderLimit = 0;
 	}
 
+	
 	if (!is(LOOKBACK) && !Inventory) {
 		Lots = 2;
 		enterLong(diagnostics_tmf);
@@ -115,5 +111,5 @@ DLLFUNC void run()
 		Inventory = true;
 	}
 
-	//diagnostics_trades();
+	diagnostics_trades();
 }

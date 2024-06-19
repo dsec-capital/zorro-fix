@@ -71,6 +71,13 @@ C:\Program Files (x86)\Candleworks\ForexConnectAPI
 
 Assure that they point to the installed version of the ForexConnect SDK.
 
+In order to use the C++ test script from Zorro, add the path to the Visual Studio build directory to 
+the `Zorro.ini` file:
+
+```
+VCPath = "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build" 
+```
+
 
 ## FXCM FIX Plugin  
 
