@@ -20,14 +20,12 @@ namespace zorro {
 	}
 
 	DATE convert_time_chrono(const std::chrono::nanoseconds& t) {
-		auto us = std::chrono::duration_cast<std::chrono::microseconds>(t).count();
-		return (DATE)us / MICROS_PER_DAY + DAYS_BETWEEN_1899_12_30_1979_01_01;
+		auto ns = t.count();
+		return (DATE)ns / NANOS_PER_DAY + DAYS_BETWEEN_1899_12_30_1979_01_01;
 	}
 
-	std::string zorro_date_to_string(DATE date, bool millis) {
-		auto ts = convert_time(date);
-		auto ms = millis ? (long)(date * 1000) % 1000 : 0;
-		return common::time32_to_string(ts, ms);
+	std::string zorro_date_to_string(DATE date) {
+		auto ns = convert_time_chrono(date);
+		return common::to_string(ns);
 	}
-
 }

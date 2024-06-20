@@ -1,0 +1,35 @@
+[config]
+log_level = 1
+http_server_host = "0.0.0.0"
+http_server_port = 8080
+market_update_period_millis = 2000
+
+[[symbols]]
+symbol = "EUR/USD"
+tick_size = 0.00001
+tick_scale = 100000
+price = 1.2
+spread = 0.006
+bid_volume = 1000
+ask_volume = 1000
+bar_period_seconds = 60
+history_age_hours = 96
+history_sample_period_millis = 1000
+[symbols.market_simulator]
+	model = "white-noise"
+	sigma = 0.1
+			
+[[symbols]]
+symbol = "AUD/USD"
+tick_size = 0.00001
+tick_scale = 100000
+price = 0.78
+spread = 0.002
+bid_volume = 500
+ask_volume = 500
+bar_period_seconds = 60
+history_age_hours = 96
+history_sample_period_millis = 1000
+[symbols.market_simulator]
+	model = "white-noise"
+	sigma = 0.1

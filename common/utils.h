@@ -5,6 +5,38 @@
 
 namespace common {
 
+    template<typename K, typename T>
+    inline const T& get_or_else(const std::map<K, T>& map, const K& key, const T& other) {
+        auto it = map.find(key);
+        if (it != map.end()) {
+            return it->second;
+        }
+        else {
+            return other;
+        }
+    }
+
+    template<typename K, typename V, typename T>
+    inline const T& vget_or_else(const std::map<K, V>& map, const K& key, const T& other) {
+        auto it = map.find(key);
+        if (it != map.end()) {
+            return std::get<T>(it->second);
+        }
+        else {
+            return other;
+        }
+    }
+
+    inline bool is_nan(double value) {
+        return value != value;
+    }
+
+    inline std::string upper_string(const std::string& str) {
+        std::string upper;
+        std::transform(str.begin(), str.end(), std::back_inserter(upper), toupper);
+        return upper;
+    }
+
     inline std::string toml_str_to_symbol_str(const std::string& toml) {
         auto symbol = std::string(toml);
         std::replace(symbol.begin(), symbol.end(), '_', '/');

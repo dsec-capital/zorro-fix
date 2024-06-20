@@ -29,12 +29,40 @@ namespace common {
         double close;
 
         std::string to_string() const {
-            return
-                "end=" + common::to_string(end) + ", " +
-                "open=" + std::to_string(open) + ", " +
-                "high=" + std::to_string(high) + ", " +
-                "low=" + std::to_string(low) + ", " +
-                "close=" + std::to_string(close);
+            std::stringstream ss;
+            ss << "Bar[" <<
+                "end=" << common::to_string(end) << ", " <<
+                "open=" << std::to_string(open) << ", " <<
+                "high=" << std::to_string(high) << ", " <<
+                "low=" << std::to_string(low) << ", " <<
+                "close=" << std::to_string(close) << "]";
+            return ss.str();
+        }
+    };
+
+    template<typename T>
+    class Quote {
+    public:
+        Quote(
+            const T& timestamp,
+            double bid,
+            double ask
+        ) : timestamp(timestamp)
+          , bid(bid)
+          , ask(ask)
+        {}
+
+        T timestamp;
+        double bid;
+        double ask;
+
+        std::string to_string() const {
+            std::stringstream ss;
+            ss << "Quote["
+                "timestamp=" << std::to_string(timestamp) << ", " <<
+                "bid=" << std::to_string(bid) << ", " <<
+                "ask=" << std::to_string(ask) << "]";
+            return ss.str();
         }
     };
 
@@ -76,17 +104,19 @@ namespace common {
         double volume;
 
         std::string to_string() const {
-            return
-                "timestamp=" + std::to_string(timestamp) + ", " +
-                "bid_open=" + std::to_string(bid_open) + ", " +
-                "bid_high=" + std::to_string(bid_high) + ", " +
-                "bid_low=" + std::to_string(bid_low) + ", " +
-                "bid_close=" + std::to_string(bid_close) + ", " +
-                "ask_open=" + std::to_string(ask_open) + ", " +
-                "ask_high=" + std::to_string(ask_high) + ", " +
-                "ask_low=" + std::to_string(ask_low) + ", " +
-                "ask_close=" + std::to_string(ask_close) + ", " +
-                "volume=" + std::to_string(volume);
+            std::stringstream ss;
+            ss << "BidAskBar["
+                "timestamp=" << std::to_string(timestamp) << ", " <<
+                "bid_open=" << std::to_string(bid_open) << ", " <<
+                "bid_high=" << std::to_string(bid_high) << ", " <<
+                "bid_low=" << std::to_string(bid_low) << ", " <<
+                "bid_close=" << std::to_string(bid_close) << ", " <<
+                "ask_open=" << std::to_string(ask_open) << ", " <<
+                "ask_high=" << std::to_string(ask_high) << ", " <<
+                "ask_low=" << std::to_string(ask_low) << ", " <<
+                "ask_close=" << std::to_string(ask_close) << ", " <<
+                "volume=" << std::to_string(volume) << "]";
+            return ss.str();
         }
     };
 }

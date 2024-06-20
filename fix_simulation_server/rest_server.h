@@ -9,6 +9,7 @@
 #include "common/time_utils.h"
 
 namespace fix_sim {
+
    using namespace httplib;
    using namespace nlohmann;
 

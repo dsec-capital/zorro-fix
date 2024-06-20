@@ -44,11 +44,11 @@ function run()
 		brokerCommand(BROKER_CMD_CREATE_SECURITY_INFO_FILE, "Log/security_infos.csv");
 		brokerCommand(BROKER_CMD_GET_CLOSED_POSITIONS, "Log/positions_closed.csv");
 
-		isf(TradeMode, TR_FILLED) {
+		if (isf(TradeMode, TR_FILLED)) {
 			printf("\n!!!!! attention TR_FILLDE is set");
 		}
 
-		isf(TradeMode, TR_FRC) {
+		if (isf(TradeMode, TR_FRC)) {
 			printf("\n!!!!! fractional PIP mode is set - limit price and stop price not rounded to PIPs");
 		}
 
