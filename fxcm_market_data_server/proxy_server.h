@@ -16,12 +16,25 @@
 #include "ResponseListener.h"
 #include "SessionStatusListener.h"
 #include "CommunicatorStatusListener.h"
+#include "LiveBarStreamer.h"
 
 namespace fxcm {
 
     using namespace httplib;
     using namespace nlohmann;
     using namespace std::literals::chrono_literals;
+
+    O2G2Ptr<IO2GTimeframe> create_timeframe_object(pricehistorymgr::IPriceHistoryCommunicator* communicator, const std::string& timeframe) {
+        O2G2Ptr<pricehistorymgr::ITimeframeFactory> timeframeFactory = communicator->getTimeframeFactory();
+        pricehistorymgr::IError* error = NULL;
+        O2G2Ptr<IO2GTimeframe> timeframeObj = timeframeFactory->create(timeframe.c_str(), &error);
+        O2G2Ptr<pricehistorymgr::IError> autoError(error);
+        if (!timeframeObj)
+        {
+            spdlog::error("timeframe {} incorrect", timeframe);
+        }
+        return timeframeObj;
+    }
 
     class ProxyServer {
 
@@ -40,6 +53,8 @@ namespace fxcm {
         O2G2Ptr<IO2GSession> session;
         O2G2Ptr<SessionStatusListener> statusListener;
         O2G2Ptr<pricehistorymgr::IPriceHistoryCommunicator> communicator;
+
+        std::map<std::string, std::shared_ptr<LiveBarStreamer>> streamers;
 
     public:
 
@@ -63,7 +78,7 @@ namespace fxcm {
         ) : server_host(server_host)
           , server_port(server_port)
         {
-            spd_logger = create_logger(); // BUG does not log to file, although it should see https://github.com/gabime/spdlog/issues/1037
+            spd_logger = create_logger("fxcm_market_data_server.log");
 
             char* pin = nullptr;
             char* session_id = nullptr;
@@ -154,6 +169,87 @@ namespace fxcm {
                     catch (std::exception const& e) {
                         what = e.what();
                     }
+                    catch (...) {}
+                    auto error = std::format("error: no bar data for error={}", what);
+                    spdlog::error(error);
+
+                    json j;
+                    j["error"] = error;
+                    auto body = j.dump();
+                    res.set_content(body, "application/json");
+                }
+            });
+
+            // for example http://localhost:8080/subscribe?symbol=EUR/USD
+            server.Get("/subscribe", [this](const Request& req, Response& res) {
+                try {
+                    std::string symbol = "";
+                    std::string timeframe = "m1";
+                    std::chrono::nanoseconds from = 0ns;
+                    std::chrono::nanoseconds to = 0ns;
+                    int quotes_count = 0;
+
+                    if (req.has_param("symbol")) {
+                        symbol = req.get_param_value("symbol");
+                    }
+                    else {
+                        throw std::runtime_error("no symbol");
+                    }
+
+                    auto it = streamers.find(symbol);
+                    if (it != streamers.end()) {
+                        throw std::runtime_error(std::format("symbol {} already subscribed", symbol));
+                    }
+                   
+                    if (req.has_param("from")) {
+                        auto from_param = req.get_param_value("from");
+                        from = common::parse_datetime(from_param);
+                    }
+                    if (req.has_param("to")) {
+                        auto to_param = req.get_param_value("to");
+                        to = common::parse_datetime(to_param);
+                    }
+                    if (req.has_param("timeframe")) {
+                        auto timeframe = req.get_param_value("timeframe");
+                    }
+                    if (req.has_param("quotes_count")) {
+                        auto quotes_count = req.get_param_value("quotes_count");
+                    }
+
+                    auto timeframe_obj = create_timeframe_object(communicator, timeframe);
+
+                    if (to == 0ns) {
+                        to = common::get_current_system_clock();
+                    }
+
+                    if (from == 0ns) {
+                        from = to - std::chrono::nanoseconds(static_cast<long long>(common::NANOS_PER_DAY / 24));
+                    }
+
+                    auto streamer = std::make_shared<LiveBarStreamer>(
+                        session,
+                        communicator,
+                        symbol,
+                        common::nanos_to_date(from),
+                        common::nanos_to_date(to),
+                        timeframe_obj,
+                        quotes_count
+                    );
+                    streamers.emplace(symbol, streamer);
+                    auto ready = streamer->subscribe();
+
+                    spdlog::debug("subscribed to {} ready={}", symbol, ready);
+                }
+                catch (...) {
+                    std::string what = "unknown exception";
+                    std::exception_ptr ex = std::current_exception();
+                    try {
+                        std::rethrow_exception(ex);
+                    }
+                    catch (std::exception const& e) {
+                        what = e.what();
+                    }
+                    catch (...) {}
                     auto error = std::format("error: no bar data for error={}", what);
                     spdlog::error(error);
 
@@ -215,19 +311,18 @@ namespace fxcm {
                         O2G2Ptr<ResponseListener> responseListener(new ResponseListener());
                         communicator->addListener(responseListener);
 
-                        O2G2Ptr<pricehistorymgr::ITimeframeFactory> timeframeFactory = communicator->getTimeframeFactory();
-                        pricehistorymgr::IError* error = NULL;
-                        O2G2Ptr<IO2GTimeframe> timeframeObj = timeframeFactory->create(timeframe.c_str(), &error);
-                        O2G2Ptr<pricehistorymgr::IError> autoError(error);
+                        O2G2Ptr<IO2GTimeframe> timeframeObj = create_timeframe_object(communicator, timeframe);
                         if (!timeframeObj)
                         {
                             error_message = std::format("timeframe {} incorrect", timeframe);
                             has_error = true;
                         }
 
+                        pricehistorymgr::IError* error = NULL;
                         O2G2Ptr<pricehistorymgr::IPriceHistoryCommunicatorRequest> request = communicator->createRequest(
                             symbol.c_str(), timeframeObj, date_from, date_to, quotes_count, &error
                         );
+                        O2G2Ptr<pricehistorymgr::IError> autoError(error);
                         if (!request)
                         {
                             error_message = std::format("failed to create request {}", error ? error->getMessage() : "unknown error");
@@ -332,6 +427,7 @@ namespace fxcm {
                     catch (std::exception const& e) {
                         what = e.what();
                     }
+                    catch (...) {}
                     auto error = std::format("error: no bar data for error={}", what);
                     spdlog::error(error);
 

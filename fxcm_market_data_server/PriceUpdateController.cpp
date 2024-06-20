@@ -7,6 +7,8 @@
 
 #include "PriceUpdateController.h"
 
+#include "spdlog/spdlog.h"
+
 #define _TIMEOUT 30000
 
 /** Constructs a listener for a specified PriceUpdateController.
@@ -128,7 +130,7 @@ bool PriceUpdateController::wait()
 
     bool eventOccurred = (WaitForSingleObject(mSyncOfferEvent, _TIMEOUT) == WAIT_OBJECT_0);
     if (!eventOccurred)
-        std::cout << "Timeout occurred during waiting for loading of Offers table" << std::endl;
+        spdlog::error("PriceUpdateController: timeout occurred during waiting for loading of Offers table");
 
     if (mInitFailed)
         return false;
@@ -161,7 +163,7 @@ void PriceUpdateController::onRequestCompleted(const char *requestId, IO2GRespon
         }
         if (!mOffer)
         {
-            std::cout << "Instrument is not found" << std::endl;
+            spdlog::error("PriceUpdateController: instrument {} not found", mInstrument);
             mInitFailed = true;
             SetEvent(mSyncOfferEvent);
         }

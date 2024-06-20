@@ -214,6 +214,7 @@
   <ItemGroup>
     <ClCompile Include="CommunicatorStatusListener.cpp" />
     <ClCompile Include="fxcm_market_data_server.cpp" />
+    <ClCompile Include="LiveBarStreamer.cpp" />
     <ClCompile Include="LocalFormat.cpp" />
     <ClCompile Include="log.cpp" />
     <ClCompile Include="Mutex.cpp" />
@@ -227,6 +228,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CommunicatorStatusListener.h" />
+    <ClInclude Include="LiveBarStreamer.h" />
     <ClInclude Include="LocalFormat.h" />
     <ClInclude Include="log.h" />
     <ClInclude Include="Mutex.h" />
@@ -239,6 +241,7 @@
     <ClInclude Include="proxy_server.h" />
     <ClInclude Include="ResponseListener.h" />
     <ClInclude Include="SessionStatusListener.h" />
+    <ClInclude Include="ThreadSafeAddRefImpl.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

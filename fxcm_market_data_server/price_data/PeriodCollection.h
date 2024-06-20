@@ -1,20 +1,24 @@
 #pragma once
 
+#include <queue>
+#include <memory>
+
 #include "PriceDataInterfaces.h"
 #include "../PriceUpdateController.h"
 #include "../ThreadSafeAddRefImpl.h"
 
-#include <queue>
+#include "../log.h"
 
 class Period;
 
 /** Implementation of the period collection. */
-class PeriodCollection : public TThreadSafeAddRefImpl<IPeriodCollection>,
-    public IPriceUpdateListener
+class PeriodCollection : public IPriceUpdateListener, public TThreadSafeAddRefImpl<IPeriodCollection>
 {
  public:
     PeriodCollection(const char *instrument, const char *timeframe, bool alive, IPriceUpdateController *controller);
     
+    virtual ~PeriodCollection();
+
     /** Adds a new historical period into the collection.
     
         @param time
@@ -69,9 +73,6 @@ class PeriodCollection : public TThreadSafeAddRefImpl<IPeriodCollection>,
     virtual void onCollectionUpdate(IOffer *offer);
     //@}
 
- protected:
-    virtual ~PeriodCollection();
-
  private:
     void handleOffer(IOffer *offer);
     void notifyLastPeriodUpdated();
@@ -109,4 +110,6 @@ class PeriodCollection : public TThreadSafeAddRefImpl<IPeriodCollection>,
     /** The listeners. */
     typedef std::list<ICollectionUpdateListener *> Listeners;
     Listeners mListeners;
+
+    std::shared_ptr<spdlog::logger> data_logger;
 };

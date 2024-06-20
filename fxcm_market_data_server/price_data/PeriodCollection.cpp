@@ -6,6 +6,8 @@
 #include "Period.h"
 #include "PeriodCollection.h"
 
+#include "common/time_utils.h"
+
 #define HALF_SECOND 0.5 / 86400.0 // 1/2 of the second
 
 PeriodCollection::PeriodCollection(const char *instrument, const char *timeframe, bool alive, IPriceUpdateController *controller) :
@@ -26,6 +28,8 @@ PeriodCollection::PeriodCollection(const char *instrument, const char *timeframe
         mTradingDayOffset = controller->getTradingDayOffset();
         controller->addListener(this);
         mController = controller;
+
+        data_logger = fxcm::create_data_logger(instrument, "ticks");
     }
 }
 
@@ -74,8 +78,10 @@ void PeriodCollection::notifyLastPeriodUpdated()
         listeners = mListeners;
     }
 
-    for (Listeners::iterator it = listeners.begin(); it != listeners.end(); ++it)
+    for (Listeners::iterator it = listeners.begin(); it != listeners.end(); ++it) {
+        //auto iface = dynamic_cast<IPeriodCollection*>(this);
         (*it)->onCollectionUpdate(this, (int)(mPeriods.size() - 1));
+    }
 }
 
 /** Called when a price is updated (tick). */
@@ -110,6 +116,18 @@ void PeriodCollection::handleOffer(IOffer *offer)
 
     Mutex::Lock lock(mMutex);
     
+    auto ns = common::date_to_nanos(offer->getLastUpdate());
+    std::string sDate = common::to_string(ns);
+
+    std::stringstream ss;
+    ss << std::setprecision(6)
+        << " Symbol=" << offer->getInstrument()
+        << ", DateTime=" << sDate
+        << ", Bid=" << offer->getBid()
+        << ", Ask=" << offer->getAsk()
+        << ", MinuteVolume=" << offer->getMinuteVolume();
+    data_logger->debug(ss.str());
+
     // calculate the start time of the period to which the tick belong to
     DATE start = -1;
     DATE end = -1 ;
@@ -128,6 +146,7 @@ void PeriodCollection::handleOffer(IOffer *offer)
     double time = mController->utcToEst(offer->getLastUpdate());
     quotesmgr::CandlePeriod::getCandle(time, start, end, mTimeframeUnit, mTimeframeLength, mTradingDayOffset, -1);
     start = mController->estToUtc(start);
+
     // calculate the serial number of minute (for easier comparing) 
     INT64 currMinute = dateToMinute(offer->getLastUpdate());
 

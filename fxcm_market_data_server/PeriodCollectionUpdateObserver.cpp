@@ -10,6 +10,8 @@ PeriodCollectionUpdateObserver::PeriodCollectionUpdateObserver(IPeriodCollection
 
     collection->addRef();
     mCollection->addListener(this);
+
+    data_logger = fxcm::create_data_logger(collection->getInstrument(), "incremental_bars");
 }
 
 PeriodCollectionUpdateObserver::~PeriodCollectionUpdateObserver()
@@ -26,19 +28,21 @@ void PeriodCollectionUpdateObserver::onCollectionUpdate(IPeriodCollection *colle
     auto ns = common::date_to_nanos(period->getTime());
     std::string sDate = common::to_string(ns);
 
-    std::cout << "Price updated:";
-    std::cout << std::setprecision(6) 
-        << " DateTime=" << sDate 
-        << ", BidOpen=" << bid->getOpen()
-        << ", BidHigh=" << bid->getHigh()
-        << ", BidLow=" << bid->getLow()
-        << ", BidClose=" << bid->getClose()
-        << ", AskOpen=" << ask->getOpen()
-        << ", AskHigh=" << ask->getHigh()
-        << ", AskLow=" << ask->getLow()
-        << ", AskClose=" << ask->getClose()
-        << ", Volume=" << period->getVolume()
-        << std::endl;
+    std::stringstream ss;
+    ss << std::setprecision(6)
+       << " Symbol=" << collection->getInstrument()
+       << ", DateTime=" << sDate
+       << ", BidOpen=" << bid->getOpen()
+       << ", BidHigh=" << bid->getHigh()
+       << ", BidLow=" << bid->getLow()
+       << ", BidClose=" << bid->getClose()
+       << ", AskOpen=" << ask->getOpen()
+       << ", AskHigh=" << ask->getHigh()
+       << ", AskLow=" << ask->getLow()
+       << ", AskClose=" << ask->getClose()
+       << ", Volume=" << period->getVolume();
+
+    data_logger->debug(ss.str());
 }
 
 void PeriodCollectionUpdateObserver::unsubscribe()
