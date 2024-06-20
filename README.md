@@ -55,6 +55,14 @@ C:\zorro\Zorro_2614
 ```
 
 
+The FXCM market data server can log tick data and incremental bar updates. The log path 
+can be configured by specifying the environment variable `FXCM_MAKRET_DATA_SERVER_LOG_PATH` 
+
+```
+echo %FXCM_MAKRET_DATA_SERVER_LOG_PATH%
+C:\zorro\Zorro_2614\Log\fxcm_market_data_server_
+```
+
 The installation of FXCM ForexConnect SDK sets the following environment variables
 
 ```
