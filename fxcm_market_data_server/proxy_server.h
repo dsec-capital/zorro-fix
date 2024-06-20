@@ -109,6 +109,61 @@ namespace fxcm {
                 res.set_content(body, "application/json");
             });
 
+            // http://localhost:8080/instr?symbol=EUR/USD
+            server.Get("/instr", [this](const Request& req, Response& res) {
+                try {
+                    std::string symbol = "nan";
+                    if (req.has_param("symbol")) {
+                        symbol = req.get_param_value("symbol");
+                    }
+
+                    spdlog::info("<==== /instr symbol={}", symbol);
+
+                    O2G2Ptr<quotesmgr::IQuotesManager> quotesManager = communicator->getQuotesManager();
+                    quotesmgr::IError* error = NULL;
+                    O2G2Ptr<quotesmgr::IInstruments> instruments = quotesManager->getInstruments(&error);
+                    O2G2Ptr<quotesmgr::IError> autoError(error);
+                    if (instruments)
+                    {
+                        O2G2Ptr<quotesmgr::IInstrument> instr = instruments->find(symbol.c_str());
+                        if (instr) {
+                            auto precision = instr->getPrecision();
+
+                            json j;
+                            j["symbol"] = symbol;
+                            j["name"] = instr->getName();
+                            j["contract_currency"] = instr->getContractCurrency();
+                            j["precision"] = instr->getPrecision();
+                            j["point_size"] = instr->getPointSize();
+                            j["instrument_type"] = instr->getInstrumentType();
+                            j["base_unit_size"] = instr->getBaseUnitSize();
+                            j["contract_multiplier"] = instr->getContractMultiplier();
+                            j["latest_quote_date"] = instr->getLatestQuoteDate("m1");
+
+                            auto body = j.dump();
+                            res.set_content(body, "application/json");
+                        }
+                    }
+                }
+                catch (...) {
+                    std::string what = "unknown exception";
+                    std::exception_ptr ex = std::current_exception();
+                    try {
+                        std::rethrow_exception(ex);
+                    }
+                    catch (std::exception const& e) {
+                        what = e.what();
+                    }
+                    auto error = std::format("error: no bar data for error={}", what);
+                    spdlog::error(error);
+
+                    json j;
+                    j["error"] = error;
+                    auto body = j.dump();
+                    res.set_content(body, "application/json");
+                }
+            });
+            
             // for example http://localhost:8080/bars?symbol=EUR/USD&from=2024-06-18 00:00:00&timeframe=m1
             server.Get("/bars", [this](const Request& req, Response& res) {                
                 try {
@@ -271,12 +326,10 @@ namespace fxcm {
                 catch (...) {
                     std::string what = "unknown exception";
                     std::exception_ptr ex = std::current_exception();
-                    try
-                    {
+                    try {
                         std::rethrow_exception(ex);
                     }
-                    catch (std::exception const& e)
-                    {
+                    catch (std::exception const& e) {
                         what = e.what();
                     }
                     auto error = std::format("error: no bar data for error={}", what);
