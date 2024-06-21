@@ -47,21 +47,21 @@ header only third party components:
 
 ### Environtment Configuration
 
-The environment variable `%ZorroInstallDir%` has to point to the Zorro installation 
+The environment variable `ZorroInstallDir` has to point to the Zorro installation 
 
 ```
 echo %ZorroInstallDir%
 C:\zorro\Zorro_2614
 ```
 
-
-The FXCM market data server can log tick data and incremental bar updates. The log path 
-can be configured by specifying the environment variable `FXCM_MAKRET_DATA_SERVER_LOG_PATH` 
-
-```
-echo %FXCM_MAKRET_DATA_SERVER_LOG_PATH%
-C:\zorro\Zorro_2614\Log\fxcm_market_data_server_
-```
+The FXCM FIX plugin and the FXCM market data server needs a few enviornment environment variables. 
+  - `FIX_USER_NAME`: user name for FIX account
+  - `FIX_PASSWORD`: password for FIX account
+  - `FIX_TARGET_SUBID`: FIX target sub id provided by FXCM
+  - `FIX_ACCOUNT_ID`; FIX account id 
+  - `FXCM_USER_NAME`: user name (may be same as `FIX_USER_NAME`)
+  - `FXCM_PASSWORD`:password (may be same as `FIX_PASSWORD`)
+  - `FXCM_MAKRET_DATA_SERVER_LOG_PATH`: log path tick data and incremental bar updates can be configured by specifying the environment variable 
 
 The installation of FXCM ForexConnect SDK sets the following environment variables
 

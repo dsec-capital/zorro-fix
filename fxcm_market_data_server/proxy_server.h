@@ -10,8 +10,6 @@
 #include "common/json.h"
 #include "common/time_utils.h"
 
-#include "log.h"
-
 #include "LocalFormat.h"
 #include "ResponseListener.h"
 #include "SessionStatusListener.h"
@@ -44,7 +42,6 @@ namespace fxcm {
         Server server;
         std::atomic_bool done{ false };
         std::thread thread;
-        std::shared_ptr<spdlog::logger> spd_logger;
         bool ready{ false };
         std::chrono::high_resolution_clock::time_point started;
 
@@ -78,8 +75,6 @@ namespace fxcm {
         ) : server_host(server_host)
           , server_port(server_port)
         {
-            spd_logger = create_logger("fxcm_market_data_server.log");
-
             char* pin = nullptr;
             char* session_id = nullptr;
             session = CO2GTransport::createSession();
@@ -441,7 +436,13 @@ namespace fxcm {
 
         void run() {
             spdlog::info("server stated on {}:{}", server_host, server_port);
-            server.listen(server_host, server_port);
+            auto res = server.listen(server_host, server_port);
+            if (!res) {
+                spdlog::error("server failed to listen on {}:{}", server_host, server_port);
+            }
+            else {
+                spdlog::info("server listen return with {}", res);
+            } 
         }
     };
 }
