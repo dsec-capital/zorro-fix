@@ -47,7 +47,7 @@ header only third party components:
 
 ### Environtment Configuration
 
-The environment variable `%ZorroInstallDir%` has to point to the Zorro installation 
+The environment variable `ZorroInstallDir` has to point to the Zorro installation 
 
 ```
 echo %ZorroInstallDir%
