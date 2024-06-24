@@ -41,8 +41,8 @@ header only third party components:
 
   - [QuickFix](third_parties/quickfix) with prebuilt static libraries included for x86 and x64
   - [FXCM ForexConnect SDK](third_parties/fxcm) which requires separate installation 
-   - [x86](http://fxcodebase.com/bin/forexconnect/1.6.5/ForexConnectAPI-1.6.5-win32.exe)
-   - [x64](http://fxcodebase.com/bin/forexconnect/1.6.5/ForexConnectAPI-1.6.5-win64.exe)
+      - [FXCM ForexConnect x86](http://fxcodebase.com/bin/forexconnect/1.6.5/ForexConnectAPI-1.6.5-win32.exe)
+      - [FXCM ForexConnect x64](http://fxcodebase.com/bin/forexconnect/1.6.5/ForexConnectAPI-1.6.5-win64.exe)
 
 
 ### Environtment Configuration
@@ -53,7 +53,6 @@ The environment variable `%ZorroInstallDir%` has to point to the Zorro installat
 echo %ZorroInstallDir%
 C:\zorro\Zorro_2614
 ```
-
 
 The FXCM market data server can log tick data and incremental bar updates. The log path 
 can be configured by specifying the environment variable `FXCM_MAKRET_DATA_SERVER_LOG_PATH` 
