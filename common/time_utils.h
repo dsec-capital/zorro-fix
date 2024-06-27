@@ -96,6 +96,11 @@ namespace common {
        return to_string(tp);
     }
 
+    inline std::string date_to_string(double date) {
+        auto ns = date_to_nanos(date);
+        return to_string(ns);
+    }
+
     inline std::string now_str() {
         using namespace std::chrono;
         return to_string(system_clock::now());

@@ -39,7 +39,8 @@ std::string LocalFormat::formatDate(double value)
 
     using namespace std;
     stringstream sstream;
-    sstream << setw(2) << setfill('0') << tmBuf.tm_mon + 1 << "." \
+    sstream 
+        << setw(2) << setfill('0') << tmBuf.tm_mon + 1 << "." \
         << setw(2) << setfill('0') << tmBuf.tm_mday << "." \
         << setw(4) << tmBuf.tm_year + 1900 << " " \
         << setw(2) << setfill('0') << tmBuf.tm_hour << ":" \

@@ -12,15 +12,18 @@
 constexpr const char* real_connection = "Real";
 constexpr const char* demo_connection = "Demo";
 constexpr const char* default_url = "http://www.fxcorporate.com/Hosts.jsp";
+constexpr const char* default_csv_storage_path = "http://www.fxcorporate.com/Hosts.jsp";
 
 constexpr const char* FXCM_USER_NAME = "FXCM_USER_NAME";
 constexpr const char* FXCM_PASSWORD = "FXCM_PASSWORD";
+constexpr const char* FXCM_CSV_EXPORT_PATH = "FXCM_CSV_EXPORT_PATH";
 
 void usage() {
     std::stringstream ss;
     ss << "usage: " << std::endl;
     ss << "  " << FXCM_USER_NAME << "=FXCM account user name" << std::endl;
     ss << "  " << FXCM_PASSWORD << "=FXCM account password" << std::endl;
+    ss << "  " << FXCM_CSV_EXPORT_PATH << "=Path where to store csv files" << std::endl;
     ss << "  fxcm_market_data_server [server_host] [server_port] [Demo|Real] [fxcm_server_url]" << std::endl;
     spdlog::info(ss.str());
 }
@@ -31,6 +34,7 @@ int main(int argc, char* argv[])
 
     char fxcm_login[256];
     char fxcm_password[256];
+    char fxcm_csv_export_path[4096];
 
     {
         size_t len = 0;
@@ -49,6 +53,16 @@ int main(int argc, char* argv[])
             usage();
             return -1;
         }
+    }
+    {
+        size_t len = 0;
+        getenv_s(&len, fxcm_csv_export_path, sizeof(fxcm_csv_export_path), FXCM_CSV_EXPORT_PATH);
+        if (len == 0) {
+            spdlog::error("environment variable {} not defined", FXCM_CSV_EXPORT_PATH);
+            usage();
+            return -1;
+        }
+        std::replace(fxcm_csv_export_path, fxcm_csv_export_path + len, '\\', '/');
     }
 
     auto server_host = "0.0.0.0";
@@ -80,6 +94,7 @@ int main(int argc, char* argv[])
     fxcm::ProxyServer server(
         fxcm_login,
         fxcm_password,
+        fxcm_csv_export_path,
         connection,
         url,
         server_host,
