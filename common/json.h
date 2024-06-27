@@ -74,6 +74,24 @@ namespace common {
 		return j;
 	}
 
+	inline json to_json(const std::vector<Quote<double>>& quotes) {
+		std::vector<double> timestamp;
+		std::vector<double> bid, ask;
+		int count = 0;
+		for (const auto& quote : quotes) {
+			timestamp.emplace_back(quote.timestamp);
+			bid.emplace_back(quote.bid);
+			ask.emplace_back(quote.ask);
+		}
+
+		json j;
+		j["timestamp"] = timestamp;
+		j["bid"] = bid;
+		j["ask"] = ask;
+
+		return j;
+	}
+
 	inline void from_json(const json& j, std::map<std::chrono::nanoseconds, Bar>& bars) {
 		auto end = j["end"].get<std::vector<long long>>();
 		auto open = j["open"].get<std::vector<double>>();
@@ -127,6 +145,24 @@ namespace common {
 				ask_close[i],
 				volume[i]
 				);
+		}
+	}
+
+	inline void from_json(const json& j, std::vector<Quote<double>>& quotes) {
+		auto timestamp = j["timestamp"].get<std::vector<double>>();
+		auto n = timestamp.size();
+
+		auto bid = j["bid"].get<std::vector<double>>();
+		auto ask = j["ask"].get<std::vector<double>>();
+		assert(bid.size() == n && ask.size() == n);
+
+		quotes.clear();
+		for (size_t i = 0; i < n; ++i) {
+			quotes.emplace_back(
+				timestamp[i],
+				bid[i],
+				ask[i]
+			);
 		}
 	}
 

@@ -84,4 +84,8 @@ namespace zorro {
 		return spd_logger;
 	}
 
+	inline void shutdown() {
+		log::debug<2, true>("shutdown logging");
+		spdlog::shutdown();
+	}
 }
