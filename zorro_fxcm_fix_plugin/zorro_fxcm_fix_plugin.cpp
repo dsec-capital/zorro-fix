@@ -424,6 +424,37 @@ namespace zorro {
 		return res->status;
 	}
 
+	// get historical data - note time is in UTC
+	// http://localhost:8080/ticks?symbol=EUR/USD&from=2024-06-27 00:00:00 
+	// http://localhost:8080/ticks?symbol=EUR/USD&count=1000 
+	int get_historical_ticks(const char* Asset, DATE from, DATE to, int count, std::vector<Quote<DATE>>& quotes) {
+		std::stringstream ss;
+		ss << "/ticks?symbol=" << Asset;
+		if (from > 0) {
+			auto from_str = zorro_date_to_string(from);
+			ss << "&from=" << from_str;
+		}
+		if (to > 0) {
+			auto to_str = zorro_date_to_string(to);
+			ss << "&to=" << to_str;
+		}
+		if (count > 0) {
+			ss << "&count=" << count;
+		}
+		auto res = rest_client.Get(ss.str());
+		if (res->status == httplib::StatusCode::OK_200) {
+			auto j = json::parse(res->body);
+			from_json(j, quotes);
+
+			log::debug<4, true>(
+				"get_historical_bars: Asset={} from={} to={} count={} num ticks={}",
+				Asset, from, to, count, quotes.size()
+			);
+		}
+
+		return res->status;
+	}
+
 	DLLFUNC_C void BrokerHTTP(FARPROC fp_send, FARPROC fp_status, FARPROC fp_result, FARPROC fp_free) {
 		(FARPROC&)http_send = fp_send;
 		(FARPROC&)http_status = fp_status;
@@ -858,85 +889,91 @@ namespace zorro {
 	 *	cannot be used.
 	 */
 	DLLFUNC int BrokerHistory2(char* asset, DATE t_start, DATE t_end, int n_tick_minutes, int n_ticks, T6* ticks) {
-		auto bar_seconds = n_tick_minutes * 60;
-		auto t_bar = bar_seconds / SECONDS_PER_DAY;
-		auto t_start2 = t_end - n_ticks * t_bar;
-		auto from = zorro_date_to_string(t_start2);
-		auto to = zorro_date_to_string(t_end);
-		auto ticks_start = ticks;
+		if (n_tick_minutes > 0) {
+			auto bar_seconds = n_tick_minutes * 60;
+			auto t_bar = bar_seconds / SECONDS_PER_DAY;
+			auto t_start2 = t_end - n_ticks * t_bar;
+			auto from = zorro_date_to_string(t_start2);
+			auto to = zorro_date_to_string(t_end);
+			auto ticks_start = ticks;
 
-		std::string timeframe = get_timeframe(n_tick_minutes);
-		if (timeframe == "") {
-			log::error<true>("BrokerHistory2 {}: invalid time frame for n_tick_minutes={}", asset, n_tick_minutes);
-			return 0;
-		}
-		
-		auto now = common::get_current_system_clock();
-		auto now_zorro = zorro::convert_time_chrono(now);
-		auto now_str = zorro_date_to_string(now_zorro);
-
-		log::debug<2, true>(
-			"BrokerHistory2 {}: requesting {} ticks bar period {} minutes from {}[{}] to {}[{}] at {}", 
-			asset, n_ticks, n_tick_minutes, from, t_start2, to, t_end, now_str
-		);
-
-		log::debug<2, true>("BrokerHistory2: t_start={}, t_start2={}, t_end={}, now_zorro={}", t_start, t_start2, t_end, now_zorro);
-
-		std::vector<BidAskBar<DATE>> bars;
-		auto status = get_historical_bars(asset, timeframe, t_start2, t_end, bars);
-		auto success = status == httplib::StatusCode::OK_200;
-
-		if (!success) {
-			log::error<true>(
-				"BrokerHistory2: get_historical_prices failed status={} Asset={} timeframe={} from={} to={}",
-				status, asset, timeframe, t_start2, t_end);
-			return 0;
-		}
-
-		int count = 0;
-		for (auto it = bars.rbegin(); it != bars.rend() && count <= n_ticks; ++it) {
-			const auto& bar = *it;
-			DATE start = bar.timestamp;
-			DATE end = start + t_bar;
-			auto time = convert_time_chrono(bar.timestamp);
-
-			if (end > t_end || end < t_start) {
-				log::debug<2, true>(
-					"BrokerHistory2 {}: skipping timestamp {} as it is out of bound t_start={} t_end={}", 
-					asset, zorro_date_to_string(end), zorro_date_to_string(t_start), zorro_date_to_string(t_end)
-				);
-
-				continue;
+			std::string timeframe = get_timeframe(n_tick_minutes);
+			if (timeframe == "") {
+				log::error<true>("BrokerHistory2 {}: invalid time frame for n_tick_minutes={}", asset, n_tick_minutes);
+				return 0;
 			}
 
-			log::debug<5, false>(
-				"[{}] from={} to={} open={:.5f} high={:.5f} low={:.5f} close={:.5f}",
-				count, zorro_date_to_string(start), zorro_date_to_string(end), bar.ask_open, bar.ask_high, bar.ask_low, bar.ask_close
+			auto now = common::get_current_system_clock();
+			auto now_zorro = zorro::convert_time_chrono(now);
+			auto now_str = zorro_date_to_string(now_zorro);
+
+			log::debug<2, true>(
+				"BrokerHistory2 {}: requesting {} ticks bar period {} minutes from {}[{}] to {}[{}] at {}",
+				asset, n_ticks, n_tick_minutes, from, t_start2, to, t_end, now_str
 			);
 
-			ticks->fOpen = static_cast<float>(bar.ask_open);
-			ticks->fClose = static_cast<float>(bar.ask_close);
-			ticks->fHigh = static_cast<float>(bar.ask_high);
-			ticks->fLow = static_cast<float>(bar.ask_low);
-			ticks->fVol = static_cast<float>(bar.volume);
-			ticks->fVal = static_cast<float>(bar.ask_close - bar.bid_close);
-			ticks->time = end;
-			++ticks;
-			++count;
-		}
+			log::debug<2, true>("BrokerHistory2: t_start={}, t_start2={}, t_end={}, now_zorro={}", t_start, t_start2, t_end, now_zorro);
 
-		if (dump_bars_to_file) {
-			write_bars(ticks_start, count);
-			write_to_file("Log/broker_hist.csv", 
-				std::format(
-					"{}, {}, {}, {}, {}, {}, {}, {}",
-					asset, timeframe, zorro_date_to_string(t_start2), t_start2, zorro_date_to_string(t_end), t_end, n_ticks, count
-				),
-				"asset, timeframe, t_start2, t_start2[DATE], t_end, t_end[DATE], n_ticks, count"
-			);
-		}
+			std::vector<BidAskBar<DATE>> bars;
+			auto status = get_historical_bars(asset, timeframe, t_start2, t_end, bars);
+			auto success = status == httplib::StatusCode::OK_200;
 
-		return count;
+			if (!success) {
+				log::error<true>(
+					"BrokerHistory2: get_historical_prices failed status={} Asset={} timeframe={} from={} to={}",
+					status, asset, timeframe, t_start2, t_end);
+				return 0;
+			}
+
+			int count = 0;
+			for (auto it = bars.rbegin(); it != bars.rend() && count <= n_ticks; ++it) {
+				const auto& bar = *it;
+				DATE start = bar.timestamp;
+				DATE end = start + t_bar;
+				auto time = convert_time_chrono(bar.timestamp);
+
+				if (end > t_end || end < t_start) {
+					log::debug<2, true>(
+						"BrokerHistory2 {}: skipping timestamp {} as it is out of bound t_start={} t_end={}",
+						asset, zorro_date_to_string(end), zorro_date_to_string(t_start), zorro_date_to_string(t_end)
+					);
+
+					continue;
+				}
+
+				log::debug<5, false>(
+					"[{}] from={} to={} open={:.5f} high={:.5f} low={:.5f} close={:.5f}",
+					count, zorro_date_to_string(start), zorro_date_to_string(end), bar.ask_open, bar.ask_high, bar.ask_low, bar.ask_close
+				);
+
+				ticks->fOpen = static_cast<float>(bar.ask_open);
+				ticks->fClose = static_cast<float>(bar.ask_close);
+				ticks->fHigh = static_cast<float>(bar.ask_high);
+				ticks->fLow = static_cast<float>(bar.ask_low);
+				ticks->fVol = static_cast<float>(bar.volume);
+				ticks->fVal = static_cast<float>(bar.ask_close - bar.bid_close);
+				ticks->time = end;
+				++ticks;
+				++count;
+			}
+
+			if (dump_bars_to_file) {
+				write_bars(ticks_start, count);
+				write_to_file("Log/broker_hist.csv",
+					std::format(
+						"{}, {}, {}, {}, {}, {}, {}, {}",
+						asset, timeframe, zorro_date_to_string(t_start2), t_start2, zorro_date_to_string(t_end), t_end, n_ticks, count
+					),
+					"asset, timeframe, t_start2, t_start2[DATE], t_end, t_end[DATE], n_ticks, count"
+				);
+			}
+
+			return count;
+		}
+		else {
+			log::error<true>("BrokerHistory2: called with n_tick_minutes=0 but tick data aka quotes not yet integrated");
+			return 0;
+		}
 	}
 
 	/*
