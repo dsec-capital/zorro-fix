@@ -747,7 +747,7 @@ namespace fxcm {
                                             }
 
                                             writer.write_rows(rows);
-                                                                                    }
+                                        }
                                     }
                                 }
                                 else {
