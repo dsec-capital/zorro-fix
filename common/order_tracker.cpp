@@ -149,8 +149,12 @@ namespace common {
 		return std::make_pair(it, it != orders_by_ord_id.end());
 	}
 
-	int OrderTracker::num_orders() const {
+	int OrderTracker::num_order_reports() const {
 		return static_cast<int>(orders_by_ord_id.size());
+	}
+
+	int OrderTracker::num_positions() const {
+		return static_cast<int>(position_by_symbol.size());
 	}
 
 	bool OrderTracker::process(const ExecReport& report) {

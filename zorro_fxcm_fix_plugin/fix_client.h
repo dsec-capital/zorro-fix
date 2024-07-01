@@ -344,8 +344,6 @@ namespace zorro
 		std::map<std::string, TopOfBook> top_of_books;
 		std::vector<FXCMPositionReport> position_report_list;
 
-		bool log_market_data;
-
 		std::mutex mutex;
 
 		// should not be used anymore, use the top_of_book_queue

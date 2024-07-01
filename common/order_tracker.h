@@ -123,7 +123,9 @@ namespace common {
 
 		std::pair<typename OrderTracker::const_iterator, bool> get_order(const std::string& ord_id) const;
 
-		int num_orders() const;
+		int num_order_reports() const;
+
+		int num_positions() const;
 
 		bool process(const ExecReport& report);
 

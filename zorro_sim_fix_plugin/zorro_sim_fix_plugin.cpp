@@ -104,8 +104,8 @@ namespace zorro {
 		return np.avg_px;
 	}
 
-	int get_num_orders() {
-		return order_tracker.num_orders();
+	int num_order_reports() {
+		return order_tracker.num_order_reports();
 	}
 
 	std::string next_client_order_id() {
@@ -748,7 +748,7 @@ namespace zorro {
 			}
 
 			case GET_NTRADES: {
-				auto result = get_num_orders();
+				auto result = num_order_reports();
 				log::debug<1, true>("BrokerCommand {}[{}] = {}", broker_command_string(command), command, result);
 				return result;
 			}

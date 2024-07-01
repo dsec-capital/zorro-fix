@@ -31,23 +31,27 @@
 
 #define BAR_DUMP_FILE_NAME "Log/bar_dump.csv"
 #define BAR_DUMP_FILE_SEP ","
-#define BAR_DUMP_FILE_PREC 5  // FX is point precision 
+#define BAR_DUMP_FILE_PREC 5  // FX is point precision i.e. 10-5 = PIPS/10 
 
 namespace zorro {
 
 	using namespace common;
 	using namespace std::chrono_literals;
 
-	constexpr std::size_t dl0 = 2;
-	constexpr std::size_t dl1 = 4;
+	constexpr std::size_t dl0 = 0;
+	constexpr std::size_t dl1 = 1;
+	constexpr std::size_t dl2 = 2;
+	constexpr std::size_t dl3 = 3;
+	constexpr std::size_t dl4 = 4;
 
 	namespace log {
-		std::size_t logging_verbosity = 2;
+		std::size_t logging_verbosity = dl0;
 	}
 
 	// http://localhost:8080/bars?symbol=AUD/USD
-	std::string rest_host = "http://localhost";
-	int rest_port = 8080;
+	auto rest_host = common::get_env("FXCM_MAKRET_DATA_SERVER_HOST").value_or("http://localhost");
+	auto rest_port = std::atoi(common::get_env("FXCM_MAKRET_DATA_SERVER_PORT").value_or("8083").c_str());
+
 	httplib::Client rest_client(std::format("{}:{}", rest_host, rest_port));
 
 	int max_snaphsot_waiting_iterations = 10; 
@@ -97,6 +101,12 @@ namespace zorro {
 	std::map<std::string, FXCMCollateralReport> collateral_reports;
 	FXCMTradingSessionStatus trading_session_status;
 	OrderTracker order_tracker("unknown-account");
+
+	void show(const std::string& msg) {
+		if (!BrokerError) return;
+		auto tmsg = "[" + common::now_str() + "] " + msg + "\n";
+		BrokerError(tmsg.c_str());
+	}
 
 	std::chrono::milliseconds elappsed(const std::chrono::system_clock::time_point& reference) {
 		return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - reference);
@@ -255,8 +265,8 @@ namespace zorro {
 		return np.avg_px;
 	}
 
-	int get_num_orders() {
-		return order_tracker.num_orders();
+	int get_num_order_reports() {
+		return order_tracker.num_order_reports();
 	}
 
 	std::string next_client_order_id() {
@@ -1322,7 +1332,7 @@ namespace zorro {
 	}
 
 	int get_fxcm_positions(int cmd, const std::string& cmd_str, const std::string& filename, int pos_req_type) {
-		log::debug<dl1, true>("BrokerCommand {}[{}](filename={})", cmd_str, cmd, filename);
+		log::debug<dl4, true>("BrokerCommand {}[{}](filename={})", cmd_str, cmd, filename);
 
 		if (fix_thread) {
 			fix_thread->client().request_for_positions(fxcm_account, pos_req_type);
@@ -1336,7 +1346,13 @@ namespace zorro {
 				return 0;
 			}
 
-			write_position_reports(reports, filename);
+			if (!filename.empty()) {
+				write_position_reports(reports, filename);
+			}
+			else {
+				show(std::format("\n{}", reports.to_string()));
+			}
+
 			return static_cast<int>(reports.reports.size());
 		}
 		else {
@@ -1351,56 +1367,56 @@ namespace zorro {
 	 * Details can be found here
 	 *  - https://zorro-project.com/manual/en/brokercommand.htm
 	 */
-	DLLFUNC double BrokerCommand(int command, DWORD dw_parameter) {
+	DLLFUNC double BrokerCommand(int command, intptr_t dw_parameter) {
 		switch (command) {
 			case GET_EXCHANGES: {
-				log::debug<dl1, true>("BrokerCommand {}[{}]() = {}", broker_command_string(command), command, "not implemented");
+				log::debug<dl3, true>("BrokerCommand {}[{}]() = {}", broker_command_string(command), command, "not implemented");
 				break;
 			}
 
 			case GET_COMPLIANCE: {
 				auto result = 2;
-				log::debug<dl1, true>("BrokerCommand {}[{}]() = {}", broker_command_string(command), command, result);
+				log::debug<dl3, true>("BrokerCommand {}[{}]() = {}", broker_command_string(command), command, result);
 				return result;
 			}
 
 			case GET_BROKERZONE: {
-				log::debug<dl1, true>("BrokerCommand {}[{}]() = {}", broker_command_string(command), command, 0);
+				log::debug<dl3, true>("BrokerCommand {}[{}]() = {}", broker_command_string(command), command, 0);
 				return trading_session_status.server_timezone;  // initialized to 0 = UTC 
 			}
 
 			case GET_MAXTICKS: {
 				auto result = 1440/4;
-				log::debug<dl1, true>("BrokerCommand {}[{}]() = {}", broker_command_string(command), command, result);
+				log::debug<dl3, true>("BrokerCommand {}[{}]() = {}", broker_command_string(command), command, result);
 				return result;
 			}
 
 			case GET_MAXREQUESTS: {
-				log::debug<dl1, true>("BrokerCommand {}[{}]() = {}", broker_command_string(command), command, 30);
+				log::debug<dl3, true>("BrokerCommand {}[{}]() = {}", broker_command_string(command), command, 30);
 				return 30;
 			}
 
 			case GET_LOCK: {
-				log::debug<dl1, true>("BrokerCommand {}[{}]() = {}", broker_command_string(command), command, 1);
+				log::debug<dl3, true>("BrokerCommand {}[{}]() = {}", broker_command_string(command), command, 1);
 				return 1;
 			}
 
 			case GET_NTRADES: {
-				auto result = get_num_orders();
-				log::debug<dl0, true>("BrokerCommand {}[{}]() = {}", broker_command_string(command), command, result);
+				auto result = get_num_order_reports();
+				log::debug<dl2, true>("BrokerCommand {}[{}]() = {}", broker_command_string(command), command, result);
 				return result;
 			}
 
 			case GET_POSITION: {
 				position_symbol = std::string((const char*)(dw_parameter));
 				auto result = get_position_size(position_symbol);
-				log::debug<dl0, true>("BrokerCommand {}[{}](position_symbol={}) = {}", broker_command_string(command), command, position_symbol, result);
+				log::debug<dl2, true>("BrokerCommand {}[{}](position_symbol={}) = {}", broker_command_string(command), command, position_symbol, result);
 				return result;
 			}
 
 			case GET_AVGENTRY: {
 				auto result = get_avg_entry_price(position_symbol);
-				log::debug<dl0, true>("BrokerCommand {}[{}](position_symbol={}) = {}", broker_command_string(command), command, position_symbol, result);
+				log::debug<dl2, true>("BrokerCommand {}[{}](position_symbol={}) = {}", broker_command_string(command), command, position_symbol, result);
 				return result;
 			}
 
@@ -1479,19 +1495,19 @@ namespace zorro {
 
 			case SET_ORDERTEXT: {
 				order_text = std::string((char*)dw_parameter); 
-				log::debug<dl1, true>("BrokerCommand {}[{}](order_text={})", broker_command_string(command), command, order_text);
+				log::debug<dl3, true>("BrokerCommand {}[{}](order_text={})", broker_command_string(command), command, order_text);
 				return 1;
 			}
 
 			case SET_SYMBOL: {
 				asset = std::string((char*)dw_parameter);
-				log::debug<dl1, true>("BrokerCommand {}[{}](symbol={})", broker_command_string(command), command, asset);
+				log::debug<dl3, true>("BrokerCommand {}[{}](symbol={})", broker_command_string(command), command, asset);
 				return 1;
 			}
 
 			case SET_MULTIPLIER: {
 				multiplier = (int)dw_parameter;
-				log::debug<dl1, true>("BrokerCommand {}[{}](multiplier={})", broker_command_string(command), command, multiplier);
+				log::debug<dl3, true>("BrokerCommand {}[{}](multiplier={})", broker_command_string(command), command, multiplier);
 				return 1;
 			}
 			
@@ -1503,7 +1519,7 @@ namespace zorro {
 			//  - 8 - STOP; add a stop order at distance Stop* StopFactor on NFA accounts
 			case SET_ORDERTYPE: {
 				auto order_type = (int)dw_parameter;
-				log::debug<dl1, true>("BrokerCommand {}[{}](order_type={})", broker_command_string(command), command, order_type);
+				log::debug<dl3, true>("BrokerCommand {}[{}](order_type={})", broker_command_string(command), command, order_type);
 				switch (order_type) {
 				case 0:
 					return 0; 
@@ -1532,31 +1548,31 @@ namespace zorro {
 			}
 
 			case GET_PRICETYPE: {
-				log::debug<dl1, true>("BrokerCommand {}[{}]() = {}", broker_command_string(command), command, price_type);
+				log::debug<dl3, true>("BrokerCommand {}[{}]() = {}", broker_command_string(command), command, price_type);
 				return price_type;
 			}
 
 			case SET_PRICETYPE: {
 				price_type = (int)dw_parameter;
-				log::debug<1, true>("BrokerCommand {}[{}](price_type={})", broker_command_string(command), command, price_type);
+				log::debug<dl3, true>("BrokerCommand {}[{}](price_type={})", broker_command_string(command), command, price_type);
 				return 1;
 			}
 
 			case GET_VOLTYPE: {
 				vol_type = (int)dw_parameter;
-				log::debug<dl1, true>("BrokerCommand {}[{}](vol_type={})", broker_command_string(command), command, vol_type);
+				log::debug<dl3, true>("BrokerCommand {}[{}](vol_type={})", broker_command_string(command), command, vol_type);
 				return vol_type;
 			}
 
 			case SET_AMOUNT: {
 				lot_amount = *(double*)dw_parameter;
-				log::debug<dl1, true>("BrokerCommand {}[{}](lot_amount={})", broker_command_string(command), command, lot_amount);
+				log::debug<dl3, true>("BrokerCommand {}[{}](lot_amount={})", broker_command_string(command), command, lot_amount);
 				return 1;
 			}
 
 			case SET_DIAGNOSTICS: {
 				auto diagnostics = (int)dw_parameter;
-				log::debug<dl1, true>("BrokerCommand {}[{}](diagnostics={})", broker_command_string(command), command, diagnostics);
+				log::debug<dl3, true>("BrokerCommand {}[{}](diagnostics={})", broker_command_string(command), command, diagnostics);
 				if (diagnostics == 1 || diagnostics == 0) {
 					spdlog::set_level(diagnostics ? spdlog::level::debug : spdlog::level::info);
 					return 1;
@@ -1573,47 +1589,47 @@ namespace zorro {
 			// See https://zorro-project.com/manual/en/hwnd.htm
 			case SET_HWND: {
 				window_handle = (HWND)dw_parameter;
-				log::debug<dl1, true>("BrokerCommand {}[{}](window_handle={})", broker_command_string(command), command, (long)window_handle);
+				log::debug<dl3, true>("BrokerCommand {}[{}](window_handle={})", broker_command_string(command), command, (long)window_handle);
 				break;
 			}
 
 			case GET_CALLBACK: {
 				auto ptr = (void*)plugin_callback;
-				log::debug<dl1, true>("BrokerCommand {}[{}]() = {}", broker_command_string(command), command, ptr);
+				log::debug<dl3, true>("BrokerCommand {}[{}]() = {}", broker_command_string(command), command, ptr);
 				break;
 			}
 
 			case SET_CCY: {
 				currency = std::string((char*)dw_parameter);
-				log::debug<dl1, true>("BrokerCommand {}[{}](currency={})", broker_command_string(command), command, currency);
+				log::debug<dl3, true>("BrokerCommand {}[{}](currency={})", broker_command_string(command), command, currency);
 				break;
 			}
 
 			case GET_HEARTBEAT: {
-				log::debug<dl1, true>("BrokerCommand {}[{}]() = {}", broker_command_string(command), command, 500);
+				log::debug<dl3, true>("BrokerCommand {}[{}]() = {}", broker_command_string(command), command, 500);
 				return 500;
 			}
 
 			case SET_LEVERAGE: {
 				leverage = (int)dw_parameter;
-				log::debug<dl1, true>("BrokerCommand {}[{}](leverage={})", broker_command_string(command), command, leverage);
+				log::debug<dl3, true>("BrokerCommand {}[{}](leverage={})", broker_command_string(command), command, leverage);
 				break;
 			}
 
 			case SET_LIMIT: {
 				limit = *(double*)dw_parameter;
-				log::debug<dl1, true>("BrokerCommand {}[{}](limit={})", broker_command_string(command), command, limit);
+				log::debug<dl3, true>("BrokerCommand {}[{}](limit={})", broker_command_string(command), command, limit);
 				break;
 			}
 
 			case SET_FUNCTIONS: {
-				log::debug<dl1, true>("BrokerCommand {}[{}]()", broker_command_string(command), command);
+				log::debug<dl3, true>("BrokerCommand {}[{}]()", broker_command_string(command), command);
 				break;
 			}
 
 			case BROKER_CMD_CREATE_ASSET_LIST_FILE: {
 				auto filename = std::string((const char*)dw_parameter);
-				log::debug<dl1, true>(
+				log::debug<dl3, true>(
 					"BrokerCommand {}[{}](filename={})", 
 					"BROKER_CMD_CREATE_ASSET_LIST_FILE", BROKER_CMD_CREATE_ASSET_LIST_FILE, filename
 				);
@@ -1654,7 +1670,7 @@ namespace zorro {
 
 			case BROKER_CMD_CREATE_SECURITY_INFO_FILE: {
 				auto filename = std::string((const char*)dw_parameter);
-				log::debug<dl1, true>(
+				log::debug<dl3, true>(
 					"BrokerCommand {}[{}](filename={})",
 					"BROKER_CMD_CREATE_SECURITY_INFO_FILE", BROKER_CMD_CREATE_SECURITY_INFO_FILE, filename
 				);
@@ -1710,15 +1726,24 @@ namespace zorro {
 			}
 
 			case BROKER_CMD_GET_OPEN_POSITIONS: {
-				auto filename = std::string((const char*)dw_parameter);
+				auto filename = dw_parameter ? std::string((const char*)dw_parameter) : "";
 				return get_fxcm_positions(BROKER_CMD_GET_OPEN_POSITIONS, "BROKER_CMD_GET_OPEN_POSITIONS", filename, 0);			
 			}
 
 			case BROKER_CMD_GET_CLOSED_POSITIONS: {
-				auto filename = std::string((const char*)dw_parameter);
+				auto filename = dw_parameter ? std::string((const char*)dw_parameter) : "";
 
 				// can only get the last 30 closed positions without any filter in place
 				return get_fxcm_positions(BROKER_CMD_GET_CLOSED_POSITIONS, "BROKER_CMD_GET_CLOSED_POSITIONS", filename, 1);
+			}
+
+			case BROKER_CMD_PRINT_ORDER_TRACKER: {
+				show(std::format("\n{}\n{}", order_tracker.to_string(), order_mapping_string()));
+				return 0;
+			}
+
+			case BROKER_CMD_GET_ORDER_TRACKER_SIZE: {
+				return order_tracker.num_order_reports();
 			}
 
 			default: {

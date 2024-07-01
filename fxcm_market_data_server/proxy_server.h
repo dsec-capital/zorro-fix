@@ -361,7 +361,7 @@ namespace fxcm {
                                         if (n > 0) {
                                             LocalFormat format;
 
-                                            spdlog::debug(
+                                            spdlog::info(
                                                 "{} bars from {} to {} in request interval from {} to {}",
                                                 n, format.formatDate(reader->getDate(0)), format.formatDate(reader->getDate(n - 1)),
                                                 format.formatDate(date_from), format.formatDate(date_to)
@@ -417,7 +417,7 @@ namespace fxcm {
                         throw std::runtime_error(error_message);
                     }
 
-                    spdlog::debug("fetched {} number of bars", bars.size());
+                    spdlog::info("fetched {} number of bars", bars.size());
                 }
                 catch (...) {
                     std::string what = "unknown exception";
@@ -538,7 +538,7 @@ namespace fxcm {
                                         if (n > 0) {
                                             LocalFormat format;
 
-                                            spdlog::debug(
+                                            spdlog::info(
                                                 "{} ticks from {} to {} in request interval from {} to {}",
                                                 n, format.formatDate(reader->getDate(0)), format.formatDate(reader->getDate(n - 1)),
                                                 format.formatDate(date_from), format.formatDate(date_to)
@@ -587,7 +587,7 @@ namespace fxcm {
                         throw std::runtime_error(error_message);
                     }
 
-                    spdlog::debug("fetched {} number of ticks", quotes.size());
+                    spdlog::info("fetched {} number of ticks", quotes.size());
                 }
                 catch (...) {
                     std::string what = "unknown exception";
@@ -770,14 +770,14 @@ namespace fxcm {
                     if (!has_error) {
                         json j;
                         j["filename"] = csv_filename;
-                        j["num_rows"] = rows.size() - 1;
+                        j["num_rows"] = rows.empty() ? 0 : rows.size() - 1;
                         res.set_content(j.dump(), "application/json");
                     }
                     else {
                         throw std::runtime_error(error_message);
                     }
 
-                    spdlog::debug("written {} ticks to {}", rows.size() - 1, csv_filename);
+                    spdlog::debug("written {} ticks to {}", rows.empty() ? 0 : rows.size() - 1, csv_filename);
                 }
                 catch (...) {
                     std::string what = "unknown exception";

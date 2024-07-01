@@ -66,7 +66,7 @@ int main(int argc, char* argv[])
     }
 
     auto server_host = "0.0.0.0";
-    auto server_port = 8080;
+    auto server_port = 8083;
     auto connection = demo_connection;
     auto url = default_url;
 
