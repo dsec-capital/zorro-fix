@@ -89,8 +89,9 @@ namespace zorro {
 	bool dump_bars_to_file = true;
 
 	std::shared_ptr<spdlog::logger> spd_logger = nullptr;
-	std::unique_ptr<FixService> fix_thread = nullptr;
+	std::unique_ptr<FixService> fix_service = nullptr;
 	BlockingTimeoutQueue<ExecReport> exec_report_queue;
+	BlockingTimeoutQueue<StatusExecReport> status_exec_report_queue;
 	BlockingTimeoutQueue<TopOfBook> top_of_book_queue;
 	BlockingTimeoutQueue<ServiceMessage> service_message_queue;
 	BlockingTimeoutQueue<FXCMPositionReports> position_report_queue;
@@ -137,6 +138,24 @@ namespace zorro {
 			}
 		);
 		return n;
+	}
+
+	template<class R, class P>
+	std::pair<std::vector<StatusExecReport>, bool> pop_status_exec_reports(const std::string& mass_status_req_id, const std::chrono::duration<R, P>& timeout) {
+		log::debug<2, true>("pop_status_exec_reports: mass_status_req_id={}", mass_status_req_id);
+		std::vector<StatusExecReport> reports;
+		auto success = status_exec_report_queue.pop_until(
+			[&](const StatusExecReport& report) {
+				log::debug<2, true>("pop_status_exec_reports: got report={}", report.to_string());
+				if (report.mass_status_req_id == mass_status_req_id) {
+					reports.push_back(report);
+				}
+				auto done = report.ord_status == FIX::OrdStatus_REJECTED || report.last_rpt_requested;
+				return done;
+			}, timeout
+		);
+		log::debug<2, true>("pop_status_exec_reports: reports obtained={}", reports.size());
+		return std::make_pair(reports, success);
 	}
 
 	template<class R, class P>
@@ -525,13 +544,14 @@ namespace zorro {
 	 */
 	DLLFUNC int BrokerLogin(char* user, char* password, char* type, char* account) {
 		try {
-			if (fix_thread == nullptr) {
+			if (fix_service == nullptr) {
 				log::debug<1, true>("BrokerLogin: FIX thread createing...");
-				fix_thread = std::unique_ptr<FixService>(new FixService(
+				fix_service = std::unique_ptr<FixService>(new FixService(
 					settings_cfg_file,
 					requests_on_logon,
 					num_required_session_logins,
-					exec_report_queue, 
+					exec_report_queue,
+					status_exec_report_queue,
 					top_of_book_queue,
 					service_message_queue,
 					position_report_queue,
@@ -566,14 +586,14 @@ namespace zorro {
 				auto start = std::chrono::system_clock::now();
 
 				log::debug<1, true>("BrokerLogin: FIX service starting...");
-				fix_thread->start();
+				fix_service->start();
 				log::debug<1, true>("BrokerLogin: FIX service running");
 
 				log::debug<1, true>("BrokerLogin: waiting for FIX login...");
 				auto fix_login_msg = pop_login_service_message(num_required_session_logins, fix_login_waiting_time);
 
 				if (!fix_login_msg) {
-					fix_thread->cancel();
+					fix_service->cancel();
 					throw std::runtime_error(std::format("FIX login timeout after {}", elappsed(start)));
 				}
 				else {
@@ -582,7 +602,7 @@ namespace zorro {
 				
 				bool success = trading_session_status_queue.pop(trading_session_status, fix_waiting_time);
 				if (!success) {
-					fix_thread->cancel();
+					fix_service->cancel();
 					throw std::runtime_error("failed to obtain trading session status");
 				}
 				else {
@@ -595,7 +615,7 @@ namespace zorro {
 				FXCMCollateralReport collateral_report;
 				success = collateral_report_queue.pop(collateral_report, fix_waiting_time);
 				if (!success) {
-					fix_thread->cancel();
+					fix_service->cancel();
 					throw std::runtime_error("failed to obtain initial collateral report");
 				}
 				else {
@@ -616,7 +636,7 @@ namespace zorro {
 					n, order_tracker.to_string(), order_mapping_string()
 				);
 
-				fix_thread->cancel();
+				fix_service->cancel();
 				log::debug<1, true>("BrokerLogin: FIX service stopped");
 
 				return BrokerLoginStatus::LoggedOut; 
@@ -634,7 +654,7 @@ namespace zorro {
 
 	DLLFUNC int BrokerTime(DATE* pTimeGMT) 
 	{
-		if (!fix_thread) {
+		if (!fix_service) {
 			return ExchangeStatus::Unavailable;
 		}
 
@@ -690,7 +710,7 @@ namespace zorro {
 			return 1;
 		}
 		else {
-			fix_thread->client().collateral_inquiry();
+			fix_service->client().collateral_inquiry();
 
 			FXCMCollateralReport collateral_report;
 			auto success = collateral_report_queue.pop(collateral_report, fix_waiting_time);
@@ -774,7 +794,7 @@ namespace zorro {
 		double* margin_cost, double* roll_long, double* roll_short) 
 	{
 		try {
-			auto& client = fix_thread->client();
+			auto& client = fix_service->client();
 
 			// subscribe to Asset market data
 			if (!price) {  
@@ -1056,7 +1076,7 @@ namespace zorro {
 		auto limit_price = FIX::Price(limit);
 		auto stop_price = FIX::StopPx(stop);
 
-		auto msg = fix_thread->client().new_order_single(
+		auto msg = fix_service->client().new_order_single(
 			symbol, cl_ord_id, side, ord_type, time_in_force, qty, limit_price, stop_price
 		);
 
@@ -1219,7 +1239,7 @@ namespace zorro {
 					auto side = signed_qty > 0 ? FIX::Side(FIX::Side_BUY) : FIX::Side(FIX::Side_SELL);
 					auto qty = FIX::OrderQty(std::abs(signed_qty));
 					
-					auto msg = fix_thread->client().new_order_single(
+					auto msg = fix_service->client().new_order_single(
 						FIX::Symbol(order.symbol), cl_ord_id, side, ord_type, time_in_force, qty, FIX::Price(0), FIX::StopPx(0)
 					);
 
@@ -1269,7 +1289,7 @@ namespace zorro {
 					if (std::abs(amount) >= order.leaves_qty) {
 						log::debug<2, true>("BrokerSell2: cancel remaining quantity {}", order.leaves_qty);
 
-						auto msg = fix_thread->client().order_cancel_request(
+						auto msg = fix_service->client().order_cancel_request(
 								symbol, ord_id, orig_cl_ord_id, cl_ord_id, side, FIX::OrderQty(order.leaves_qty)
 						);
 
@@ -1294,7 +1314,7 @@ namespace zorro {
 
 						log::debug<2, true>("BrokerSell2: cancel/replace remaining quantity {} to new quantity {}", order.leaves_qty, new_qty);
 
-						auto msg = fix_thread->client().order_cancel_replace_request(
+						auto msg = fix_service->client().order_cancel_replace_request(
 								symbol, ord_id, orig_cl_ord_id, cl_ord_id, side, ord_type, 
 								FIX::OrderQty(new_qty), FIX::Price(order.price)
 						);
@@ -1331,11 +1351,43 @@ namespace zorro {
 		return 0;
 	}
 
+	bool no_orders(const StatusExecReport& report) {
+		return report.ord_status == FIX::OrdStatus_REJECTED && report.text.starts_with("no order(s)");
+	}
+
+	int get_fxcm_order_mass_status(int cmd, const std::string& cmd_str) {
+		if (fix_service) {
+			auto message = fix_service->client().order_mass_status_request();
+			FIX::MassStatusReqID mass_status_req_id;
+			message.getField(mass_status_req_id);
+
+			auto [reports, success] = pop_status_exec_reports(mass_status_req_id.getString(), 4 * fix_exec_report_waiting_time);
+			if (success) {
+				std::stringstream ss;
+				for (const auto& report : reports) {
+					ss << "\n  ";
+					ss << (no_orders(report) ? "StatusExecReport[no_orders]" : report.to_string());
+				}
+				log::debug<dl0, true>("order_mass_status_request returned {} status exec reports{}", reports.size(), ss.str());
+			}
+			else {
+				log::debug<dl0, true>("order_mass_status_request timed out in {}", 4 * fix_exec_report_waiting_time);
+
+			}
+
+			return 0;
+		}
+		else {
+			log::error<true>("BrokerCommand {}[{}] FIX service not running", cmd_str, cmd);
+			return 0;
+		}
+	}
+
 	int get_fxcm_positions(int cmd, const std::string& cmd_str, const std::string& filename, int pos_req_type) {
 		log::debug<dl4, true>("BrokerCommand {}[{}](filename={})", cmd_str, cmd, filename);
 
-		if (fix_thread) {
-			fix_thread->client().request_for_positions(fxcm_account, pos_req_type);
+		if (fix_service) {
+			fix_service->client().request_for_positions(fxcm_account, pos_req_type);
 
 			FXCMPositionReports reports;
 			bool success = position_report_queue.pop(reports, 4 * fix_waiting_time);
@@ -1453,7 +1505,7 @@ namespace zorro {
 
 						log::debug<dl0, true>("BrokerCommand[DO_CANCEL]: cancel working order");
 
-						auto msg = fix_thread->client().order_cancel_request(
+						auto msg = fix_service->client().order_cancel_request(
 							symbol, ord_id, orig_cl_ord_id, cl_ord_id, side, FIX::OrderQty(order.leaves_qty)
 						);
 
@@ -1744,6 +1796,10 @@ namespace zorro {
 
 			case BROKER_CMD_GET_ORDER_TRACKER_SIZE: {
 				return order_tracker.num_order_reports();
+			}
+
+			case BROKER_CMD_GET_ORDER_ORDER_MASS_STATUS: {
+				return get_fxcm_order_mass_status(BROKER_CMD_GET_ORDER_ORDER_MASS_STATUS, "BROKER_CMD_GET_ORDER_ORDER_MASS_STATUS");
 			}
 
 			default: {

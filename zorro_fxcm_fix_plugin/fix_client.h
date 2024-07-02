@@ -21,6 +21,8 @@
 #include "quickfix/fix44/PositionReport.h"
 #include "quickfix/fix44/RequestForPositions.h"
 #include "quickfix/fix44/RequestForPositionsAck.h"
+#include "quickfix/fix44/OrderMassStatusRequest.h"
+#include "quickfix/fix44/OrderStatusRequest.h"
 #include "quickfix/fix44/SecurityList.h"
 #include "quickfix/fix44/TradingSessionStatus.h"
 #include "quickfix/fix44/TradingSessionStatusRequest.h"
@@ -189,6 +191,7 @@ namespace zorro
 			unsigned int requests_on_logon,
 			unsigned int num_required_session_logins, 
 			BlockingTimeoutQueue<ExecReport>& exec_report_queue,
+			BlockingTimeoutQueue<StatusExecReport>& status_exec_report_queue,
 			BlockingTimeoutQueue<TopOfBook>& top_of_book_queue,
 			BlockingTimeoutQueue<ServiceMessage>& service_message_queue,
 			BlockingTimeoutQueue<FXCMPositionReports>& position_reports_queue,
@@ -216,6 +219,9 @@ namespace zorro
 		// subscription_request_type = FIX::SubscriptionRequestType(FIX::SubscriptionRequestType_SNAPSHOT)
 		// or FIX::SubscriptionRequestType(FIX::SubscriptionRequestType_SNAPSHOT_AND_UPDATES)
 		FIX::Message request_for_positions(const std::string& account, int pos_req_type);
+
+		// Sends OrderMassStatusRequest to get status of all open orders
+		FIX::Message order_mass_status_request();
 
 		FIX::Message market_data_snapshot(const FIX::Symbol& symbol);
 
@@ -325,6 +331,7 @@ namespace zorro
 		unsigned int requests_on_logon;
 		unsigned int num_required_session_logins;
 		BlockingTimeoutQueue<ExecReport>& exec_report_queue;
+		BlockingTimeoutQueue<StatusExecReport>& status_exec_report_queue;
 		BlockingTimeoutQueue<TopOfBook>& top_of_book_queue;
 		BlockingTimeoutQueue<ServiceMessage>& service_message_queue;
 		BlockingTimeoutQueue<FXCMPositionReports>& position_reports_queue;

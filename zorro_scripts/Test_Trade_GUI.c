@@ -8,6 +8,8 @@
 #define BROKER_CMD_GET_OPEN_POSITIONS			2002
 #define BROKER_CMD_GET_CLOSED_POSITIONS			2003
 #define BROKER_CMD_PRINT_ORDER_TRACKER			2010
+#define BROKER_CMD_GET_ORDER_TRACKER_SIZE		2011
+#define BROKER_CMD_GET_ORDER_ORDER_MASS_STATUS  2012
 
 #define AssetPanelOffset 2
 #define TradePanelOffset 6
@@ -258,9 +260,6 @@ void click(int row, int col)
 		panelSet(PositionRow, PositionCol, sftoa(pos, 2), ColorPanel[2], 1, 1);
 		printf("\nobtained position %.2f", pos);
 	}
-	else if (Text == "Get OrdStat") {
-		printf("\nTODO get order status");
-	}
 	else if (Text == "Print OTrk") {
 		brokerCommand(BROKER_CMD_PRINT_ORDER_TRACKER, 0);
 	}
@@ -269,6 +268,9 @@ void click(int row, int col)
 	}
 	else if (Text == "Print CPos") {
 		brokerCommand(BROKER_CMD_GET_CLOSED_POSITIONS, 0);
+	}
+	else if (Text == "Print OStat") {
+		brokerCommand(BROKER_CMD_GET_ORDER_ORDER_MASS_STATUS, 0);
 	}
 	else {
 		if (Text == "Buy")
@@ -328,18 +330,11 @@ function run()
 
 	if (is(INITRUN)) {
 		setupPannel();
-
-		if (mode(NFA)) {
-			printf("\n=====> NFA mode enabled!");
-		}
-		else {
-			printf("\n=====> NFA mode disabled!");
-		}
 	}
 
 	if (!is(LOOKBACK)) {
-		printf("\nNFA %i Hedge %i Balance %s Equite %s Margin %s ClosePx %s",
-			ifelse(is(NFA), 1, 0), Hedge,
+		printf("\nis NFA %i, Hedge %i, Balance %s, Equite %s, Margin %s, ClosePx %s",
+			ifelse(is(NFA), "true", "false"), Hedge,
 			sftoa(Balance, 2), sftoa(Equity, 2), sftoa(MarginVal, 2),
 			sftoa(priceClose(0), 5));
 
@@ -356,8 +351,8 @@ function run()
 	}
 
 	if (once(!is(LOOKBACK))) {
-		printf("\n%s: PIP %s PipCost %s Mult %.2f", Asset, sftoa(PIP, 2), sftoa(PIPCost, 2), LotAmount);
-		printf("\n%s: Levg %.0f MCost %s", Asset, Leverage, sftoa(MarginCost, 2));
-		printf("\n%s: Roll+ %f Roll- %f", Asset, RollLong, RollShort);
+		printf("\n%s: PIP %s, PIPCost %s, Mult %.2f", Asset, sftoa(PIP, 2), sftoa(PIPCost, 2), LotAmount);
+		printf("\n%s: Levg %.0f, MCost %s", Asset, Leverage, sftoa(MarginCost, 2));
+		printf("\n%s: Roll+ %f, Roll- %f", Asset, RollLong, RollShort);
 	}
 }

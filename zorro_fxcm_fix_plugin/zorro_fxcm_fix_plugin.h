@@ -28,4 +28,5 @@ namespace zorro
 	constexpr unsigned int BROKER_CMD_GET_CLOSED_POSITIONS = 2003;
 	constexpr unsigned int BROKER_CMD_PRINT_ORDER_TRACKER = 2010;
 	constexpr unsigned int BROKER_CMD_GET_ORDER_TRACKER_SIZE = 2011;
+	constexpr unsigned int BROKER_CMD_GET_ORDER_ORDER_MASS_STATUS = 2012;
 }

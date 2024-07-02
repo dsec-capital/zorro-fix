@@ -149,11 +149,12 @@ namespace zorro {
 		ss << "FXCMPositionReports[";
 		bool first = false;
 		for (const auto& report : reports) {
-			if (first) ss << ", \n";
-			ss << " " << report.to_string();
+			if (first) ss << ",";
+			ss << "\n  ";
+			ss << report.to_string();
 			first = true;
 		}
-		ss << "]";
+		ss << "\n]";
 		return ss.str();
 	}
 
@@ -188,6 +189,7 @@ namespace zorro {
 		unsigned int requests_on_logon,
 		unsigned int num_required_session_logins,
 		BlockingTimeoutQueue<ExecReport>& exec_report_queue,
+		BlockingTimeoutQueue<StatusExecReport>& status_exec_report_queue,
 		BlockingTimeoutQueue<TopOfBook>& top_of_book_queue,
 		BlockingTimeoutQueue<ServiceMessage>& service_message_queue,
 		BlockingTimeoutQueue<FXCMPositionReports>& position_reports_queue,
@@ -197,6 +199,7 @@ namespace zorro {
       , requests_on_logon(requests_on_logon)
       , num_required_session_logins(num_required_session_logins)
 	  , exec_report_queue(exec_report_queue)
+	  , status_exec_report_queue(status_exec_report_queue)
 	  , top_of_book_queue(top_of_book_queue)
       , service_message_queue(service_message_queue)
 	  , position_reports_queue(position_reports_queue)
@@ -272,7 +275,6 @@ namespace zorro {
 
 		return service_msg;
 	}
-
 
 	void FixClient::onLogon(const FIX::SessionID& sess_id)
 	{
@@ -833,60 +835,164 @@ namespace zorro {
 
 	void FixClient::onMessage(const FIX44::ExecutionReport& message, const FIX::SessionID&) 
 	{
-		FIX::Symbol symbol;
-		FIX::ExecID exec_id;
-		FIX::ExecType exec_type;
-		FIX::OrderID ord_id;
-		FIX::ClOrdID cl_ord_id;
-		FIX::OrdStatus ord_status;
-		FIX::OrdType ord_type;
-		FIX::Side side;
-		FIX::Price price;
-		FIX::OrderQty order_qty;
-		FIX::LastQty last_qty;
-		FIX::LastPx last_px;
-		FIX::LeavesQty leaves_qty;
-		FIX::CumQty cum_qty;
-		FIX::AvgPx avg_px;
-		FIX::Text text;
+		try {
+			FIX::Symbol symbol;
+			FIX::ExecID exec_id;
+			FIX::ExecType exec_type;
+			FIX::OrderID ord_id;
+			FIX::ClOrdID cl_ord_id;
+			FIX::OrdStatus ord_status;
+			FIX::OrdType ord_type;
+			FIX::Side side;
+			FIX::Price price;
+			FIX::OrderQty order_qty;
+			FIX::LastQty last_qty;
+			FIX::LastPx last_px;
+			FIX::LeavesQty leaves_qty;
+			FIX::CumQty cum_qty;
+			FIX::AvgPx avg_px;
+			FIX::Text text;
+			FIX::LastRptRequested last_rpt_requested;
+			FIX::MassStatusReqID mass_status_req_id;
 
-		message.get(symbol);
-		message.get(exec_id);
-		message.get(exec_type);
-		message.get(ord_id);
-		message.get(cl_ord_id);
-		message.get(ord_status);
-		message.get(ord_type);
-		message.get(side);
-		message.get(price);
-		message.get(avg_px);
-		message.get(order_qty);
-		message.get(last_qty);
-		message.get(leaves_qty);
-		message.get(last_px);
-		message.get(cum_qty);
-		message.getIfSet(text);
+			message.get(exec_type);
 
-		ExecReport report(
-			symbol.getString(),
-			ord_id.getString(),
-			cl_ord_id.getString(),
-			exec_id.getString(),
-			exec_type.getValue(),
-			ord_type.getValue(),
-			ord_status.getValue(),
-			side.getValue(),
-			price.getValue(),
-			avg_px.getValue(),
-			order_qty.getValue(),
-			last_qty.getValue(),
-			last_px.getValue(),
-			cum_qty.getValue(),
-			leaves_qty.getValue(),
-			text.getString()
-		);
+			if (exec_type != FIX::ExecType_ORDER_STATUS) {
+				message.get(symbol);
+				message.get(exec_id);
+				message.get(ord_id);
+				message.get(cl_ord_id);
+				message.get(ord_status);
+				message.getIfSet(ord_type);
+				message.get(side);
+				message.get(price);
+				message.get(avg_px);
+				message.get(order_qty);
+				message.get(last_qty);
+				message.get(leaves_qty);
+				message.get(last_px);
+				message.get(cum_qty);
+				message.getIfSet(text);
 
-		exec_report_queue.push(report);
+				ExecReport report(
+					symbol.getString(),
+					ord_id.getString(),
+					cl_ord_id.getString(),
+					exec_id.getString(),
+					exec_type.getValue(),
+					ord_type.getValue(),
+					ord_status.getValue(),
+					side.getValue(),
+					price.getValue(),
+					avg_px.getValue(),
+					order_qty.getValue(),
+					last_qty.getValue(),
+					last_px.getValue(),
+					cum_qty.getValue(),
+					leaves_qty.getValue(),
+					text.getString()
+				);
+
+				log::debug<dl0, false>("FixClient::on_message[ExecutionReport]: {}", report.to_string());
+
+				exec_report_queue.push(report);
+			}
+			else {
+				message.get(ord_status);
+
+				if (ord_status != FIX::OrdStatus_REJECTED) {
+					message.get(symbol);
+					message.get(exec_id);
+					message.get(ord_id);
+					message.getIfSet(cl_ord_id);
+					message.getIfSet(ord_type);
+					message.get(side);
+					message.get(price);
+					message.get(avg_px);
+					message.get(order_qty);
+					message.get(last_qty);
+					message.get(leaves_qty);
+					message.get(last_px);
+					message.get(cum_qty);
+
+					message.getIfSet(text);
+					message.getIfSet(mass_status_req_id);
+
+					auto tot_num_reports = 0;
+					if (message.isSetField(FIX::FIELD::TotNumReports)) {
+						auto s = message.getField(FIX::FIELD::TotNumReports);
+						tot_num_reports = std::atoi(s.c_str());
+					}
+
+					auto last_rpt_requested = true;
+					if (message.isSetField(FIX::FIELD::LastRptRequested)) {
+						auto s = message.getField(FIX::FIELD::LastRptRequested);
+						last_rpt_requested = s == "Y";
+					}
+
+					StatusExecReport report(
+						symbol.getString(),
+						ord_id.getString(),
+						cl_ord_id.getString(),
+						exec_id.getString(),
+						mass_status_req_id.getString(),
+						exec_type.getValue(),
+						ord_type.getValue(),
+						ord_status.getValue(),
+						side.getValue(),
+						price.getValue(),
+						avg_px.getValue(),
+						order_qty.getValue(),
+						last_qty.getValue(),
+						last_px.getValue(),
+						cum_qty.getValue(),
+						leaves_qty.getValue(),
+						text.getString(),
+						tot_num_reports,
+						last_rpt_requested
+					);
+
+					log::debug<dl0, false>("FixClient::on_message[StatusExecutionReport(ord_status!=FIX::OrdStatus_REJECTED)]: {}", report.to_string());
+
+					status_exec_report_queue.push(report);
+				}
+				else {
+					// buggy Quickfix parsing for unknow reasons
+					message.get(exec_id);
+					message.get(mass_status_req_id);
+					message.getIfSet(text);
+
+					StatusExecReport report(
+						"N/A",
+						"N/A",
+						"N/A",
+						exec_id.getString(),
+						mass_status_req_id.getString(),
+						exec_type.getValue(),
+						'0',
+						FIX::OrdStatus_REJECTED,
+						FIX::Side_UNDISCLOSED,
+						0,
+						0,
+						0,
+						0,
+						0,
+						0,
+						0,
+						text.getString(),
+						0,
+						true
+					);
+
+					log::debug<dl0, false>("FixClient::on_message[StatusExecutionReport(ord_status==FIX::OrdStatus_REJECTED)]: {}", report.to_string());
+
+					status_exec_report_queue.push(report);
+				}
+			}
+		}
+		catch (...) {
+			log::debug<dl0, false>("FixClient::on_message[ExecutionReport]: error parsing execution report {}", fix_string(message));
+		}
 	}
 	
 	void FixClient::onMessage(const FIX44::OrderCancelReject&, const FIX::SessionID&) 
@@ -1053,6 +1159,18 @@ namespace zorro {
 		request.addGroup(parties_group);
 
 		log::debug<dl1, false>("FixClient::request_for_positions: {}", fix_string(request));
+
+		FIX::Session::sendToTarget(request, trading_session_id);
+
+		return request;
+	}
+
+	FIX::Message FixClient::order_mass_status_request() {
+		FIX44::OrderMassStatusRequest request;
+		request.setField(FIX::MassStatusReqID(id_generator.genID()));
+		request.setField(FIX::MassStatusReqType(FIX::MassStatusReqType_STATUS_FOR_ALL_ORDERS));
+
+		log::debug<dl1, false>("FixClient::order_mass_status_request: {}", fix_string(request));
 
 		FIX::Session::sendToTarget(request, trading_session_id);
 
