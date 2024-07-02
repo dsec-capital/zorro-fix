@@ -26,6 +26,7 @@
 #include "quickfix/fix44/SecurityList.h"
 #include "quickfix/fix44/TradingSessionStatus.h"
 #include "quickfix/fix44/TradingSessionStatusRequest.h"
+#include "quickfix/fix44/BusinessMessageReject.h"
 
 #include "spdlog/spdlog.h"
 
@@ -55,6 +56,11 @@ namespace zorro
 	constexpr std::string_view SERVICE_MESSAGE_LOGON_STATUS = "logon_status";
 	constexpr std::string_view SERVICE_MESSAGE_LOGON_STATUS_READY = "ready";
 	constexpr std::string_view SERVICE_MESSAGE_LOGON_STATUS_SESSION_LOGINS = "session_logins";
+
+	constexpr std::string_view SERVICE_MESSAGE_REJECT = "reject";
+	constexpr std::string_view SERVICE_MESSAGE_REJECT_TYPE = "reject_type";
+	constexpr std::string_view SERVICE_MESSAGE_REJECT_TEXT = "reject_text";
+	constexpr std::string_view SERVICE_MESSAGE_REJECT_RAW_MESSAGE = "raw_message";
 
 	enum FXCMProductId {
 		UnknownProductId = 0,
@@ -268,6 +274,8 @@ namespace zorro
 	private:
 
 		ServiceMessage logon_service_message() const;
+
+		ServiceMessage reject_service_message(const std::string& reject_type, const std::string& reject_text, const std::string& raw) const;
 
 		bool is_trading_session(const FIX::SessionID& sess_id) const;
 

@@ -26,6 +26,7 @@ int AbsLimitLevelRow;
 int AbsLimitLevelCol;
 int PositionRow;
 int PositionCol;
+int OrderActionCol;
 
 void setupPannel() {
 	int n = 0;
@@ -49,7 +50,9 @@ void setupPannel() {
 	int c = 0;
 	panelSet(TradePanelOffset - 1, c++, "Trade", ColorPanel[3], 1, 1);
 	panelSet(TradePanelOffset - 1, c++, "ID", ColorPanel[3], 1, 1);
-	panelSet(TradePanelOffset - 1, c++, "Action", ColorPanel[3], 1, 1);
+	panelSet(TradePanelOffset - 1, c, "Action", ColorPanel[3], 1, 1);
+	OrderActionCol = c;
+	c++;
 	panelSet(TradePanelOffset - 1, c++, "Direction", ColorPanel[3], 1, 1);
 	panelSet(TradePanelOffset - 1, c++, "LimitPrice", ColorPanel[3], 1, 1);
 	panelSet(TradePanelOffset - 1, c++, "DistFT[PIP]", ColorPanel[3], 1, 1);
@@ -97,6 +100,10 @@ int tmf(var TradeIdx, var LimitPrice) {
 	bool Filled = TradeLots == TradeLotsTarget && !TradeIsUnfilled;
 
 	string Dir = ifelse(LimitPrice == 0, ifelse(TradeDir == 1, "Buy", "Sell"), ifelse(TradeDir == 1, "Bid", "Ask"));
+	
+	string CurrentStatus = panelGet(row, OrderActionCol);
+	if (CurrentStatus == "Failed")
+		return 0;
 
 	int c = 0;
 	panelSet(row, c++, strtr(ThisTrade), ColorPanel[2], 1, 4);
@@ -158,12 +165,20 @@ void doTrade(int What)
 			//OrderLimit = round_down(limit, RoundingStep);
 			OrderLimit = roundto(limit - 0.5 * RoundingStep, RoundingStep);
 			printf("\n==> Limit Buy at OrderLimit=%.5f [%s] from top %.5f limit depth %i", OrderLimit, ifelse(AbsLimitLevel, "ABS", "REL"), TopBid, LimitDepth);
-			enterLong(tmf, (var)NextTradeIdx++, OrderLimit);
+			TRADE* trade = enterLong(tmf, (var)NextTradeIdx, OrderLimit);
+			if (!trade) {
+				panelSet(NextTradeIdx, OrderActionCol, "Failed", ORANGE, 2, 4);
+			}
+			NextTradeIdx++;
 			OrderLimit = 0;
 		}
 		else {
 			printf("\n==> Market Buy at top %.5f", TopBid);
-			enterLong(tmf, (var)NextTradeIdx++, 0);
+			TRADE* trade = enterLong(tmf, (var)NextTradeIdx, 0);
+			if (!trade) {
+				panelSet(NextTradeIdx, OrderActionCol, "Failed", ORANGE, 2, 4);
+			}
+			NextTradeIdx++;
 		}
 	}
 	else if (What == 2) { // Sell 		
@@ -178,12 +193,20 @@ void doTrade(int What)
 			//OrderLimit = round_up(limit, RoundingStep);
 			OrderLimit = roundto(limit + 0.5 * RoundingStep, RoundingStep);
 			printf("\n==> Limit Sell at OrderLimit=%.5f from top %.5f limit depth %i", OrderLimit, TopAsk, LimitDepth);
-			enterShort(tmf, (var)NextTradeIdx++, OrderLimit);
+			TRADE* trade = enterShort(tmf, (var)NextTradeIdx, OrderLimit);
+			if (!trade) {
+				panelSet(NextTradeIdx, OrderActionCol, "Failed", ORANGE, 2, 4);
+			}
+			NextTradeIdx++;
 			OrderLimit = 0;
 		}
 		else {
 			printf("\n==> Market Sell at top %.5f", TopAsk);
-			enterShort(tmf, (var)NextTradeIdx++, 0);
+			TRADE* trade = enterShort(tmf, (var)NextTradeIdx, 0);
+			if (!trade) {
+				panelSet(NextTradeIdx, OrderActionCol, "Failed", ORANGE, 2, 4);
+			}
+			NextTradeIdx++;
 		}
 	}
 }

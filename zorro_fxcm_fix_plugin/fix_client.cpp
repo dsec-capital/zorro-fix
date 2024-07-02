@@ -276,6 +276,18 @@ namespace zorro {
 		return service_msg;
 	}
 
+	ServiceMessage FixClient::reject_service_message(const std::string& reject_type, const std::string& reject_text, const std::string& raw) const {
+		ServiceMessage service_msg{
+			{std::string(SERVICE_MESSAGE_TYPE), std::string(SERVICE_MESSAGE_REJECT)}
+		};
+
+		service_msg.emplace(SERVICE_MESSAGE_REJECT_TYPE, reject_type);
+		service_msg.emplace(SERVICE_MESSAGE_REJECT_TEXT, reject_text);
+		service_msg.emplace(SERVICE_MESSAGE_REJECT_RAW_MESSAGE, raw);
+
+		return service_msg;
+	}
+
 	void FixClient::onLogon(const FIX::SessionID& sess_id)
 	{
 		std::unique_lock<std::mutex> ul(mutex);
@@ -995,17 +1007,37 @@ namespace zorro {
 		}
 	}
 	
-	void FixClient::onMessage(const FIX44::OrderCancelReject&, const FIX::SessionID&) 
+	void FixClient::onMessage(const FIX44::OrderCancelReject& message, const FIX::SessionID&) 
 	{
+		FIX::Text text;
+		message.getIfSet(text);
+		auto raw = fix_string(message);
+		auto service_msg = reject_service_message("OrderCancelReject", text.getString(), raw);
+		service_message_queue.push(service_msg);
+
+		log::error<false>("onMessage[FIX44::OrderCancelReject]: {}", raw);
 	}
 
-	void FixClient::onMessage(const FIX44::BusinessMessageReject&, const FIX::SessionID&)
+	void FixClient::onMessage(const FIX44::BusinessMessageReject& message, const FIX::SessionID&)
 	{
+		FIX::Text text;
+		message.getIfSet(text);
+		auto raw = fix_string(message);
+		auto service_msg = reject_service_message("BusinessMessageReject", text.getString(), raw);
+		service_message_queue.push(service_msg);
+
+		log::error<false>("onMessage[FIX44::OrderCancelReject]: {}", raw);
 	}
 
 	void FixClient::onMessage(const FIX44::MarketDataRequestReject& message, const FIX::SessionID& session_ID)
 	{
-		log::error<false>("onMessage[FIX44::MarketDataRequestReject]: {}", fix_string(message));
+		FIX::Text text;
+		message.getIfSet(text);
+		auto raw = fix_string(message);
+		auto service_msg = reject_service_message("BusinessMessageReject", text.getString(), raw);
+		service_message_queue.push(service_msg);
+
+		log::error<false>("onMessage[FIX44::MarketDataRequestReject]: {}", raw);
 	}
 
 	FIX::Message FixClient::market_data_snapshot(const FIX::Symbol& symbol) {
