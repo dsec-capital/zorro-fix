@@ -16,7 +16,7 @@
 
 #define CANCEL_WITH_BROKER_COMMAND
 
-bool PrintOrderStatus = true;
+bool LogTopOfBook = true;
 int LimitDepth;
 int OrderMode; 					// 0 Market, 1 Limit 
 int NextTradeIdx = 0;
@@ -45,6 +45,8 @@ void setupPannel() {
 	panelSet(1, n, "0", 0, 1, 2);
 	AbsLimitLevelRow = 1;
 	AbsLimitLevelCol = n;
+	n++;
+	panelSet(0, n, ifelse(LogTopOfBook, "LogTOB[ON]", "LogTOB[OFF]"), YELLOW, 1, 4);
 	n++;
 
 	int c = 0;
@@ -85,7 +87,8 @@ int tmf(var TradeIdx, var LimitPrice) {
 	var TopAsk = priceClose();
 	var TopBid = TopAsk - Spread;
 
-	printf("\ntmf %s bid=%.5f ask=%.5f spread=%.2f", strtr(ThisTrade), TopBid, TopAsk, Spread / PIP);
+	if (LogTopOfBook)
+		printf("\ntmf %s bid=%.5f ask=%.5f spread=%.2f", strtr(ThisTrade), TopBid, TopAsk, Spread / PIP);
 
 	var DistToFarTouch = 0;
 	if (LimitPrice > 0) {
@@ -295,6 +298,16 @@ void click(int row, int col)
 	else if (Text == "Print OStat") {
 		brokerCommand(BROKER_CMD_GET_ORDER_ORDER_MASS_STATUS, 0);
 	}
+	else if (Text == "LogTOB[ON]") {
+		panelSet(row, col, "LogTOB[OFF]", 0, 0, 0);
+		LogTopOfBook = false;
+		printf("\nlog top of book off");
+	}
+	else if (Text == "LogTOB[OFF]") {
+		panelSet(row, col, "LogTOB[ON]", 0, 0, 0);
+		LogTopOfBook = true;
+		printf("\nlog top of book on");
+	}
 	else {
 		if (Text == "Buy")
 			call(1, doTrade, 1, 0);
@@ -311,6 +324,7 @@ function run()
 	}
 
 	if (Init) {
+		LogTopOfBook = true;
 		OrderMode = 1;
 		LimitDepth = 10;
 		RoundingStep = PIP;
