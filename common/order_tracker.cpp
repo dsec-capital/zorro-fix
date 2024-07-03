@@ -253,9 +253,11 @@ namespace common {
 	std::string OrderTracker::to_string() const {
 		std::string rows;
 		rows += std::format("OrderTracker[{}][\n", account);
-		rows += "  pending orders:\n";
-		for (auto& [cl_ord_id, order] : pending_orders_by_cl_ord_id) {
-			rows += std::format("    cl_ord_id={} order={}\n", cl_ord_id, order.to_string());
+		if (!pending_orders_by_cl_ord_id.empty()) {
+			rows += "  pending orders:\n";
+			for (auto& [cl_ord_id, order] : pending_orders_by_cl_ord_id) {
+				rows += std::format("    cl_ord_id={} order={}\n", cl_ord_id, order.to_string());
+			}
 		}
 		rows += "  orders:\n";
 		for (auto& [ord_id, order] : orders_by_ord_id) {

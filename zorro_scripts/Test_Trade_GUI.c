@@ -14,9 +14,8 @@
 #define AssetPanelOffset 2
 #define TradePanelOffset 6
 
-#define CANCEL_WITH_BROKER_COMMAND
-
 bool LogTopOfBook = true;
+bool CancelWithBrokerCmd = true;
 int LimitDepth;
 int OrderMode; 					// 0 Market, 1 Limit 
 int NextTradeIdx = 0;
@@ -47,6 +46,8 @@ void setupPannel() {
 	AbsLimitLevelCol = n;
 	n++;
 	panelSet(0, n, ifelse(LogTopOfBook, "LogTOB[ON]", "LogTOB[OFF]"), YELLOW, 1, 4);
+	n++;
+	panelSet(0, n, ifelse(CancelWithBrokerCmd, "Cancel[BRK]", "Cancel[EXIT]"), YELLOW, 1, 4);
 	n++;
 
 	int c = 0;
@@ -99,8 +100,10 @@ int tmf(var TradeIdx, var LimitPrice) {
 	}
 
 	bool Cancelable = TradeLots < TradeLotsTarget && TradeIsUnfilled;
-	bool CancelledUnfilled = TradeLots <= TradeLotsTarget && TradeIsUnfilled;
-	bool Filled = TradeLots == TradeLotsTarget && !TradeIsUnfilled;
+	bool CancelledUnfilled = TradeLots < TradeLotsTarget && TradeIsUnfilled;
+	// BUG TradeIsUnfilled is not updated properly
+	// bool Filled = TradeLots == TradeLotsTarget && !TradeIsUnfilled;
+	bool Filled = TradeLots == TradeLotsTarget;
 
 	string Dir = ifelse(LimitPrice == 0, ifelse(TradeDir == 1, "Buy", "Sell"), ifelse(TradeDir == 1, "Bid", "Ask"));
 	
@@ -111,14 +114,18 @@ int tmf(var TradeIdx, var LimitPrice) {
 	int c = 0;
 	panelSet(row, c++, strtr(ThisTrade), ColorPanel[2], 1, 4);
 	panelSet(row, c++, sftoa((var)TradeID, 0), ColorPanel[2], 1, 1);
-	if (LimitPrice == 0)
-		panelSet(row, c, "Filled", ORANGE, 2, 4);
+	if (TradeID == 0)
+		panelSet(row, c, "Faild", ORANGE, 2, 4);	// failed or rejected
+	else if (LimitPrice == 0)
+		panelSet(row, c, "Filled", ORANGE, 2, 4);	// market order
 	else if (Filled)
-		panelSet(row, c, "Filled", ORANGE, 2, 4);
+		panelSet(row, c, "Filled", ORANGE, 2, 4);	// filled limit order
 	else if (Cancelable)
-		panelSet(row, c, "Cancel", YELLOW, 2, 4);
-	else
-		panelSet(row, c, "Cancelled", OLIVE, 2, 4);
+		panelSet(row, c, "Cancel", YELLOW, 2, 4);	// limit order that is new or partially filled
+	else if (CancelledUnfilled)
+		panelSet(row, c, "Cancelled", OLIVE, 2, 4);	// this is not clear how to properly detect
+	else  
+		panelSet(row, c, "Unknown", OLIVE, 2, 4);	// more cases ?
 	++c;
 	panelSet(row, c++, Dir, ColorPanel[2], 1, 1);
 	panelSet(row, c++, sftoa(LimitPrice, 5), ColorPanel[2], 1, 1);
@@ -235,12 +242,13 @@ void click(int row, int col)
 				printf("\n%s found trade - going to cancel", strtr(ThisTrade));
 
 				if (TradeIsUnfilled) {
-#ifdef CANCEL_WITH_BROKER_COMMAND
-					brokerCommand(DO_CANCEL, ThisTrade->nID);
-					cancelTrade(ThisTrade->nID);
-#else				
-					exitTrade(ThisTrade);
-#endif				
+					if (CancelWithBrokerCmd) {
+						brokerCommand(DO_CANCEL, ThisTrade->nID);
+						cancelTrade(ThisTrade->nID);
+					}
+					else {
+						exitTrade(ThisTrade);
+					}
 				}
 
 				panelSet(row, col, "Cancelled", OLIVE, 1, 1);
@@ -280,6 +288,16 @@ void click(int row, int col)
 		panelSet(row, col, "Lmt[REL]", 0, 0, 0);
 		AbsLimitLevel = false;
 		printf("\nfix limit order level");
+	}
+	else if (Text == "Cancel[BRK]") {
+		panelSet(row, col, "Cancel[EXIT]", 0, 0, 0);
+		AbsLimitLevel = false;
+		printf("\nexit trade");
+	}
+	else if (Text == "Cancel[EXIT]") {
+		panelSet(row, col, "Cancel[BRK]", 0, 0, 0);
+		AbsLimitLevel = false;
+		printf("\nexit trade");
 	}
 	else if (Text == "Get Pos") {
 		var pos = brokerCommand(GET_POSITION, Asset);
@@ -325,6 +343,7 @@ function run()
 
 	if (Init) {
 		LogTopOfBook = true;
+		CancelWithBrokerCmd = true;
 		OrderMode = 1;
 		LimitDepth = 10;
 		RoundingStep = PIP;
@@ -337,8 +356,7 @@ function run()
 	setf(BarMode, BR_FLAT);
 	setf(TradeMode, TR_GTC);
 	setf(TradeMode, TR_FRC);
-	setf(TradeMode, TR_FILLED);
-	//resf(TradeMode, TR_FILLED);
+	resf(TradeMode, TR_FILLED);  // do not want rejected orders to be treated filled
 
 	Verbose = 7 + DIAG + ALERT;
 	Hedge = 2;

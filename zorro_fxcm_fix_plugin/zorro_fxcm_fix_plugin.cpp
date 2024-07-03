@@ -45,7 +45,7 @@ namespace zorro {
 	constexpr std::size_t dl4 = 4;
 
 	namespace log {
-		std::size_t logging_verbosity = dl0;
+		std::size_t logging_verbosity = dl1;
 	}
 
 	// http://localhost:8080/bars?symbol=AUD/USD
@@ -102,6 +102,7 @@ namespace zorro {
 	std::map<std::string, FXCMCollateralReport> collateral_reports;
 	FXCMTradingSessionStatus trading_session_status;
 	OrderTracker order_tracker("unknown-account");
+	std::vector<ServiceMessage> service_message_history;
 
 	void show(const std::string& msg) {
 		if (!BrokerError) return;
@@ -165,9 +166,16 @@ namespace zorro {
 		auto success = exec_report_queue.pop_until(
 			[&](const ExecReport& report) {
 				order_tracker.process(report);
-				auto done = report.exec_type == FIX::ExecType_NEW 
+				auto is_new = report.exec_type == FIX::ExecType_NEW 
 					&& report.ord_status == FIX::OrdStatus_NEW
 					&& report.cl_ord_id == expected_cl_ord_id;
+				auto is_fill = report.exec_type == FIX::ExecType_TRADE
+					&& report.ord_status == FIX::OrdStatus_FILLED
+					&& report.cl_ord_id == expected_cl_ord_id;
+				auto is_reject = report.exec_type == FIX::ExecType_REJECTED
+					&& report.ord_status == FIX::OrdStatus_REJECTED
+					&& report.cl_ord_id == expected_cl_ord_id;
+				auto done = is_new || is_fill || is_reject;
 				if (done) {
 					target_report = std::optional<ExecReport>(report);
 				}
@@ -185,9 +193,13 @@ namespace zorro {
 		auto success = exec_report_queue.pop_until(
 			[&](const ExecReport& report) {
 				order_tracker.process(report);
-				auto done = report.exec_type == FIX::ExecType_TRADE
+				auto is_filled = report.exec_type == FIX::ExecType_TRADE
 					&& report.ord_status == FIX::OrdStatus_FILLED
 					&& report.cl_ord_id == expected_cl_ord_id;
+				auto is_reject = report.exec_type == FIX::ExecType_REJECTED
+					&& report.ord_status == FIX::OrdStatus_REJECTED
+					&& report.cl_ord_id == expected_cl_ord_id;
+				auto done = is_filled || is_reject;
 				if (done) {
 					target_report = std::optional<ExecReport>(report);
 				}
@@ -205,9 +217,13 @@ namespace zorro {
 		auto success = exec_report_queue.pop_until(
 			[&](const ExecReport& report) {
 				order_tracker.process(report);
-				auto done = report.exec_type == FIX::ExecType_CANCELED 
+				auto is_cancel = report.exec_type == FIX::ExecType_CANCELED 
 					&& report.ord_status == FIX::OrdStatus_CANCELED
 					&& report.ord_id == expected_ord_id;
+				auto is_reject = report.exec_type == FIX::ExecType_REJECTED
+					&& report.ord_status == FIX::OrdStatus_REJECTED
+					&& report.cl_ord_id == expected_ord_id;
+				auto done = is_cancel || is_reject;
 				if (done) {
 					target_report = std::optional<ExecReport>(report);
 				}
@@ -225,9 +241,13 @@ namespace zorro {
 		auto success = exec_report_queue.pop_until(
 			[&](const ExecReport& report) {
 				order_tracker.process(report);
-				auto done = report.exec_type == FIX::ExecType_REPLACED
+				auto is_replace = report.exec_type == FIX::ExecType_REPLACED
 					&& report.ord_status == FIX::OrdStatus_REPLACED
 					&& report.ord_id == expected_ord_id;
+				auto is_reject = report.exec_type == FIX::ExecType_REJECTED
+					&& report.ord_status == FIX::OrdStatus_REJECTED
+					&& report.cl_ord_id == expected_ord_id;
+				auto done = is_replace || is_reject;
 				if (done) {
 					target_report = std::optional<ExecReport>(report);
 				}
@@ -272,6 +292,21 @@ namespace zorro {
 		);
 		log::debug<2, true>("pop_login_service_message: message found={}", message.has_value());
 		return message;
+	}
+
+	int pop_service_message() {
+		auto n = service_message_queue.pop_all(
+			[](const ServiceMessage& msg) {
+				auto msg_type = get_or_else<std::string>(msg, SERVICE_MESSAGE_TYPE, "unknown");
+				if (msg_type == SERVICE_MESSAGE_REJECT) {
+					auto reject_type = get_or_else<std::string>(msg, SERVICE_MESSAGE_REJECT_TYPE, "unknown");
+					auto reject_text = get_or_else<std::string>(msg, SERVICE_MESSAGE_REJECT_TEXT, "unknown");
+					log::error<true>("new rejection ServiceMessage obtained type={} text={}", reject_type, reject_text);
+				}
+				service_message_history.emplace_back(msg);
+			}
+		);
+		return n;
 	}
 
 	double get_position_size(const std::string& symbol) {
@@ -545,7 +580,7 @@ namespace zorro {
 	DLLFUNC int BrokerLogin(char* user, char* password, char* type, char* account) {
 		try {
 			if (fix_service == nullptr) {
-				log::debug<1, true>("BrokerLogin: FIX thread createing...");
+				log::debug<dl1, true>("BrokerLogin: FIX thread createing...");
 				fix_service = std::unique_ptr<FixService>(new FixService(
 					settings_cfg_file,
 					requests_on_logon,
@@ -558,13 +593,13 @@ namespace zorro {
 					collateral_report_queue,
 					trading_session_status_queue
 				));
-				log::debug<1, true>("BrokerLogin: FIX thread created");
+				log::debug<dl1, true>("BrokerLogin: FIX thread created");
 			}
 
 			if (user) {
 				auto fxcm_proxy_ready = fxcm_proxy_server_status();
 				if (fxcm_proxy_ready.has_value() && fxcm_proxy_ready.value().first) {
-					log::info<1, true>(
+					log::info<dl1, true>(
 						"BrokerLogin: FXCM proxy server ready started at={}", fxcm_proxy_ready.value().second
 					);
 				}
@@ -578,16 +613,16 @@ namespace zorro {
 				fxcm_account = std::string(account);
 				order_tracker.set_account(fxcm_account);
 
-				log::info<1, true>(
+				log::info<dl1, true>(
 					"BrokerLogin: FXCM credentials login={} password={} connection={} account={}", 
 					fxcm_login, fxcm_password, fxcm_connection, fxcm_account
 				);
 
 				auto start = std::chrono::system_clock::now();
 
-				log::debug<1, true>("BrokerLogin: FIX service starting...");
+				log::debug<dl1, true>("BrokerLogin: FIX service starting...");
 				fix_service->start();
-				log::debug<1, true>("BrokerLogin: FIX service running");
+				log::debug<dl1, true>("BrokerLogin: FIX service running");
 
 				log::debug<1, true>("BrokerLogin: waiting for FIX login...");
 				auto fix_login_msg = pop_login_service_message(num_required_session_logins, fix_login_waiting_time);
@@ -620,24 +655,24 @@ namespace zorro {
 				}
 				else {
 					collateral_reports.emplace(collateral_report.account, collateral_report);
-					log::info<1, true>("BrokerLogin: collateral report={}", collateral_report.to_string());
+					log::info<dl1, true>("BrokerLogin: collateral report={}", collateral_report.to_string());
 				}
 
 				return BrokerLoginStatus::LoggedIn;
 			}
 			else {
-				log::debug<1, true>("BrokerLogin: waiting {} before stopping FIX service...", fix_termination_waiting_time);
+				log::debug<dl1, true>("BrokerLogin: waiting {} before stopping FIX service...", fix_termination_waiting_time);
 				
 				std::this_thread::sleep_for(fix_termination_waiting_time);
 				auto n = pop_exec_reports();
 				
-				log::debug<1, true>(
+				log::debug<dl1, true>(
 					"BrokerLogin: processed {} final exec reports\n{}\n{}\nFIX service stopping...", 
 					n, order_tracker.to_string(), order_mapping_string()
 				);
 
 				fix_service->cancel();
-				log::debug<1, true>("BrokerLogin: FIX service stopped");
+				log::debug<dl1, true>("BrokerLogin: FIX service stopped");
 
 				return BrokerLoginStatus::LoggedOut; 
 			}
@@ -663,7 +698,7 @@ namespace zorro {
 		auto n = pop_exec_reports();
 
 		if (n > 0) {
-			log::debug<2, true>(
+			log::debug<dl1, true>(
 				"BrokerTime {} exec reports processed={}\n{}\n{}",
 				common::to_string(time), n, order_tracker.to_string(), order_mapping_string()
 			);
@@ -671,9 +706,7 @@ namespace zorro {
 
 		auto m = pop_top_of_books();
 
-		if (m > 0) {
-			log::debug<5, true>("BrokerTime {} top of book processed={}", common::to_string(time), m);
-		}
+		auto k = pop_service_message();
 
 		return ExchangeStatus::Open;
 	}
@@ -728,7 +761,7 @@ namespace zorro {
 					return 0;
 				}
 				else {
-					log::debug<1, true>("BrokerAccount: collateral report={}", collateral_report.to_string());
+					log::debug<dl1, true>("BrokerAccount: collateral report={}", collateral_report.to_string());
 					*balance = collateral_report.balance;
 					*margin_val = collateral_report.margin;
 					return 1;
@@ -801,7 +834,7 @@ namespace zorro {
 				FIX::Symbol symbol(asset);
 				client.subscribe_market_data(symbol, false);
 
-				log::info<1, true>("BrokerAsset: subscription request sent for symbol {}", asset);
+				log::info<dl1, true>("BrokerAsset: subscription request sent for symbol {}", asset);
 
 				TopOfBook top;
 				bool success = top_of_book_queue.pop(top, fix_waiting_time);
@@ -809,7 +842,7 @@ namespace zorro {
 					throw std::runtime_error(std::format("failed to get snapshot in {}ms", fix_waiting_time));
 				}
 
-				log::info<1, true>("BrokerAsset: successfully subscribed symbol {} for market data", asset);
+				log::info<dl1, true>("BrokerAsset: successfully subscribed symbol {} for market data", asset);
 
 				auto it = trading_session_status.security_informations.find(asset);
 				
@@ -829,7 +862,7 @@ namespace zorro {
 					if (price) *price = top.mid();
 					if (spread) *spread = top.spread();
 
-					log::debug<4, true>(
+					log::debug<dl4, true>(
 						"BrokerAsset: top bid={:.5f} ask={:.5f} @ {}", 
 						top.bid_price, top.ask_price, common::to_string(top.timestamp)
 					);
@@ -937,12 +970,12 @@ namespace zorro {
 			auto now_zorro = zorro::convert_time_chrono(now);
 			auto now_str = zorro_date_to_string(now_zorro);
 
-			log::debug<2, true>(
+			log::debug<dl2, true>(
 				"BrokerHistory2 {}: requesting {} ticks bar period {} minutes from {}[{}] to {}[{}] at {}",
 				asset, n_ticks, n_tick_minutes, from, t_start2, to, t_end, now_str
 			);
 
-			log::debug<2, true>("BrokerHistory2: t_start={}, t_start2={}, t_end={}, now_zorro={}", t_start, t_start2, t_end, now_zorro);
+			log::debug<dl2, true>("BrokerHistory2: t_start={}, t_start2={}, t_end={}, now_zorro={}", t_start, t_start2, t_end, now_zorro);
 
 			std::vector<BidAskBar<DATE>> bars;
 			auto status = get_historical_bars(asset, timeframe, t_start2, t_end, bars);
@@ -963,7 +996,7 @@ namespace zorro {
 				auto time = convert_time_chrono(bar.timestamp);
 
 				if (end > t_end || end < t_start) {
-					log::debug<2, true>(
+					log::debug<dl2, true>(
 						"BrokerHistory2 {}: skipping timestamp {} as it is out of bound t_start={} t_end={}",
 						asset, zorro_date_to_string(end), zorro_date_to_string(t_start), zorro_date_to_string(t_end)
 					);
@@ -1034,7 +1067,7 @@ namespace zorro {
 	 *	-3 when the order was accepted, but got no ID yet. The ID is then taken from the next subsequent BrokerBuy call that returned a valid ID. This is used for combo positions that require several orders.
 	 */
 	DLLFUNC_C int BrokerBuy2(char* asset, int amount, double stop, double limit, double* av_fill_price, int* fill_qty) {
-		log::debug<2, true>("BrokerBuy2 {}: amount={}, lot_amount={}, limit={}, stop={}", asset, amount, lot_amount, limit, stop);
+		log::debug<dl1, true>("BrokerBuy2 {}: amount={}, lot_amount={}, limit={}, stop={}", asset, amount, lot_amount, limit, stop);
 
 		auto symbol = FIX::Symbol(asset);
 		FIX::OrdType ord_type;
@@ -1053,7 +1086,7 @@ namespace zorro {
 
 		// currently FIX::OrdType_STOP_LIMIT and FIX::OrdType_STOP not supported!
 		if (ord_type == FIX::OrdType_STOP || ord_type == FIX::OrdType_STOP_LIMIT) {
-			log::error<true>("BrokerBuy2: FIX::OrdType_STOP and FIX::OrdType_STOP_LIMIT not yet supported");
+			log::error<true>("BrokerBuy2 {}: FIX::OrdType_STOP and FIX::OrdType_STOP_LIMIT not yet supported", asset);
 			return BrokerError::OrderRejectedOrTimeout;
 		}
 
@@ -1062,11 +1095,11 @@ namespace zorro {
 			amount = -static_cast<int>(net_pos.qty);
 			ord_type = FIX::OrdType(FIX::OrdType_MARKET);
 			stop = 0;
-			log::debug<2, true>("BrokerBuy2: setting amount={} from open net position net_pos.qty={} on stop == -1", amount, net_pos.qty);
+			log::debug<dl1, true>("BrokerBuy2 {}: setting amount={} from open net position net_pos.qty={} on stop == -1", asset, amount, net_pos.qty);
 		}
 
 		if (stop == -1) {
-			log::debug<2, true>("BrokerBuy2: close out order with amount={}", amount);
+			log::debug<dl1, true>("BrokerBuy2 {}: close out order with amount={}", asset, amount);
 			stop = 0;
 		}
 
@@ -1081,11 +1114,11 @@ namespace zorro {
 		);
 
 		if (!msg.has_value()) {
-			log::debug<2, true>("BrokerBuy2: failed to create NewOrderSingle");
+			log::debug<dl1, true>("BrokerBuy2 {}: failed to create NewOrderSingle", asset);
 			return BrokerError::OrderRejectedOrTimeout;
 		}
 
-		log::debug<2, true>("BrokerBuy2: NewOrderSingle {}", fix_string(msg.value()));
+		log::debug<2, true>("BrokerBuy2 {}: NewOrderSingle {}", asset, fix_string(msg.value()));
 
 		if (ord_type.getValue() == FIX::OrdType_LIMIT || ord_type.getValue() == FIX::OrdType_MARKET) {
 
@@ -1096,8 +1129,15 @@ namespace zorro {
 
 			if (!report.has_value()) {
 				log::error<true>(
-					"BrokerBuy2 timeout after {} while waiting for FIX exec report on new market order",
-					fix_exec_report_waiting_time
+					"BrokerBuy2 {}: timeout after {} while waiting for FIX exec report on new market order",
+					asset, fix_exec_report_waiting_time
+				);
+				return BrokerError::OrderRejectedOrTimeout;
+			}
+
+			if (report.value().exec_type == FIX::ExecType_REJECTED && report.value().ord_status == FIX::OrdStatus_REJECTED) {
+				log::error<true>(
+					"BrokerBuy2 {}: rejected order cl_ord_id{} reason={}", asset, report.value().cl_ord_id, report.value().text
 				);
 				return BrokerError::OrderRejectedOrTimeout;
 			}
@@ -1105,9 +1145,9 @@ namespace zorro {
 			*av_fill_price = report.value().avg_px;
 			*fill_qty = static_cast<int>(report.value().cum_qty);
 
-			log::debug<2, true>(
-				"BrokerBuy2: {} order fill update av_fill_price={}, fill_qty={}",
-				ord_type.getValue() == FIX::OrdType_MARKET ? "market" : "limit",
+			log::debug<dl1, true>(
+				"BrokerBuy2 {}: {} order fill update av_fill_price={}, fill_qty={}",
+				asset, ord_type.getValue() == FIX::OrdType_MARKET ? "market" : "limit",
 				report.value().avg_px, static_cast<int>(report.value().cum_qty)
 			);
 
@@ -1177,7 +1217,7 @@ namespace zorro {
 					*profit = 0;
 				}
 
-				log::debug<2, true>(
+				log::debug<dl2, true>(
 					"BrokerTrade: nTradeID={} side={} avg_px={} profit={} filled={}", 
 					trade_id, order.is_buy() ? "buy" : "sell", *open, *profit, filled
 				);
@@ -1212,7 +1252,7 @@ namespace zorro {
 	 *	  - 0 when the trade was not found or could not be closed.
 	 */
 	DLLFUNC_C int BrokerSell2(int trade_id, int amount, double limit, double* close, double* cost, double* profit, int* fill) {
-		log::debug<1, true>("BrokerSell2: nTradeID={}, amount={}, lot_amount={}, limit={}", trade_id, amount, lot_amount, limit);
+		log::debug<dl1, true>("BrokerSell2: nTradeID={}, amount={}, lot_amount={}, limit={}", trade_id, amount, lot_amount, limit);
 
 		auto it = order_id_by_internal_order_id.find(trade_id);
 		if (it != order_id_by_internal_order_id.end()) {
@@ -1221,10 +1261,10 @@ namespace zorro {
 			if (success) {
 				auto& order = oit->second;
 
-				log::debug<2, true>("BrokerSell2: found open order={}", order.to_string());
+				log::debug<dl1, true>("BrokerSell2: found open order={}", order.to_string());
 
 				if (order.ord_status == FIX::OrdStatus_CANCELED || order.ord_status == FIX::OrdStatus_REJECTED) {
-					log::debug<2, true>("BrokerSell2: order rejected or already cancelled - nothing to cancel");
+					log::debug<dl1, true>("BrokerSell2: order rejected or already cancelled - nothing to cancel");
 					return 0;
 				}
 
@@ -1258,6 +1298,13 @@ namespace zorro {
 						return 0;
 					}
 
+					if (report.value().exec_type == FIX::ExecType_REJECTED && report.value().ord_status == FIX::OrdStatus_REJECTED) {
+						log::error<true>(
+							"BrokerSell2 rejected order cl_ord_id{} reason={}", report.value().cl_ord_id, report.value().text
+						);
+						return 0;
+					}
+
 					auto [coit, success] = order_tracker.get_order(report.value().ord_id);
 
 					if (!success) {
@@ -1287,14 +1334,14 @@ namespace zorro {
 					auto ord_type = FIX::OrdType(order.ord_type);
 
 					if (std::abs(amount) >= order.leaves_qty) {
-						log::debug<2, true>("BrokerSell2: cancel remaining quantity {}", order.leaves_qty);
+						log::debug<dl1, true>("BrokerSell2: cancel remaining quantity {}", order.leaves_qty);
 
 						auto msg = fix_service->client().order_cancel_request(
 								symbol, ord_id, orig_cl_ord_id, cl_ord_id, side, FIX::OrderQty(order.leaves_qty)
 						);
 
 						if (!msg.has_value()) {
-							log::debug<2, true>("BrokerSell2: failed to create OrderCancelRequest");
+							log::debug<dl1, true>("BrokerSell2: failed to create OrderCancelRequest");
 							return 0;
 						}
 
@@ -1307,12 +1354,19 @@ namespace zorro {
 							);
 							return 0;
 						}
+
+						if (report.value().exec_type == FIX::ExecType_REJECTED && report.value().ord_status == FIX::OrdStatus_REJECTED) {
+							log::error<true>(
+								"BrokerSell2 rejected order cl_ord_id{} reason={}", report.value().cl_ord_id, report.value().text
+							);
+							return 0;
+						}
 					}
 					else {
 						int leaves_qty = static_cast<int>(order.leaves_qty);
 						auto new_qty = max(leaves_qty - std::abs(amount), 0);
 
-						log::debug<2, true>("BrokerSell2: cancel/replace remaining quantity {} to new quantity {}", order.leaves_qty, new_qty);
+						log::debug<dl1, true>("BrokerSell2: cancel/replace remaining quantity {} to new quantity {}", order.leaves_qty, new_qty);
 
 						auto msg = fix_service->client().order_cancel_replace_request(
 								symbol, ord_id, orig_cl_ord_id, cl_ord_id, side, ord_type, 
@@ -1320,7 +1374,7 @@ namespace zorro {
 						);
 
 						if (!msg.has_value()) {
-							log::debug<2, true>("BrokerSell2: failed to create OrderCancelReplaceRequest");
+							log::debug<dl1, true>("BrokerSell2: failed to create OrderCancelReplaceRequest");
 							return 0;
 						}
 
@@ -1330,6 +1384,13 @@ namespace zorro {
 							log::error<true>(
 								"BrokerSell2 timeout after {} while waiting for FIX exec report on cancel/replace order",
 								fix_exec_report_waiting_time
+							);
+							return 0;
+						}
+
+						if (report.value().exec_type == FIX::ExecType_REJECTED && report.value().ord_status == FIX::OrdStatus_REJECTED) {
+							log::error<true>(
+								"BrokerSell2 rejected order cl_ord_id{} reason={}", report.value().cl_ord_id, report.value().text
 							);
 							return 0;
 						}
@@ -1522,6 +1583,13 @@ namespace zorro {
 								fix_exec_report_waiting_time
 							);
 							return 0;							
+						}
+
+						if (report.value().exec_type == FIX::ExecType_REJECTED && report.value().ord_status == FIX::OrdStatus_REJECTED) {
+							log::error<true>(
+								"BrokerSell2 rejected order cl_ord_id{} reason={}", report.value().cl_ord_id, report.value().text
+							);
+							return 0;
 						}
 
 						log::debug<dl0, true>(
