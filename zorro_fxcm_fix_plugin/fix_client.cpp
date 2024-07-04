@@ -1300,8 +1300,8 @@ namespace zorro {
 		const FIX::Side& side,
 		const FIX::OrdType& ord_type,
 		const FIX::OrderQty& order_qty,
-		const std::optional<FIX::LeavesQty>& leaves_qty,
-		const std::optional<FIX::Price>& price,
+		const FIX::Price& price,
+		const FIX::TimeInForce& tif,
 		const std::optional<FIX::Account>& account
 	) const {
 		FIX44::OrderCancelReplaceRequest request(
@@ -1315,14 +1315,9 @@ namespace zorro {
 		request.set(symbol);
 		request.set(ord_id);
 		request.set(order_qty);
+		request.set(price);
+		request.set(tif);
 
-		if (leaves_qty.has_value()) {
-			request.setField(FIX::FIELD::LeavesQty, leaves_qty.value().getString());
-			log::debug<dl0, false>("FixClient::orderCancelReplaceRequest[{}]: FIX::FIELD::LeavesQty {}", trading_session_id.toString(), leaves_qty.value().getString());
-		}
-		if (price.has_value()) {
-			request.set(price.value());
-		}
 		if (account.has_value()) {
 			request.set(account.value());
 		}
