@@ -1467,9 +1467,10 @@ namespace zorro {
 				open_position_reports = std::move(reports.reports);
 			else if (pos_req_type == 1)
 				closed_position_reports = std::move(reports.reports);
+			auto n = reports.reports.size();
 			log::info<dl0, true>(
 				"request_for_positions({}) request returned {} position reports{}",
-				pos_req_type, reports.reports.size(), reports.to_string()
+				pos_req_type, n, (n > 0 ? "\n" + reports.to_string() : "")
 			);
 			return reports.reports.size();
 		}
