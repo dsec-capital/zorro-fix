@@ -594,7 +594,7 @@ namespace zorro {
 		// if a PositionReport is requested and no positions exist for that request, the Text field will
 		// indicate that no positions matched the requested criteria 
 		if (pos_req_result == FIX::PosReqResult_NO_POSITIONS_FOUND_THAT_MATCH_CRITERIA) {
-			log::debug<dl2, false>(
+			log::debug<dl1, false>(
 				"FixClient::onMessage[FIX44::RequestForPositionsAck]: publish empty position report list text={}",
 				message.getField(FIX::FIELD::Text)
 			);
@@ -661,11 +661,11 @@ namespace zorro {
 			}
 			
 			bool is_open = true;
-			if (pos_req_type == 0) { // ‘0’ - Open Position
+			if (pos_req_type == 0) { // ‘0’ - Open Position (positions)
 				is_open = true;
 				used_margin = FIX::DoubleConvertor::convert(message.getField(FXCM_USED_MARGIN));
 
-			} else if (pos_req_type == 1) { // ‘1’ - Closed Position
+			} else if (pos_req_type == 1) { // ‘1’ - Closed Position (trades)
 				is_open = false;
 				close_pnl = FIX::DoubleConvertor::convert(message.getField(FXCM_CLOSE_PNL));
 				close_settle_price = FIX::DoubleConvertor::convert(message.getField(FXCM_CLOSE_SETTLE_PRICE));
@@ -698,15 +698,15 @@ namespace zorro {
 
 			position_report_list.emplace_back(position_report);
 
-			bool is_last = total_num_reports == position_report_list.size();
+			bool is_last = total_num_reports.getValue() == position_report_list.size();
 			if (is_last) {
 				log::debug<dl4, false>("FixClient::onMessage[FIX44::PositionReport]: publish {} position reports", position_report_list.size());
 
 				FXCMPositionReports reports{
-					.reports = position_report_list
+					.reports = std::move(position_report_list)
 				};
 				position_reports_queue.push(reports);
-				position_report_list.clear();
+				position_report_list = std::vector<FXCMPositionReport>();
 			}
 		}
 		catch (FIX::FieldNotFound& error) {
@@ -797,7 +797,7 @@ namespace zorro {
 
 			auto it = top_of_books.find(symbol);
 			if (it == top_of_books.end()) {
-				log::debug<dl0, false>("FixClient::onMessage[FIX44::MarketDataIncrementalRefresh]: did not find symbol={} in top of books", symbol);
+				log::error<false>("FixClient::onMessage[FIX44::MarketDataIncrementalRefresh]: did not find symbol={} in top of books", symbol);
 				continue;
 			}
 
@@ -974,7 +974,7 @@ namespace zorro {
 					status_exec_report_queue.push(report);
 				}
 				else {
-					// buggy Quickfix parsing for unknow reasons
+					// skip some fields because of Quickfix parsing issues
 					message.get(exec_id);
 					message.get(mass_status_req_id);
 					message.getIfSet(text);
@@ -1177,7 +1177,7 @@ namespace zorro {
 	{
 		FIX44::RequestForPositions request;
 		request.setField(FIX::PosReqID(id_generator.genID()));
-		request.setField(FIX::PosReqType(FIX::PosReqType_POSITIONS));   
+		request.setField(FIX::PosReqType(pos_req_type));
 		request.setField(FIX::Account(account));
 		request.setField(FIX::SubscriptionRequestType(FIX::SubscriptionRequestType_SNAPSHOT));
 		request.setField(FIX::AccountType(FIX::AccountType_CARRIED_NON_CUSTOMER_SIDE_CROSS_MARGINED));
