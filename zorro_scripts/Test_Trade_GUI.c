@@ -1,21 +1,16 @@
 // Test Trade GUI 
 
+#include "zorro_fxcm_fix_include.h"
+
 #define MAXLOTS	100	
 #define POINT 0.1*PIP
-
-#define BROKER_CMD_CREATE_ASSET_LIST_FILE		2000
-#define BROKER_CMD_CREATE_SECURITY_INFO_FILE	2001
-#define BROKER_CMD_GET_OPEN_POSITIONS			2002
-#define BROKER_CMD_GET_CLOSED_POSITIONS			2003
-#define BROKER_CMD_PRINT_ORDER_TRACKER			2010
-#define BROKER_CMD_GET_ORDER_TRACKER_SIZE		2011
-#define BROKER_CMD_GET_ORDER_ORDER_MASS_STATUS  2012
 
 #define AssetPanelOffset 2
 #define TradePanelOffset 6
 
 bool LogTopOfBook = true;
 bool CancelWithBrokerCmd = true;
+bool FullCancel = true;
 int LimitDepth;
 int OrderMode; 					// 0 Market, 1 Limit 
 int NextTradeIdx = 0;
@@ -23,6 +18,8 @@ var RoundingStep = PIP;
 bool AbsLimitLevel = false;
 int AbsLimitLevelRow;
 int AbsLimitLevelCol;
+int PartCancelAmountRow;
+int PartCancelAmountCol;
 int PositionRow;
 int PositionCol;
 int OrderActionCol;
@@ -45,9 +42,14 @@ void setupPannel() {
 	AbsLimitLevelRow = 1;
 	AbsLimitLevelCol = n;
 	n++;
-	panelSet(0, n, ifelse(LogTopOfBook, "LogTOB[ON]", "LogTOB[OFF]"), YELLOW, 1, 4);
+	panelSet(0, n, ifelse(FullCancel, "Cncl[FULL]", "Cncl[PART]"), YELLOW, 1, 4);
+	panelSet(1, n, "0", 0, 1, 2);
+	PartCancelAmountRow = 1;
+	PartCancelAmountCol = n;
 	n++;
 	panelSet(0, n, ifelse(CancelWithBrokerCmd, "Cancel[BRK]", "Cancel[EXIT]"), YELLOW, 1, 4);
+	n++;
+	panelSet(0, n, ifelse(LogTopOfBook, "LogTOB[ON]", "LogTOB[OFF]"), YELLOW, 1, 4);
 	n++;
 
 	int c = 0;
@@ -66,9 +68,8 @@ void setupPannel() {
 	panelSet(TradePanelOffset - 1, c++, "PriceOpen", ColorPanel[3], 1, 1);
 	panelSet(TradePanelOffset - 1, c++, "PriceClose", ColorPanel[3], 1, 1);
 	panelSet(TradePanelOffset - 1, c++, "IsOpen", ColorPanel[3], 1, 1);
-	panelSet(TradePanelOffset - 1, c++, "IsPending", ColorPanel[3], 1, 1);
-	panelSet(TradePanelOffset - 1, c++, "IsUnfilled", ColorPanel[3], 1, 1);
 	panelSet(TradePanelOffset - 1, c++, "IsClosed", ColorPanel[3], 1, 1);
+	panelSet(TradePanelOffset - 1, c++, "IsPending", ColorPanel[3], 1, 1);
 
 	int row = AssetPanelOffset;
 	int c = 0;
@@ -93,16 +94,14 @@ int tmf(var TradeIdx, var LimitPrice) {
 
 	var DistToFarTouch = 0;
 	if (LimitPrice > 0) {
-		if (TradeIsLong && TradeIsUnfilled)
+		if (TradeIsLong)
 			DistToFarTouch = (TopAsk - LimitPrice) / PIP;
 		else
 			DistToFarTouch = (LimitPrice - TopBid) / PIP;
 	}
 
-	bool Cancelable = TradeLots < TradeLotsTarget && TradeIsUnfilled;
-	bool CancelledUnfilled = TradeLots < TradeLotsTarget && TradeIsUnfilled;
-	// BUG TradeIsUnfilled is not updated properly
-	// bool Filled = TradeLots == TradeLotsTarget && !TradeIsUnfilled;
+	bool Cancelable = TradeLots < TradeLotsTarget && (TradeIsOpen || TradeIsPending);
+	bool CancelledUnfilled = TradeLots < TradeLotsTarget && !TradeIsOpen;
 	bool Filled = TradeLots == TradeLotsTarget;
 
 	string Dir = ifelse(LimitPrice == 0, ifelse(TradeDir == 1, "Buy", "Sell"), ifelse(TradeDir == 1, "Bid", "Ask"));
@@ -137,9 +136,8 @@ int tmf(var TradeIdx, var LimitPrice) {
 	panelSet(row, c++, sftoa(TradePriceOpen, 5), ColorPanel[2], 1, 1);
 	panelSet(row, c++, sftoa(TradePriceClose, 5), ColorPanel[2], 1, 1);
 	panelSet(row, c++, ifelse(TradeIsOpen, "true", "false"), ColorPanel[2], 1, 1);
-	panelSet(row, c++, ifelse(TradeIsPending, "true", "false"), ColorPanel[2], 1, 1);
-	panelSet(row, c++, ifelse(TradeIsUnfilled, "true", "false"), ColorPanel[2], 1, 1);
 	panelSet(row, c++, ifelse(TradeIsClosed, "true", "false"), ColorPanel[2], 1, 1);
+	panelSet(row, c++, ifelse(TradeIsPending, "true", "false"), ColorPanel[2], 1, 1);
 
 	return 0;
 }
@@ -239,19 +237,44 @@ void click(int row, int col)
 		int id = atoi(panelGet(row, 1));
 		for (open_trades) {
 			if (TradeID == id) {
-				printf("\n%s found trade - going to cancel", strtr(ThisTrade));
+				printf("\n***** %s found trade - going to cancel", strtr(ThisTrade));
 
-				if (TradeIsUnfilled) {
+				bool Cancelable = TradeLots < TradeLotsTarget && (TradeIsOpen || TradeIsPending);
+				if (Cancelable) {
 					if (CancelWithBrokerCmd) {
-						brokerCommand(DO_CANCEL, ThisTrade->nID);
-						cancelTrade(ThisTrade->nID);
+						int newLots = 0;
+						if (FullCancel) {
+							brokerCommand(BROKER_CMD_SET_CANCEL_REPLACE_LOT_AMOUNT, 0);
+							printf("\nfull cancel with brokerCommand");
+						}
+						else {
+							newLots = atoi(panelGet(PartCancelAmountRow, PartCancelAmountCol));
+							brokerCommand(BROKER_CMD_SET_CANCEL_REPLACE_LOT_AMOUNT, newLots);
+							printf("\npartial cancel with brokerCommand to new lots %i", newLots);
+						}
+						int result = brokerCommand(DO_CANCEL, ThisTrade->nID);
+						if (result) {
+							if (newLots > 0) {
+								ThisTrade->nLotsTarget = newLots;
+								printf("\npartial cancel with brokerCommand to new lot %i", newLots);
+							}
+							else {
+								cancelTrade(ThisTrade->nID);
+							}
+						}
+						else {
+							printf("\nDO_CANCEL failed result=%i", result);
+						}
 					}
 					else {
+						printf("\n  cancel with exit trade fully only");
 						exitTrade(ThisTrade);
 					}
+					panelSet(row, col, "Cancelled", OLIVE, 1, 1);
 				}
-
-				panelSet(row, col, "Cancelled", OLIVE, 1, 1);
+				else {
+					printf("\n  trade not cancelable");
+				}
 			}
 		}
 	}
@@ -289,15 +312,25 @@ void click(int row, int col)
 		AbsLimitLevel = false;
 		printf("\nfix limit order level");
 	}
+	else if (Text == "Cncl[PART]") {
+		panelSet(row, col, "Cncl[FULL]", 0, 0, 0);
+		FullCancel = true;
+		printf("\nfully cancel");
+	}
+	else if (Text == "Cncl[FULL]") {
+		panelSet(row, col, "Cncl[PART]", 0, 0, 0);
+		FullCancel = false;
+		printf("\npartial cancel");
+	}
 	else if (Text == "Cancel[BRK]") {
 		panelSet(row, col, "Cancel[EXIT]", 0, 0, 0);
-		AbsLimitLevel = false;
-		printf("\nexit trade");
+		CancelWithBrokerCmd = false;
+		printf("\ncancel with exit trade");
 	}
 	else if (Text == "Cancel[EXIT]") {
 		panelSet(row, col, "Cancel[BRK]", 0, 0, 0);
-		AbsLimitLevel = false;
-		printf("\nexit trade");
+		CancelWithBrokerCmd = true;
+		printf("\ncancel with broker cmd");
 	}
 	else if (Text == "Get Pos") {
 		var pos = brokerCommand(GET_POSITION, Asset);
@@ -344,6 +377,7 @@ function run()
 	if (Init) {
 		LogTopOfBook = true;
 		CancelWithBrokerCmd = true;
+		FullCancel = true;
 		OrderMode = 1;
 		LimitDepth = 10;
 		RoundingStep = PIP;
@@ -388,7 +422,7 @@ function run()
 	}
 
 	if (!is(LOOKBACK)) {
-		printf("\nis NFA %i, Hedge %i, Balance %s, Equite %s, Margin %s, ClosePx %s",
+		printf("\nis NFA %s, Hedge %i, Balance %s, Equite %s, Margin %s, ClosePx %s",
 			ifelse(is(NFA), "true", "false"), Hedge,
 			sftoa(Balance, 2), sftoa(Equity, 2), sftoa(MarginVal, 2),
 			sftoa(priceClose(0), 5));

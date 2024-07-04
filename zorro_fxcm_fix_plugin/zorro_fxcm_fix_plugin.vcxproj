@@ -105,7 +105,8 @@
       <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);quickfixd.lib;ws2_32.lib;common.lib;zorro_common.lib</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>"$(SolutionDir)scripts\copy_zorro_scripts_x86.bat"</Command>
+      <Command>"$(SolutionDir)scripts\copy_zorro_scripts_x86.bat"
+copy /y "$(ProjectDir)zorro_fxcm_fix_include.h" "$(ZorroInstallDir)\Strategy"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -132,6 +133,7 @@
     </Link>
     <PostBuildEvent>
       <Command>"$(SolutionDir)scripts\copy_zorro_scripts_x86.bat"
+copy /y "$(ProjectDir)zorro_fxcm_fix_include.h" "$(ZorroInstallDir)\Strategy"
 </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
@@ -154,7 +156,8 @@
       <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);quickfixd.lib;common.lib;zorro_common.lib</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>"$(SolutionDir)scripts\copy_zorro_scripts_x64.bat"</Command>
+      <Command>"$(SolutionDir)scripts\copy_zorro_scripts_x64.bat"
+copy /y "$(ProjectDir)zorro_fxcm_fix_include.h" "$(ZorroInstallDir)\Strategy"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -180,7 +183,8 @@
       <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);quickfix.lib;common.lib;zorro_common.lib</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>"$(SolutionDir)scripts\copy_zorro_scripts_x64.bat"</Command>
+      <Command>"$(SolutionDir)scripts\copy_zorro_scripts_x64.bat"
+copy /y "$(ProjectDir)zorro_fxcm_fix_include.h" "$(ZorroInstallDir)\Strategy"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -191,6 +195,7 @@
     <ClInclude Include="fix_client.h" />
     <ClInclude Include="fix_service.h" />
     <ClInclude Include="pch.h" />
+    <ClInclude Include="zorro_fxcm_fix_include.h" />
     <ClInclude Include="zorro_fxcm_fix_plugin.h" />
   </ItemGroup>
   <ItemGroup>

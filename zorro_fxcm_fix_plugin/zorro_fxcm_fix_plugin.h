@@ -2,6 +2,8 @@
 
 #include "zorro_common/zorro.h"
 
+#include "zorro_fxcm_fix_include.h"
+
 namespace zorro
 {
 	DLLFUNC_C int BrokerOpen(char* Name, FARPROC fpError, FARPROC fpProgress);
@@ -21,12 +23,4 @@ namespace zorro
 	long(__cdecl* http_status)(int id);
 	long(__cdecl* http_result)(int id, char* content, long size);
 	void(__cdecl* http_free)(int id);
-
-	constexpr unsigned int BROKER_CMD_CREATE_ASSET_LIST_FILE = 2000;
-	constexpr unsigned int BROKER_CMD_CREATE_SECURITY_INFO_FILE = 2001;
-	constexpr unsigned int BROKER_CMD_GET_OPEN_POSITIONS = 2002;
-	constexpr unsigned int BROKER_CMD_GET_CLOSED_POSITIONS = 2003;
-	constexpr unsigned int BROKER_CMD_PRINT_ORDER_TRACKER = 2010;
-	constexpr unsigned int BROKER_CMD_GET_ORDER_TRACKER_SIZE = 2011;
-	constexpr unsigned int BROKER_CMD_GET_ORDER_ORDER_MASS_STATUS = 2012;
 }

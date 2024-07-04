@@ -87,6 +87,7 @@ namespace zorro {
 	char time_in_force = FIX::TimeInForce_GOOD_TILL_CANCEL;
 	HWND window_handle;
 	bool dump_bars_to_file = true;
+	int cancel_replace_lot_amount = 0;
 
 	std::shared_ptr<spdlog::logger> spd_logger = nullptr;
 	std::unique_ptr<FixService> fix_service = nullptr;
@@ -1341,7 +1342,7 @@ namespace zorro {
 						);
 
 						if (!msg.has_value()) {
-							log::debug<dl1, true>("BrokerSell2: failed to create OrderCancelRequest");
+							log::error<true>("BrokerSell2: failed to create OrderCancelRequest");
 							return 0;
 						}
 
@@ -1374,7 +1375,7 @@ namespace zorro {
 						);
 
 						if (!msg.has_value()) {
-							log::debug<dl1, true>("BrokerSell2: failed to create OrderCancelReplaceRequest");
+							log::error<true>("BrokerSell2: failed to create OrderCancelReplaceRequest");
 							return 0;
 						}
 
@@ -1533,6 +1534,12 @@ namespace zorro {
 				return result;
 			}
 
+			case BROKER_CMD_SET_CANCEL_REPLACE_LOT_AMOUNT: {
+				int cancel_replace_lot_amount = (int)dw_parameter;
+				log::debug<dl0, true>("BrokerCommand {}[{}](cancel_replace_lot_amount={}) = {}", "BROKER_CMD_SET_CANCEL_REPLACE_LOT_AMOUNT", command, position_symbol, cancel_replace_lot_amount);
+				return 0;
+			}
+
 			// Returns 1 when the order was cancelled, or 0 when the order was not found or could not be cancelled.						
 			case DO_CANCEL: {
 				int trade_id = (int)dw_parameter;
@@ -1564,30 +1571,48 @@ namespace zorro {
 						auto side = FIX::Side(order.side);
 						auto ord_type = FIX::OrdType(order.ord_type);
 
-						log::debug<dl0, true>("BrokerCommand[DO_CANCEL]: cancel working order");
+						std::string op;
+						std::optional<ExecReport> report;
+						std::optional<FIX::Message> msg;
 
-						auto msg = fix_service->client().order_cancel_request(
-							symbol, ord_id, orig_cl_ord_id, cl_ord_id, side, FIX::OrderQty(order.leaves_qty)
-						);
+						if (cancel_replace_lot_amount == 0) {
+							op = "order cancel";
+							
+							log::debug<dl0, true>("BrokerCommand[DO_CANCEL]: executing {} - cancel completely", op);
+
+							auto msg = fix_service->client().order_cancel_request(
+								symbol, ord_id, orig_cl_ord_id, cl_ord_id, side, FIX::OrderQty(order.leaves_qty)
+							);
+						}
+						else {
+							op = "order cancel/replace";
+
+							log::debug<dl0, true>("BrokerCommand[DO_CANCEL]: executing {} - new lots={}", op, cancel_replace_lot_amount);
+
+							auto msg = fix_service->client().order_cancel_replace_request(
+								symbol, ord_id, orig_cl_ord_id, cl_ord_id, side, ord_type,
+								FIX::OrderQty(cancel_replace_lot_amount), FIX::Price(order.price)
+							);
+						}
 
 						if (!msg.has_value()) {
-							log::debug<2, true>("BrokerCommand[DO_CANCEL]: failed to create OrderCancelRequest");
+							log::error<true>("BrokerCommand[DO_CANCEL]: failed to create request for {}", op);
 							return 0;
 						}
 
-						auto report = pop_exec_report_cancel(order.ord_id, fix_exec_report_waiting_time);
+						report = pop_exec_report_cancel(order.ord_id, fix_exec_report_waiting_time);
 
 						if (!report.has_value()) {
 							log::error<true>(
-								"BrokerCommand[DO_CANCEL]: timeout while waiting for FIX exec report on order cancel after {}",
-								fix_exec_report_waiting_time
+								"BrokerCommand[DO_CANCEL]: timeout while waiting for FIX exec report on {} after {}",
+								op, fix_exec_report_waiting_time
 							);
 							return 0;							
 						}
 
 						if (report.value().exec_type == FIX::ExecType_REJECTED && report.value().ord_status == FIX::OrdStatus_REJECTED) {
 							log::error<true>(
-								"BrokerSell2 rejected order cl_ord_id{} reason={}", report.value().cl_ord_id, report.value().text
+								"BrokerCommand[DO_CANCEL]: rejected {} cl_ord_id{} reason={}", op, report.value().cl_ord_id, report.value().text
 							);
 							return 0;
 						}
@@ -1596,6 +1621,7 @@ namespace zorro {
 							"BrokerCommand[DO_CANCEL]: exec report processed={}\n{}\n{}",
 							report.value().to_string(), order_tracker.to_string(), order_mapping_string()
 						);
+
 						return 1;
 					}
 					else {

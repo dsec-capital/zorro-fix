@@ -31,6 +31,9 @@
     <ClInclude Include="fix_service.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="zorro_fxcm_fix_include.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="zorro_fxcm_fix_plugin.cpp">
