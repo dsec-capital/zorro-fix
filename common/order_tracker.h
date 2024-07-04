@@ -29,6 +29,7 @@ namespace common {
 			const char ord_type,
 			const char ord_status,
 			const char side,
+			const char tif,
 			double price,
 			double avg_px,
 			double order_qty,
@@ -42,6 +43,7 @@ namespace common {
 		char ord_type{ FIX::OrdType_MARKET };
 		char ord_status{ FIX::OrdStatus_REJECTED };
 		char side{ FIX::Side_UNDISCLOSED };
+		char tif{ FIX::TimeInForce_GOOD_TILL_CANCEL };
 		double price{ 0 };
 		double avg_px{ 0 };
 		double order_qty{ 0 };

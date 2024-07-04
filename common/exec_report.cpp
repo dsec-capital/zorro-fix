@@ -100,6 +100,34 @@ namespace common {
 		}
 	}
 
+	std::string time_in_force_string(const char tif) {
+		switch (tif)
+		{
+		case FIX::TimeInForce_DAY:
+			return "TimeInForce_DAY";
+		case FIX::TimeInForce_GOOD_TILL_CANCEL:
+			return "TimeInForce_GOOD_TILL_CANCEL";
+		case FIX::TimeInForce_IMMEDIATE_OR_CANCEL:
+			return "TimeInForce_IMMEDIATE_OR_CANCEL";
+		case FIX::TimeInForce_FILL_OR_KILL:
+			return "TimeInForce_FILL_OR_KILL";
+		case FIX::TimeInForce_AT_THE_OPENING:
+			return "TimeInForce_AT_THE_OPENING";
+		case FIX::TimeInForce_GOOD_TILL_CROSSING:
+			return "TimeInForce_GOOD_TILL_CROSSING";
+		case FIX::TimeInForce_GOOD_TILL_DATE:
+			return "TimeInForce_GOOD_TILL_DATE";
+		case FIX::TimeInForce_GOOD_FOR_TIME:
+			return "TimeInForce_GOOD_FOR_TIME";
+		case FIX::TimeInForce_AT_THE_CLOSE:
+			return "TimeInForce_AT_THE_CLOSE";
+		case FIX::TimeInForce_GOOD_FOR_MONTH:
+			return "TimeInForce_GOOD_FOR_MONTH";
+		default:
+			return "UNKNOWN";
+		}
+	}
+
 	ExecReport::ExecReport() {}
 
 	ExecReport::ExecReport(
@@ -111,6 +139,7 @@ namespace common {
 		const char ord_type,
 		const char ord_status,
 		const char side,
+		const char tif,
 		double price,
 		double avg_px,
 		double order_qty,
@@ -127,11 +156,12 @@ namespace common {
 	  , ord_type(ord_type)
 	  , ord_status(ord_status)
 	  , side(side)
+      , tif(tif)
 	  , price(price)
 	  , avg_px(avg_px)
 	  , order_qty(order_qty)
 	  , last_qty(last_qty)
-     , last_px(last_px)
+      , last_px(last_px)
 	  , cum_qty(cum_qty)
 	  , leaves_qty(leaves_qty)
 	  , text(text)
@@ -148,6 +178,7 @@ namespace common {
 		   << "ord_type=" << ord_type_string(ord_type) << ", "
 		   << "ord_status=" << ord_status_string(ord_status) << ", "
 		   << "side=" << side_string(side) << ", "
+		   << "tif=" << time_in_force_string(tif) << ", "
 		   << "price=" << std::to_string(price) << ", "
 		   << "avg_px=" << std::to_string(avg_px) << ", "
 		   << "order_qty=" << std::to_string(order_qty) << ", "
@@ -173,6 +204,7 @@ namespace common {
 		const char ord_type,
 		const char ord_status,
 		const char side,
+		const char tif,
 		double price,
 		double avg_px,
 		double order_qty,
@@ -192,6 +224,7 @@ namespace common {
 	  , ord_type(ord_type)
 	  , ord_status(ord_status)
 	  , side(side)
+      , tif(tif)
 	  , price(price)
 	  , avg_px(avg_px)
 	  , order_qty(order_qty)
@@ -216,6 +249,7 @@ namespace common {
 		   << "ord_type=" << ord_type_string(ord_type) << ", "
 		   << "ord_status=" << ord_status_string(ord_status) << ", "
 		   << "side=" << side_string(side) << ", "
+		   << "tif=" << time_in_force_string(tif) << ", "
 		   << "price=" << std::to_string(price) << ", "
 		   << "avg_px=" << std::to_string(avg_px) << ", "
 		   << "order_qty=" << std::to_string(order_qty) << ", "

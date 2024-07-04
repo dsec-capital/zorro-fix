@@ -14,6 +14,7 @@ namespace common {
 	  , ord_type(report.ord_type)
 	  , ord_status(report.ord_status)
 	  , side(report.side)
+	  , tif(report.tif)
 	  , price(report.price)
 	  , avg_px(report.avg_px)
 	  , order_qty(report.order_qty)
@@ -28,6 +29,7 @@ namespace common {
 		const char ord_type,
 		const char ord_status,
 		const char side,
+		const char tif,
 		double price,
 		double avg_px,
 		double order_qty,
@@ -39,6 +41,7 @@ namespace common {
 	  , ord_type(ord_type)
 	  , ord_status(ord_status)
 	  , side(side)
+      , tif(tif)
 	  , price(price)
 	  , avg_px(avg_px)
 	  , order_qty(order_qty)
@@ -71,6 +74,7 @@ namespace common {
 			"ord_status=" + ord_status_string(ord_status) + ", "
 			"ord_type=" + ord_type_string(ord_type) + ", "
 			"side=" + side_string(side) + ", "
+			"tif=" + time_in_force_string(side) + ", "
 			"price=" + std::to_string(price) + ", "
 			"avg_px=" + std::to_string(avg_px) + ", "
 			"order_qty=" + std::to_string(order_qty) + ", "

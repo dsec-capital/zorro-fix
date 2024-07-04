@@ -16,6 +16,8 @@ namespace common {
 
 	std::string side_string(const char side);
 
+	std::string time_in_force_string(const char tif);
+
 	class ExecReport
 	{
 		friend std::ostream& operator<<(std::ostream&, const ExecReport&);
@@ -33,6 +35,7 @@ namespace common {
 			const char ord_type,
 			const char ord_status,
 			const char side,
+			const char tif,
 			double price,
 			double avg_px,
 			double order_qty,
@@ -51,6 +54,7 @@ namespace common {
 		char ord_type{};
 		char ord_status{};
 		char side{};
+		char tif{};
 		double price{};
 		double avg_px{};
 		double order_qty{};
@@ -83,6 +87,7 @@ namespace common {
 			const char ord_type,
 			const char ord_status,
 			const char side,
+			const char tif,
 			double price,
 			double avg_px,
 			double order_qty,
@@ -104,6 +109,7 @@ namespace common {
 		char ord_type{};
 		char ord_status{};
 		char side{};
+		char tif{};
 		double price{};
 		double avg_px{};
 		double order_qty{};

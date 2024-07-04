@@ -1335,6 +1335,7 @@ namespace zorro {
 					auto orig_cl_ord_id = FIX::OrigClOrdID(order.cl_ord_id);
 					auto cl_ord_id = FIX::ClOrdID(next_client_order_id());
 					auto side = FIX::Side(order.side);
+					auto tif = FIX::TimeInForce(order.tif);
 					auto ord_type = FIX::OrdType(order.ord_type);
 					auto price = FIX::Price(order.price);
 					//auto tif = FIX::TimeInForce(order.tif);
@@ -1375,7 +1376,7 @@ namespace zorro {
 						log::debug<dl1, true>("BrokerSell2: cancel/replace remaining quantity {} to new quantity {}", order.leaves_qty, new_qty);
 
 						auto msg = fix_service->client().order_cancel_replace_request(
-							symbol, ord_id, orig_cl_ord_id, cl_ord_id, side, ord_type, FIX::OrderQty(new_qty), price, time_in_force
+							symbol, ord_id, orig_cl_ord_id, cl_ord_id, side, ord_type, FIX::OrderQty(new_qty), price, tif
 						);
 
 						if (!msg.has_value()) {
@@ -1577,6 +1578,7 @@ namespace zorro {
 						auto orig_cl_ord_id = FIX::OrigClOrdID(order.cl_ord_id);
 						auto cl_ord_id = FIX::ClOrdID(next_client_order_id());
 						auto side = FIX::Side(order.side);
+						auto tif = FIX::TimeInForce(order.tif);
 						auto ord_type = FIX::OrdType(order.ord_type);
 						auto price = FIX::Price(order.price);
 						
@@ -1606,7 +1608,7 @@ namespace zorro {
 							log::debug<dl0, true>("BrokerCommand[DO_CANCEL]: executing {} - new_qty={}", op, new_qty);
 
 							auto msg = fix_service->client().order_cancel_replace_request(
-								symbol, ord_id, orig_cl_ord_id, cl_ord_id, side, ord_type, FIX::OrderQty(new_qty), price, time_in_force
+								symbol, ord_id, orig_cl_ord_id, cl_ord_id, side, ord_type, FIX::OrderQty(new_qty), price, tif
 							);
 
 							if (!msg.has_value()) {

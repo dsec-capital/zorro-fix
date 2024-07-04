@@ -856,6 +856,7 @@ namespace zorro {
 			FIX::OrdStatus ord_status;
 			FIX::OrdType ord_type;
 			FIX::Side side;
+			FIX::TimeInForce tif;
 			FIX::Price price;
 			FIX::OrderQty order_qty;
 			FIX::LastQty last_qty;
@@ -877,6 +878,7 @@ namespace zorro {
 				message.get(ord_status);
 				message.getIfSet(ord_type);
 				message.get(side);
+				message.get(tif);
 				message.get(price);
 				message.get(avg_px);
 				message.get(order_qty);
@@ -895,6 +897,7 @@ namespace zorro {
 					ord_type.getValue(),
 					ord_status.getValue(),
 					side.getValue(),
+					tif.getValue(),
 					price.getValue(),
 					avg_px.getValue(),
 					order_qty.getValue(),
@@ -919,6 +922,7 @@ namespace zorro {
 					message.getIfSet(cl_ord_id);
 					message.getIfSet(ord_type);
 					message.get(side);
+					message.get(tif);
 					message.get(price);
 					message.get(avg_px);
 					message.get(order_qty);
@@ -952,6 +956,7 @@ namespace zorro {
 						ord_type.getValue(),
 						ord_status.getValue(),
 						side.getValue(),
+						tif.getValue(),
 						price.getValue(),
 						avg_px.getValue(),
 						order_qty.getValue(),
@@ -984,6 +989,7 @@ namespace zorro {
 						'0',
 						FIX::OrdStatus_REJECTED,
 						FIX::Side_UNDISCLOSED,
+						FIX::TimeInForce_GOOD_TILL_CANCEL,
 						0,
 						0,
 						0,
