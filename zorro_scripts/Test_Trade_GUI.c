@@ -1,4 +1,5 @@
 // Test Trade GUI 
+#include <zorro.h>
 
 #include "zorro_fxcm_fix_include.h"
 
@@ -10,7 +11,7 @@
 
 bool LogTopOfBook = true;
 bool CancelWithBrokerCmd = true;
-bool FullCancel = true;
+bool CancelAll = true;
 int LimitDepth;
 int OrderMode; 					// 0 Market, 1 Limit 
 int NextTradeIdx = 0;
@@ -42,7 +43,7 @@ void setupPannel() {
 	AbsLimitLevelRow = 1;
 	AbsLimitLevelCol = n;
 	n++;
-	panelSet(0, n, ifelse(FullCancel, "Cncl[FULL]", "Cncl[PART]"), YELLOW, 1, 4);
+	panelSet(0, n, ifelse(CancelAll, "CancelAll", "CancelRep"), YELLOW, 1, 4);
 	panelSet(1, n, "0", 0, 1, 2);
 	PartCancelAmountRow = 1;
 	PartCancelAmountCol = n;
@@ -243,7 +244,7 @@ void click(int row, int col)
 				if (Cancelable) {
 					if (CancelWithBrokerCmd) {
 						int newLots = 0;
-						if (FullCancel) {
+						if (CancelAll) {
 							brokerCommand(BROKER_CMD_SET_CANCEL_REPLACE_LOT_AMOUNT, 0);
 							printf("\nfull cancel with brokerCommand");
 						}
@@ -312,15 +313,15 @@ void click(int row, int col)
 		AbsLimitLevel = false;
 		printf("\nfix limit order level");
 	}
-	else if (Text == "Cncl[PART]") {
-		panelSet(row, col, "Cncl[FULL]", 0, 0, 0);
-		FullCancel = true;
-		printf("\nfully cancel");
+	else if (Text == "CancelRep") {
+		panelSet(row, col, "CancelAll", 0, 0, 0);
+		CancelAll = true;
+		printf("\nfcancel call");
 	}
-	else if (Text == "Cncl[FULL]") {
-		panelSet(row, col, "Cncl[PART]", 0, 0, 0);
-		FullCancel = false;
-		printf("\npartial cancel");
+	else if (Text == "CancelAll") {
+		panelSet(row, col, "CancelRep", 0, 0, 0);
+		CancelAll = false;
+		printf("\ncancel/replace");
 	}
 	else if (Text == "Cancel[BRK]") {
 		panelSet(row, col, "Cancel[EXIT]", 0, 0, 0);
@@ -341,13 +342,13 @@ void click(int row, int col)
 		brokerCommand(BROKER_CMD_PRINT_ORDER_TRACKER, 0);
 	}
 	else if (Text == "Print OPos") {
-		brokerCommand(BROKER_CMD_GET_OPEN_POSITIONS, 0);
+		brokerCommand(BROKER_CMD_GET_OPEN_POSITION_REPORT_SIZE, 1);
 	}
 	else if (Text == "Print CPos") {
-		brokerCommand(BROKER_CMD_GET_CLOSED_POSITIONS, 0);
+		brokerCommand(BROKER_CMD_GET_CLOSED_POSITION_REPORT_SIZE, 1);
 	}
 	else if (Text == "Print OStat") {
-		brokerCommand(BROKER_CMD_GET_ORDER_ORDER_MASS_STATUS, 0);
+		brokerCommand(BROKER_CMD_GET_ORDER_ORDER_MASS_STATUS_SIZE, 1);
 	}
 	else if (Text == "LogTOB[ON]") {
 		panelSet(row, col, "LogTOB[OFF]", 0, 0, 0);
@@ -377,7 +378,7 @@ function run()
 	if (Init) {
 		LogTopOfBook = true;
 		CancelWithBrokerCmd = true;
-		FullCancel = true;
+		CancelAll = true;
 		OrderMode = 1;
 		LimitDepth = 10;
 		RoundingStep = PIP;

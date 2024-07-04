@@ -6,6 +6,7 @@
 #include <deque>
 #include <queue>
 #include <string>
+#include <cstring>
 #include <vector>
 #include <memory>
 #include <sstream>

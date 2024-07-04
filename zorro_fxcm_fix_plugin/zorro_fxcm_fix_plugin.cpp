@@ -101,6 +101,9 @@ namespace zorro {
 	std::unordered_map<int, std::string> order_id_by_internal_order_id;
 	std::unordered_map<std::string, TopOfBook> top_of_books;
 	std::map<std::string, FXCMCollateralReport> collateral_reports;
+	std::vector<StatusExecReport> order_mass_status_reports;
+	std::vector<FXCMPositionReport> open_position_reports;
+	std::vector<FXCMPositionReport> closed_position_reports;
 	FXCMTradingSessionStatus trading_session_status;
 	OrderTracker order_tracker("unknown-account");
 	std::vector<ServiceMessage> service_message_history;
@@ -310,13 +313,13 @@ namespace zorro {
 		return n;
 	}
 
-	double get_position_size(const std::string& symbol) {
-		auto& np = order_tracker.net_position(symbol);
+	double get_net_position_size(const std::string& symbol) {
+		auto& np = order_tracker.get_net_position(symbol);
 		return np.qty;
 	}
 
 	double get_avg_entry_price(const std::string& symbol) {
-		auto& np = order_tracker.net_position(symbol);
+		auto& np = order_tracker.get_net_position(symbol);
 		return np.avg_px;
 	}
 
@@ -1092,7 +1095,7 @@ namespace zorro {
 		}
 
 		if (amount == 0 && stop == -1) {
-			const auto& net_pos = order_tracker.net_position(asset);
+			const auto& net_pos = order_tracker.get_net_position(asset);
 			amount = -static_cast<int>(net_pos.qty);
 			ord_type = FIX::OrdType(FIX::OrdType_MARKET);
 			stop = 0;
@@ -1370,8 +1373,7 @@ namespace zorro {
 						log::debug<dl1, true>("BrokerSell2: cancel/replace remaining quantity {} to new quantity {}", order.leaves_qty, new_qty);
 
 						auto msg = fix_service->client().order_cancel_replace_request(
-								symbol, ord_id, orig_cl_ord_id, cl_ord_id, side, ord_type, 
-								FIX::OrderQty(new_qty), FIX::Price(order.price)
+							symbol, ord_id, orig_cl_ord_id, cl_ord_id, side, ord_type, FIX::OrderQty(new_qty)
 						);
 
 						if (!msg.has_value()) {
@@ -1417,62 +1419,65 @@ namespace zorro {
 		return report.ord_status == FIX::OrdStatus_REJECTED && report.text.starts_with("no order(s)");
 	}
 
-	int get_fxcm_order_mass_status(int cmd, const std::string& cmd_str) {
-		if (fix_service) {
-			auto message = fix_service->client().order_mass_status_request();
-			FIX::MassStatusReqID mass_status_req_id;
-			message.getField(mass_status_req_id);
+	int get_fxcm_order_mass_status(bool print) {
+		auto message = fix_service->client().order_mass_status_request();
+		FIX::MassStatusReqID mass_status_req_id;
+		message.getField(mass_status_req_id);
 
-			auto [reports, success] = pop_status_exec_reports(mass_status_req_id.getString(), 4 * fix_exec_report_waiting_time);
-			if (success) {
+		auto result = pop_status_exec_reports(mass_status_req_id.getString(), 2 * fix_exec_report_waiting_time);
+
+		order_mass_status_reports.clear(); 
+		if (result.second) {
+			order_mass_status_reports = std::move(result.first);
+			if (print) {
 				std::stringstream ss;
-				for (const auto& report : reports) {
+				for (const auto& report : order_mass_status_reports) {
 					ss << "\n  ";
 					ss << (no_orders(report) ? "StatusExecReport[no_orders]" : report.to_string());
 				}
-				log::debug<dl0, true>("order_mass_status_request returned {} status exec reports{}", reports.size(), ss.str());
+				log::info<dl0, true>(
+					"order_mass_status_request returned {} status exec reports{}", 
+					order_mass_status_reports.size(), ss.str()
+				);
 			}
-			else {
-				log::debug<dl0, true>("order_mass_status_request timed out in {}", 4 * fix_exec_report_waiting_time);
 
-			}
-
-			return 0;
+			return order_mass_status_reports.size();
 		}
 		else {
-			log::error<true>("BrokerCommand {}[{}] FIX service not running", cmd_str, cmd);
-			return 0;
+			log::debug<dl0, true>("order_mass_status_request timed out in {}", 2 * fix_exec_report_waiting_time);
 		}
+
+		return 0;
 	}
 
-	int get_fxcm_positions(int cmd, const std::string& cmd_str, const std::string& filename, int pos_req_type) {
-		log::debug<dl4, true>("BrokerCommand {}[{}](filename={})", cmd_str, cmd, filename);
+	int get_fxcm_position_reports(bool print, int pos_req_type) {
+		fix_service->client().request_for_positions(fxcm_account, pos_req_type);
 
-		if (fix_service) {
-			fix_service->client().request_for_positions(fxcm_account, pos_req_type);
+		if (pos_req_type == 0)
+			open_position_reports.clear();
+		else if (pos_req_type == 1)
+			closed_position_reports.clear();
+		else
+			return 0; // invalid position request type
 
-			FXCMPositionReports reports;
-			bool success = position_report_queue.pop(reports, 4 * fix_waiting_time);
-			if (!success) {
-				log::error<true>("BrokerCommand {}[{}] request for positions timed out after {}",
-					cmd_str, cmd, 4 * fix_waiting_time
-				);
-				return 0;
-			}
-
-			if (!filename.empty()) {
-				write_position_reports(reports, filename);
-			}
-			else {
-				show(std::format("\n{}", reports.to_string()));
-			}
-
-			return static_cast<int>(reports.reports.size());
+		FXCMPositionReports reports;
+		bool success = position_report_queue.pop(reports, 2 * fix_waiting_time);
+		if (success) {
+			if (pos_req_type == 0)
+				open_position_reports = std::move(reports.reports);
+			else if (pos_req_type == 1)
+				closed_position_reports = std::move(reports.reports);
+			log::info<dl0, true>(
+				"request_for_positions({}) request returned {} position reports{}",
+				pos_req_type, reports.reports.size(), reports.to_string()
+			);
+			return reports.reports.size();
 		}
 		else {
-			log::error<true>("BrokerCommand {}[{}] FIX service not running", cmd_str, cmd);
-			return 0;
+			log::debug<dl0, true>("request_for_positions for type {} timed out in {}", pos_req_type, 2 * fix_exec_report_waiting_time);
 		}
+
+		return 0;
 	}
 
 	/*
@@ -1523,7 +1528,7 @@ namespace zorro {
 
 			case GET_POSITION: {
 				position_symbol = std::string((const char*)(dw_parameter));
-				auto result = get_position_size(position_symbol);
+				auto result = get_net_position_size(position_symbol);
 				log::debug<dl2, true>("BrokerCommand {}[{}](position_symbol={}) = {}", broker_command_string(command), command, position_symbol, result);
 				return result;
 			}
@@ -1535,7 +1540,7 @@ namespace zorro {
 			}
 
 			case BROKER_CMD_SET_CANCEL_REPLACE_LOT_AMOUNT: {
-				int cancel_replace_lot_amount = (int)dw_parameter;
+				cancel_replace_lot_amount = (int)dw_parameter;
 				log::debug<dl0, true>("BrokerCommand {}[{}](cancel_replace_lot_amount={}) = {}", "BROKER_CMD_SET_CANCEL_REPLACE_LOT_AMOUNT", command, position_symbol, cancel_replace_lot_amount);
 				return 0;
 			}
@@ -1570,10 +1575,9 @@ namespace zorro {
 						auto cl_ord_id = FIX::ClOrdID(next_client_order_id());
 						auto side = FIX::Side(order.side);
 						auto ord_type = FIX::OrdType(order.ord_type);
-
+						
 						std::string op;
 						std::optional<ExecReport> report;
-						std::optional<FIX::Message> msg;
 
 						if (cancel_replace_lot_amount == 0) {
 							op = "order cancel";
@@ -1583,24 +1587,31 @@ namespace zorro {
 							auto msg = fix_service->client().order_cancel_request(
 								symbol, ord_id, orig_cl_ord_id, cl_ord_id, side, FIX::OrderQty(order.leaves_qty)
 							);
+
+							if (!msg.has_value()) {
+								log::error<true>("BrokerCommand[DO_CANCEL]: failed to create request for {}", op);
+								return 0;
+							}
+
+							report = pop_exec_report_cancel(order.ord_id, fix_exec_report_waiting_time);
 						}
 						else {
 							op = "order cancel/replace";
+							auto new_qty = cancel_replace_lot_amount * lot_amount;
 
-							log::debug<dl0, true>("BrokerCommand[DO_CANCEL]: executing {} - new lots={}", op, cancel_replace_lot_amount);
+							log::debug<dl0, true>("BrokerCommand[DO_CANCEL]: executing {} - new_qty={}", op, new_qty);
 
 							auto msg = fix_service->client().order_cancel_replace_request(
-								symbol, ord_id, orig_cl_ord_id, cl_ord_id, side, ord_type,
-								FIX::OrderQty(cancel_replace_lot_amount), FIX::Price(order.price)
+								symbol, ord_id, orig_cl_ord_id, cl_ord_id, side, ord_type, FIX::OrderQty(new_qty)
 							);
-						}
 
-						if (!msg.has_value()) {
-							log::error<true>("BrokerCommand[DO_CANCEL]: failed to create request for {}", op);
-							return 0;
-						}
+							if (!msg.has_value()) {
+								log::error<true>("BrokerCommand[DO_CANCEL]: failed to create request for {}", op);
+								return 0;
+							}
 
-						report = pop_exec_report_cancel(order.ord_id, fix_exec_report_waiting_time);
+							report = pop_exec_report_cancel_replace(order.ord_id, fix_exec_report_waiting_time);
+						}
 
 						if (!report.has_value()) {
 							log::error<true>(
@@ -1844,7 +1855,7 @@ namespace zorro {
 					<< "cond_dist_entry_limit" << ", "
 					<< "fxcm_trading_status";
 				for (const auto& [symbol, info] : trading_session_status.security_informations) {
-					rows 
+					rows
 						<< info.symbol << ", "
 						<< info.currency << ", "
 						<< info.product << ", "
@@ -1871,29 +1882,148 @@ namespace zorro {
 				return trading_session_status.security_informations.size();
 			}
 
-			case BROKER_CMD_GET_OPEN_POSITIONS: {
-				auto filename = dw_parameter ? std::string((const char*)dw_parameter) : "";
-				return get_fxcm_positions(BROKER_CMD_GET_OPEN_POSITIONS, "BROKER_CMD_GET_OPEN_POSITIONS", filename, 0);			
-			}
-
-			case BROKER_CMD_GET_CLOSED_POSITIONS: {
-				auto filename = dw_parameter ? std::string((const char*)dw_parameter) : "";
-
-				// can only get the last 30 closed positions without any filter in place
-				return get_fxcm_positions(BROKER_CMD_GET_CLOSED_POSITIONS, "BROKER_CMD_GET_CLOSED_POSITIONS", filename, 1);
-			}
-
 			case BROKER_CMD_PRINT_ORDER_TRACKER: {
 				show(std::format("\n{}\n{}", order_tracker.to_string(), order_mapping_string()));
 				return 0;
 			}
 
-			case BROKER_CMD_GET_ORDER_TRACKER_SIZE: {
+			case BROKER_CMD_GET_ORDER_TRACKER_NUM_ORDER_REPORTS: {
 				return order_tracker.num_order_reports();
 			}
 
+			case BROKER_CMD_GET_ORDER_TRACKER_ORDER_REPORTS: {
+				auto order_reports = (COrderReport*)dw_parameter;
+				int i = 0;
+				for (const auto kv : order_tracker.get_orders()) {
+					strncpy(order_reports[i].symbol, kv.second.symbol.c_str(), sizeof(order_reports[i].symbol));
+					strncpy(order_reports[i].ord_id, kv.second.ord_id.c_str(), sizeof(order_reports[i].ord_id));
+					strncpy(order_reports[i].cl_ord_id, kv.second.cl_ord_id.c_str(), sizeof(order_reports[i].cl_ord_id));
+					order_reports[i].ord_type = kv.second.ord_type;
+					order_reports[i].ord_status = kv.second.ord_status;
+					order_reports[i].side = kv.second.side;
+					order_reports[i].price = kv.second.price;
+					order_reports[i].avg_px = kv.second.avg_px;
+					order_reports[i].order_qty = kv.second.order_qty;
+					order_reports[i].cum_qty = kv.second.cum_qty;
+					order_reports[i].leaves_qty = kv.second.leaves_qty;
+					++i;
+				}
+			}
+
+			case BROKER_CMD_GET_ORDER_TRACKER_NUM_NET_POSITIONS: {
+				return order_tracker.num_net_positions();
+			}
+
+			case BROKER_CMD_GET_ORDER_TRACKER_NETPOSITIONS: {
+				auto order_reports = (CNetPosition*)dw_parameter;
+				int i = 0;
+				for (const auto kv : order_tracker.get_net_positions()) {
+					strncpy(order_reports[i].symbol, kv.second.symbol.c_str(), sizeof(order_reports[i].symbol));
+					strncpy(order_reports[i].account, kv.second.account.c_str(), sizeof(order_reports[i].account));
+					order_reports[i].qty = kv.second.qty;
+					order_reports[i].avg_px = kv.second.avg_px;
+					++i;
+				}
+			}
+
+			case BROKER_CMD_GET_ORDER_ORDER_MASS_STATUS_SIZE: {
+				auto print = (bool)dw_parameter;
+				return get_fxcm_order_mass_status(print);
+			}
+
 			case BROKER_CMD_GET_ORDER_ORDER_MASS_STATUS: {
-				return get_fxcm_order_mass_status(BROKER_CMD_GET_ORDER_ORDER_MASS_STATUS, "BROKER_CMD_GET_ORDER_ORDER_MASS_STATUS");
+				auto order_reports = (CStatusExecReport*)dw_parameter;
+				int i = 0;
+				for (const auto e : order_mass_status_reports) {
+					strncpy(order_reports[i].symbol, e.symbol.c_str(), sizeof(order_reports[i].symbol));
+					strncpy(order_reports[i].ord_id, e.ord_id.c_str(), sizeof(order_reports[i].ord_id));
+					strncpy(order_reports[i].cl_ord_id, e.cl_ord_id.c_str(), sizeof(order_reports[i].cl_ord_id));
+					strncpy(order_reports[i].exec_id, e.exec_id.c_str(), sizeof(order_reports[i].exec_id));
+					strncpy(order_reports[i].mass_status_req_id, e.mass_status_req_id.c_str(), sizeof(order_reports[i].mass_status_req_id));
+					strncpy(order_reports[i].text, e.text.c_str(), sizeof(order_reports[i].text));
+					order_reports[i].exec_type = e.exec_type;
+					order_reports[i].ord_type = e.ord_type;
+					order_reports[i].ord_status = e.ord_status;
+					order_reports[i].side = e.side;
+					order_reports[i].price = e.price;
+					order_reports[i].avg_px = e.avg_px;
+					order_reports[i].order_qty = e.order_qty;
+					order_reports[i].last_qty = e.last_qty;
+					order_reports[i].last_px = e.last_px;
+					order_reports[i].cum_qty = e.cum_qty;
+					order_reports[i].leaves_qty = e.leaves_qty;
+					order_reports[i].tot_num_reports = e.tot_num_reports;
+					order_reports[i].last_rpt_requested = e.last_rpt_requested;
+					++i;
+				}
+			}
+
+			case BROKER_CMD_GET_OPEN_POSITION_REPORT_SIZE: {
+				auto print = (bool)dw_parameter;
+				return get_fxcm_position_reports(print, 0);
+			}
+
+			case BROKER_CMD_GET_CLOSED_POSITION_REPORT_SIZE: {
+				auto print = (bool)dw_parameter;
+				return get_fxcm_position_reports(print, 1);
+			}
+
+			case BROKER_CMD_GET_OPEN_POSITION_REPORT: {
+				auto pos_reports = (CFXCMPositionReport*)dw_parameter;
+				int i = 0;
+				for (const auto e : open_position_reports) {
+					strncpy(pos_reports[i].account, e.account.c_str(), sizeof(pos_reports[i].account));
+					strncpy(pos_reports[i].symbol, e.symbol.c_str(), sizeof(pos_reports[i].symbol));
+					strncpy(pos_reports[i].currency, e.currency.c_str(), sizeof(pos_reports[i].currency));
+					strncpy(pos_reports[i].pos_id, e.pos_id.c_str(), sizeof(pos_reports[i].pos_id));
+					if (e.close_order_id.has_value())
+						strncpy(pos_reports[i].close_order_id, e.close_order_id.value().c_str(), sizeof(pos_reports[i].close_order_id));
+					else
+						pos_reports[i].close_order_id[0] = '\0';
+					if (e.close_cl_ord_id.has_value())
+						strncpy(pos_reports[i].close_cl_ord_id, e.close_cl_ord_id.value().c_str(), sizeof(pos_reports[i].close_cl_ord_id));
+					else
+						pos_reports[i].close_cl_ord_id[0] = '\0';
+					pos_reports[i].settle_price = e.settle_price;
+					pos_reports[i].is_open = e.is_open;
+					pos_reports[i].interest = e.interest;
+					pos_reports[i].commission = e.commission;
+					pos_reports[i].open_time = common::nanos_to_date(e.open_time);
+					pos_reports[i].used_margin = e.used_margin.value_or(0);
+					pos_reports[i].close_pnl = e.close_pnl.value_or(0);
+					pos_reports[i].close_settle_price = e.close_settle_price.value_or(0);
+					pos_reports[i].close_time = common::nanos_to_date(e.close_time.value_or(0ns));
+					++i;
+				}
+			}
+
+			case BROKER_CMD_GET_CLOSED_POSITION_REPORT: {
+				auto pos_reports = (CFXCMPositionReport*)dw_parameter;
+				int i = 0;
+				for (const auto e : closed_position_reports) {
+					strncpy(pos_reports[i].account, e.account.c_str(), sizeof(pos_reports[i].account));
+					strncpy(pos_reports[i].symbol, e.symbol.c_str(), sizeof(pos_reports[i].symbol));
+					strncpy(pos_reports[i].currency, e.currency.c_str(), sizeof(pos_reports[i].currency));
+					strncpy(pos_reports[i].pos_id, e.pos_id.c_str(), sizeof(pos_reports[i].pos_id));
+					if (e.close_order_id.has_value())
+						strncpy(pos_reports[i].close_order_id, e.close_order_id.value().c_str(), sizeof(pos_reports[i].close_order_id));
+					else
+						pos_reports[i].close_order_id[0] = '\0';
+					if (e.close_cl_ord_id.has_value())
+						strncpy(pos_reports[i].close_cl_ord_id, e.close_cl_ord_id.value().c_str(), sizeof(pos_reports[i].close_cl_ord_id));
+					else
+						pos_reports[i].close_cl_ord_id[0] = '\0';
+					pos_reports[i].settle_price = e.settle_price;
+					pos_reports[i].is_open = e.is_open;
+					pos_reports[i].interest = e.interest;
+					pos_reports[i].commission = e.commission;
+					pos_reports[i].open_time = common::nanos_to_date(e.open_time);
+					pos_reports[i].used_margin = e.used_margin.value_or(0);
+					pos_reports[i].close_pnl = e.close_pnl.value_or(0);
+					pos_reports[i].close_settle_price = e.close_settle_price.value_or(0);
+					pos_reports[i].close_time = common::nanos_to_date(e.close_time.value_or(0ns));
+					++i;
+				}
 			}
 
 			default: {

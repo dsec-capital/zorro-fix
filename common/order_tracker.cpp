@@ -131,7 +131,7 @@ namespace common {
 
 	OrderTracker::OrderTracker(const std::string& account) : account(account) {}
 
-	NetPosition& OrderTracker::net_position(const std::string& symbol) {
+	NetPosition& OrderTracker::get_net_position(const std::string& symbol) {
 		auto it = position_by_symbol.find(symbol);
 		if (it == position_by_symbol.end()) {
 			it = position_by_symbol.try_emplace(symbol, account, symbol).first;
@@ -144,6 +144,14 @@ namespace common {
 		return std::make_pair(it, it != pending_orders_by_cl_ord_id.end());
 	}
 
+	const std::unordered_map<std::string, OrderReport>& OrderTracker::get_orders() const {
+		return orders_by_ord_id;
+	}
+
+	const std::unordered_map<std::string, NetPosition>& OrderTracker::get_net_positions() const {
+		return position_by_symbol;
+	}
+
 	std::pair<typename OrderTracker::const_iterator, bool> OrderTracker::get_order(const std::string& ord_id) const {
 		auto it = orders_by_ord_id.find(ord_id);
 		return std::make_pair(it, it != orders_by_ord_id.end());
@@ -153,7 +161,7 @@ namespace common {
 		return static_cast<int>(orders_by_ord_id.size());
 	}
 
-	int OrderTracker::num_positions() const {
+	int OrderTracker::num_net_positions() const {
 		return static_cast<int>(position_by_symbol.size());
 	}
 
@@ -193,7 +201,7 @@ namespace common {
 			case FIX::ExecType_TRADE: {
 				orders_by_ord_id.insert_or_assign(report.ord_id, std::move(OrderReport(report)));
 				if (report.ord_status == FIX::OrdStatus_FILLED || report.ord_status == FIX::OrdStatus_PARTIALLY_FILLED) {
-					auto& position = net_position(report.symbol);
+					auto& position = get_net_position(report.symbol);
 					if (report.side == FIX::Side_BUY) {
 						auto prev = position.qty;
 						position.qty += report.last_qty;

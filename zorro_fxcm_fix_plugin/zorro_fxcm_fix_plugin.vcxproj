@@ -105,8 +105,7 @@
       <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);quickfixd.lib;ws2_32.lib;common.lib;zorro_common.lib</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>"$(SolutionDir)scripts\copy_zorro_scripts_x86.bat"
-copy /y "$(ProjectDir)zorro_fxcm_fix_include.h" "$(ZorroInstallDir)\Strategy"</Command>
+      <Command>"$(SolutionDir)scripts\copy_zorro_scripts_x86.bat"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -133,7 +132,6 @@ copy /y "$(ProjectDir)zorro_fxcm_fix_include.h" "$(ZorroInstallDir)\Strategy"</C
     </Link>
     <PostBuildEvent>
       <Command>"$(SolutionDir)scripts\copy_zorro_scripts_x86.bat"
-copy /y "$(ProjectDir)zorro_fxcm_fix_include.h" "$(ZorroInstallDir)\Strategy"
 </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
@@ -156,8 +154,7 @@ copy /y "$(ProjectDir)zorro_fxcm_fix_include.h" "$(ZorroInstallDir)\Strategy"
       <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);quickfixd.lib;common.lib;zorro_common.lib</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>"$(SolutionDir)scripts\copy_zorro_scripts_x64.bat"
-copy /y "$(ProjectDir)zorro_fxcm_fix_include.h" "$(ZorroInstallDir)\Strategy"</Command>
+      <Command>"$(SolutionDir)scripts\copy_zorro_scripts_x64.bat"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -183,8 +180,7 @@ copy /y "$(ProjectDir)zorro_fxcm_fix_include.h" "$(ZorroInstallDir)\Strategy"</C
       <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);quickfix.lib;common.lib;zorro_common.lib</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>"$(SolutionDir)scripts\copy_zorro_scripts_x64.bat"
-copy /y "$(ProjectDir)zorro_fxcm_fix_include.h" "$(ZorroInstallDir)\Strategy"</Command>
+      <Command>"$(SolutionDir)scripts\copy_zorro_scripts_x64.bat"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>

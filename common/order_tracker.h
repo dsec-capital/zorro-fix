@@ -117,15 +117,19 @@ namespace common {
 
 		const std::string& get_account() const;
 
-		NetPosition& net_position(const std::string& symbol);
+		NetPosition& get_net_position(const std::string& symbol);
 
 		std::pair<typename OrderTracker::const_iterator, bool> get_pending_order(const std::string& ord_id) const;
 
 		std::pair<typename OrderTracker::const_iterator, bool> get_order(const std::string& ord_id) const;
 
+		const std::unordered_map<std::string, OrderReport>& get_orders() const;
+
+		const std::unordered_map<std::string, NetPosition>& get_net_positions() const;
+
 		int num_order_reports() const;
 
-		int num_positions() const;
+		int num_net_positions() const;
 
 		bool process(const ExecReport& report);
 

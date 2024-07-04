@@ -642,9 +642,9 @@ namespace zorro {
 			commission = FIX::DoubleConvertor::convert(message.getField(FXCM_POS_COMMISSION));
 			open_time = parse_datetime(message.getField(FXCM_POS_OPEN_TIME));
 
-			int num_positions = FIX::IntConvertor::convert(message.getField(FIX::FIELD::NoPositions));
-			if (num_positions > 1) {
-				log::error<false>("FixClient::onMessage[FIX44::PositionReport] error: num_positions={} > 1 not expected", num_positions);
+			int num_net_positions = FIX::IntConvertor::convert(message.getField(FIX::FIELD::NoPositions));
+			if (num_net_positions > 1) {
+				log::error<false>("FixClient::onMessage[FIX44::PositionReport] error: num_net_positions={} > 1 not expected", num_net_positions);
 			}
 			FIX44::PositionReport::NoPositions group;
 			message.getGroup(1, group);
@@ -1300,7 +1300,8 @@ namespace zorro {
 		const FIX::Side& side,
 		const FIX::OrdType& ord_type,
 		const FIX::OrderQty& order_qty,
-		const FIX::Price& price,
+		const std::optional<FIX::LeavesQty>& leaves_qty,
+		const std::optional<FIX::Price>& price,
 		const std::optional<FIX::Account>& account
 	) const {
 		FIX44::OrderCancelReplaceRequest request(
@@ -1313,9 +1314,15 @@ namespace zorro {
 		request.set(FIX::HandlInst('1'));
 		request.set(symbol);
 		request.set(ord_id);
-		request.set(price);
 		request.set(order_qty);
 
+		if (leaves_qty.has_value()) {
+			request.setField(FIX::FIELD::LeavesQty, leaves_qty.value().getString());
+			log::debug<dl0, false>("FixClient::orderCancelReplaceRequest[{}]: FIX::FIELD::LeavesQty {}", trading_session_id.toString(), leaves_qty.value().getString());
+		}
+		if (price.has_value()) {
+			request.set(price.value());
+		}
 		if (account.has_value()) {
 			request.set(account.value());
 		}
@@ -1326,7 +1333,7 @@ namespace zorro {
 			return std::optional<FIX::Message>();
 		}
 
-		log::debug<dl4, false>("FixClient::orderCancelReplaceRequest[{}]: {}", trading_session_id.toString(), fix_string(request));
+		log::debug<dl0, false>("FixClient::orderCancelReplaceRequest[{}]: {}", trading_session_id.toString(), fix_string(request));
 
 		FIX::Session::sendToTarget(request, trading_session_id);
 

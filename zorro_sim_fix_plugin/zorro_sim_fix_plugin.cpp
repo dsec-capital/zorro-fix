@@ -95,12 +95,12 @@ namespace zorro {
 	}
 
 	int get_position_size(const std::string& symbol) {
-		auto& np = order_tracker.net_position(symbol);
+		auto& np = order_tracker.get_net_position(symbol);
 		return (int)np.qty;
 	}
 
 	double get_avg_entry_price(const std::string& symbol) {
-		auto& np = order_tracker.net_position(symbol);
+		auto& np = order_tracker.get_net_position(symbol);
 		return np.avg_px;
 	}
 

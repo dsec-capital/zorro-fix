@@ -267,7 +267,8 @@ namespace zorro
 			const FIX::Side& side,
 			const FIX::OrdType& ord_type,
 			const FIX::OrderQty& order_qty,
-			const FIX::Price& price,
+			const std::optional<FIX::LeavesQty>& leaves_qty = std::optional<FIX::LeavesQty>(),
+			const std::optional<FIX::Price>& price = std::optional<FIX::Price>(),
 			const std::optional<FIX::Account>& account = std::optional<FIX::Account>()
 		) const;
 
