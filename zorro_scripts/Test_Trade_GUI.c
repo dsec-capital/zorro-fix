@@ -37,10 +37,10 @@ void setupPannel() {
 	panelSet(0, n++, "Cancel All", YELLOW, 1, 4);
 	panelSet(0, n++, ifelse(RoundingStep == PIP, "Round[PIP]", "Round[PNT]"), YELLOW, 1, 4);
 	panelSet(0, n++, "Get Pos", YELLOW, 1, 4);
-	panelSet(0, n++, "Print OTrk", YELLOW, 1, 4);
-	panelSet(0, n++, "Print OPos", YELLOW, 1, 4);
-	panelSet(0, n++, "Print CPos", YELLOW, 1, 4);
-	panelSet(0, n++, "Print OStat", YELLOW, 1, 4);
+	panelSet(0, n++, "OrdTracker[P]", YELLOW, 1, 4);
+	panelSet(0, n++, "OpenPos[P]", YELLOW, 1, 4);
+	panelSet(0, n++, "ClosedPos[P]", YELLOW, 1, 4);
+	panelSet(0, n++, "OrdStatus[P]", YELLOW, 1, 4);
 	panelSet(0, n, ifelse(AbsLimitLevel, "Lmt[ABS]", "Lmt[REL]"), YELLOW, 1, 4);
 	panelSet(1, n, "0", 0, 1, 2);
 	AbsLimitLevelRow = 1;
@@ -111,7 +111,6 @@ int tmf(var TradeIdx, var LimitPrice) {
 	bool Cancelable = TradeLots < TradeLotsTarget && (TradeIsOpen || TradeIsPending);
 	bool CancelledUnfilled = TradeLots < TradeLotsTarget && !TradeIsOpen;
 	bool Filled = TradeLots == TradeLotsTarget;
-	bool Closable = TradeLots > 0;
 
 	string Dir = ifelse(LimitPrice == 0, ifelse(TradeDir == 1, "Buy", "Sell"), ifelse(TradeDir == 1, "Bid", "Ask"));
 	
@@ -119,7 +118,10 @@ int tmf(var TradeIdx, var LimitPrice) {
 	if (CurrentStatus == "Failed")
 		return 0;
 
+	order_pos_arg.trade_id = TradeID;
 	brokerCommand(BROKER_CMD_GET_ORDER_POSITION_ID, (void*)&order_pos_arg);
+
+	bool Closable = TradeLots > 0 && order_pos_arg.has_open_position;
 
 	int c = 0;
 	panelSet(row, c++, strtr(ThisTrade), ColorPanel[2], 1, 4);
@@ -127,22 +129,22 @@ int tmf(var TradeIdx, var LimitPrice) {
 	if (TradeID == 0)
 		panelSet(row, c, "Faild", ORANGE, 2, 4);	// failed or rejected
 	else if (LimitPrice == 0)
-		panelSet(row, c, "Filled", ORANGE, 2, 4);	// market order
+		panelSet(row, c, "Filled", ORANGE, 1, 1);	// market order
 	else if (Filled)
-		panelSet(row, c, "Filled", ORANGE, 2, 4);	// filled limit order
+		panelSet(row, c, "Filled", ORANGE, 1, 1);	// filled limit order
 	else if (Cancelable)
 		panelSet(row, c, "Cancel", YELLOW, 2, 4);	// limit order that is new or partially filled
 	else if (CancelledUnfilled)
-		panelSet(row, c, "Cancelled", OLIVE, 2, 4);	// this is not clear how to properly detect
+		panelSet(row, c, "Cancelled", OLIVE, 1, 1);	// this is not clear how to properly detect
 	else  
-		panelSet(row, c, "Unknown", OLIVE, 2, 4);	// more cases ?
+		panelSet(row, c, "Unknown", OLIVE, 1, 1);	// more cases ?
 	++c;
 	if (Closable)
-		panelSet(row, c, "Close", ColorPanel[2], 1, 1);
+		panelSet(row, c, "Close", YELLOW, 2, 4);
 	else
-		panelSet(row, c, "No Pos", ColorPanel[2], 1, 1);
+		panelSet(row, c, "No Position", OLIVE, 1, 1);
 	++c;
-	panelSet(row, c++, ifelse(order_pos_arg->has_open_position, order_pos_arg->position_id, "no position"), ColorPanel[2], 1, 1);
+	panelSet(row, c++, ifelse(order_pos_arg.has_open_position, order_pos_arg.position_id, "no position"), ColorPanel[2], 1, 1);
 	panelSet(row, c++, Dir, ColorPanel[2], 1, 1);
 	panelSet(row, c++, sftoa(LimitPrice, 5), ColorPanel[2], 1, 1);
 	panelSet(row, c++, sftoa(DistToFarTouch, 2), ColorPanel[2], 1, 1);
@@ -296,7 +298,21 @@ void click(int row, int col)
 		}
 	}
 	else if (Text == "Close") {
-		// TODO
+		int id = atoi(panelGet(row, 1));
+		for (open_trades) {
+			if (TradeID == id) {
+				printf("\n***** %s found trade - going to close", strtr(ThisTrade));
+
+				bool Closable = TradeLots > 0 && TradeIsOpen;
+				if (Closable) {
+					exitTrade(ThisTrade);
+					panelSet(row, col, "Closed", OLIVE, 1, 1);
+				}
+				else {
+					printf("\n  trade not closable");
+				}
+			}
+		}
 	}
 	else if (Text == "Cancel All") {
 		exitLong("*");
@@ -357,16 +373,16 @@ void click(int row, int col)
 		panelSet(PositionRow, PositionCol, sftoa(pos, 2), ColorPanel[2], 1, 1);
 		printf("\nobtained position %.2f", pos);
 	}
-	else if (Text == "Print OTrk") {
+	else if (Text == "OrdTracker[P]") {
 		brokerCommand(BROKER_CMD_PRINT_ORDER_TRACKER, 0);
 	}
-	else if (Text == "Print OPos") {
+	else if (Text == "OpenPos[P]") {
 		brokerCommand(BROKER_CMD_GET_OPEN_POSITION_REPORT_SIZE, 1);
 	}
-	else if (Text == "Print CPos") {
+	else if (Text == "ClosedPos[P]") {
 		brokerCommand(BROKER_CMD_GET_CLOSED_POSITION_REPORT_SIZE, 1);
 	}
-	else if (Text == "Print OStat") {
+	else if (Text == "OrdStatus[P]") {
 		brokerCommand(BROKER_CMD_GET_ORDER_ORDER_MASS_STATUS_SIZE, 1);
 	}
 	else if (Text == "LogTOB[ON]") {
@@ -410,7 +426,7 @@ function run()
 	setf(BarMode, BR_FLAT);
 	setf(TradeMode, TR_GTC);
 	setf(TradeMode, TR_FRC);
-	resf(TradeMode, TR_FILLED);  // do not want rejected orders to be treated filled
+	resf(TradeMode, TR_FILLED);  // do not want rejected orders to be treated filled? not sure what the effect is
 
 	Verbose = 7 + DIAG + ALERT;
 	Hedge = 2;
@@ -419,7 +435,6 @@ function run()
 	BarPeriod = 1;
 	PlotPeriod = 5;
 	NumYears = 1;
-	//TradesPerBar = 1;	
 
 	asset(Asset);
 
@@ -439,18 +454,20 @@ function run()
 
 	if (is(INITRUN)) {
 		setupPannel();
+
 	}
 
 	if (!is(LOOKBACK)) {
-		printf("\nis NFA %s, Hedge %i, Balance %s, Equite %s, Margin %s, ClosePx %s",
+		printf("\nis NFA %s, Hedge %i, Balance %s, Equity %s, Margin %s, ClosePx %s",
 			ifelse(is(NFA), "true", "false"), Hedge,
 			sftoa(Balance, 2), sftoa(Equity, 2), sftoa(MarginVal, 2),
 			sftoa(priceClose(0), 5));
 
 		var Pos = brokerCommand(GET_POSITION, SymbolTrade);
-		if (Pos != 0)
-			printf(" T %.2f", Pos);
-
+		if (Pos != 0) {
+			printf(" Pos %.2f", Pos);
+			panelSet(PositionRow, PositionCol, sftoa(pos, 2), ColorPanel[2], 1, 1);
+		}
 		for (open_trades) {
 			if (TradeIsPending)
 				printf("\n***** %s still pending", strtr(ThisTrade));
@@ -461,7 +478,7 @@ function run()
 
 	if (once(!is(LOOKBACK))) {
 		printf("\n%s: PIP %s, PIPCost %s, Mult %.2f", Asset, sftoa(PIP, 2), sftoa(PIPCost, 2), LotAmount);
-		printf("\n%s: Levg %.0f, MCost %s", Asset, Leverage, sftoa(MarginCost, 2));
+		printf("\n%s: Leverage %.0f, MarginCost %s", Asset, Leverage, sftoa(MarginCost, 2));
 		printf("\n%s: Roll+ %f, Roll- %f", Asset, RollLong, RollShort);
 	}
 }

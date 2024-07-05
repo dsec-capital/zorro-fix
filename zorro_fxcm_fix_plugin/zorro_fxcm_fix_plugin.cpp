@@ -146,6 +146,11 @@ namespace zorro {
 		return n;
 	}
 
+	template<class T>
+	const std::string get_position_id(const T& order_or_exec_report) {
+		return order_or_exec_report.custom_1;
+	}
+
 	template<class R, class P>
 	std::pair<std::vector<StatusExecReport>, bool> pop_status_exec_reports(const std::string& mass_status_req_id, const std::chrono::duration<R, P>& timeout) {
 		log::debug<2, true>("pop_status_exec_reports: mass_status_req_id={}", mass_status_req_id);
@@ -1283,9 +1288,12 @@ namespace zorro {
 					auto cl_ord_id = FIX::ClOrdID(next_client_order_id());
 					auto side = signed_qty > 0 ? FIX::Side(FIX::Side_BUY) : FIX::Side(FIX::Side_SELL);
 					auto qty = FIX::OrderQty(std::abs(signed_qty));
-					
+					const auto& position_id = get_position_id(order);
+
+					// TODO market or limit order
 					auto msg = fix_service->client().new_order_single(
-						FIX::Symbol(order.symbol), cl_ord_id, side, ord_type, time_in_force, qty, FIX::Price(0), FIX::StopPx(0)
+						FIX::Symbol(order.symbol), cl_ord_id, side, ord_type, time_in_force, qty,
+						FIX::Price(0), FIX::StopPx(0), std::make_optional(position_id)
 					);
 
 					if (!msg.has_value()) {
@@ -1905,21 +1913,22 @@ namespace zorro {
 
 					if (success) {
 						auto order = oit->second;
-						if (!order.custom_1.empty()) {
-							strncpy(arg->position_id, order.custom_1.c_str(), sizeof(arg->position_id));
-							arg->has_open_position = true;
+						const auto& position_id = get_position_id(order);
+						if (!position_id.empty()) {
+							strncpy(arg->position_id, position_id.c_str(), sizeof(COrderPositionArg::position_id));
+							arg->has_open_position = 1;
 						}
 						else {
-							arg->has_open_position = false;
+							arg->has_open_position = 0;
 						}
-						arg->trade_not_found = false;
+						arg->trade_not_found = 1;
 						return 0;
 					} 
 				}
 
 				arg->position_id[0] = '\0';
-				arg->has_open_position = false;
-				arg->trade_not_found = true;
+				arg->has_open_position = 0;
+				arg->trade_not_found = 1;
 				return 0;
 			}
 
@@ -1931,9 +1940,9 @@ namespace zorro {
 				auto order_reports = (COrderReport*)dw_parameter;
 				int i = 0;
 				for (const auto kv : order_tracker.get_orders()) {
-					strncpy(order_reports[i].symbol, kv.second.symbol.c_str(), sizeof(order_reports[i].symbol));
-					strncpy(order_reports[i].ord_id, kv.second.ord_id.c_str(), sizeof(order_reports[i].ord_id));
-					strncpy(order_reports[i].cl_ord_id, kv.second.cl_ord_id.c_str(), sizeof(order_reports[i].cl_ord_id));
+					strncpy(order_reports[i].symbol, kv.second.symbol.c_str(), sizeof(COrderReport::symbol));
+					strncpy(order_reports[i].ord_id, kv.second.ord_id.c_str(), sizeof(COrderReport::ord_id));
+					strncpy(order_reports[i].cl_ord_id, kv.second.cl_ord_id.c_str(), sizeof(COrderReport::cl_ord_id));
 					order_reports[i].ord_type = kv.second.ord_type;
 					order_reports[i].ord_status = kv.second.ord_status;
 					order_reports[i].side = kv.second.side;
@@ -1942,7 +1951,7 @@ namespace zorro {
 					order_reports[i].order_qty = kv.second.order_qty;
 					order_reports[i].cum_qty = kv.second.cum_qty;
 					order_reports[i].leaves_qty = kv.second.leaves_qty;
-					strncpy(order_reports[i].position_id, kv.second.custom_1.c_str(), sizeof(order_reports[i].position_id));
+					strncpy(order_reports[i].position_id, get_position_id(kv.second).c_str(), sizeof(COrderReport::position_id));
 					++i;
 				}
 			}
@@ -1955,8 +1964,8 @@ namespace zorro {
 				auto order_reports = (CNetPosition*)dw_parameter;
 				int i = 0;
 				for (const auto kv : order_tracker.get_net_positions()) {
-					strncpy(order_reports[i].symbol, kv.second.symbol.c_str(), sizeof(order_reports[i].symbol));
-					strncpy(order_reports[i].account, kv.second.account.c_str(), sizeof(order_reports[i].account));
+					strncpy(order_reports[i].symbol, kv.second.symbol.c_str(), sizeof(CNetPosition::symbol));
+					strncpy(order_reports[i].account, kv.second.account.c_str(), sizeof(CNetPosition::account));
 					order_reports[i].qty = kv.second.qty;
 					order_reports[i].avg_px = kv.second.avg_px;
 					++i;
@@ -1972,12 +1981,12 @@ namespace zorro {
 				auto order_reports = (CStatusExecReport*)dw_parameter;
 				int i = 0;
 				for (const auto e : order_mass_status_reports) {
-					strncpy(order_reports[i].symbol, e.symbol.c_str(), sizeof(order_reports[i].symbol));
-					strncpy(order_reports[i].ord_id, e.ord_id.c_str(), sizeof(order_reports[i].ord_id));
-					strncpy(order_reports[i].cl_ord_id, e.cl_ord_id.c_str(), sizeof(order_reports[i].cl_ord_id));
-					strncpy(order_reports[i].exec_id, e.exec_id.c_str(), sizeof(order_reports[i].exec_id));
-					strncpy(order_reports[i].mass_status_req_id, e.mass_status_req_id.c_str(), sizeof(order_reports[i].mass_status_req_id));
-					strncpy(order_reports[i].text, e.text.c_str(), sizeof(order_reports[i].text));
+					strncpy(order_reports[i].symbol, e.symbol.c_str(), sizeof(CStatusExecReport::symbol));
+					strncpy(order_reports[i].ord_id, e.ord_id.c_str(), sizeof(CStatusExecReport::ord_id));
+					strncpy(order_reports[i].cl_ord_id, e.cl_ord_id.c_str(), sizeof(CStatusExecReport::cl_ord_id));
+					strncpy(order_reports[i].exec_id, e.exec_id.c_str(), sizeof(CStatusExecReport::exec_id));
+					strncpy(order_reports[i].mass_status_req_id, e.mass_status_req_id.c_str(), sizeof(CStatusExecReport::mass_status_req_id));
+					strncpy(order_reports[i].text, e.text.c_str(), sizeof(CStatusExecReport::text));
 					order_reports[i].exec_type = e.exec_type;
 					order_reports[i].ord_type = e.ord_type;
 					order_reports[i].ord_status = e.ord_status;
@@ -1990,8 +1999,8 @@ namespace zorro {
 					order_reports[i].cum_qty = e.cum_qty;
 					order_reports[i].leaves_qty = e.leaves_qty;
 					order_reports[i].tot_num_reports = e.tot_num_reports;
-					order_reports[i].last_rpt_requested = e.last_rpt_requested;
-					strncpy(order_reports[i].position_id, e.custom_1.c_str(), sizeof(order_reports[i].position_id));
+					order_reports[i].last_rpt_requested = e.last_rpt_requested ? 1 : 0;
+					strncpy(order_reports[i].position_id, get_position_id(e).c_str(), sizeof(CStatusExecReport::position_id));
 					++i;
 				}
 			}
@@ -2010,20 +2019,20 @@ namespace zorro {
 				auto pos_reports = (CFXCMPositionReport*)dw_parameter;
 				int i = 0;
 				for (const auto e : open_position_reports) {
-					strncpy(pos_reports[i].account, e.account.c_str(), sizeof(pos_reports[i].account));
-					strncpy(pos_reports[i].symbol, e.symbol.c_str(), sizeof(pos_reports[i].symbol));
-					strncpy(pos_reports[i].currency, e.currency.c_str(), sizeof(pos_reports[i].currency));
-					strncpy(pos_reports[i].position_id, e.position_id.c_str(), sizeof(pos_reports[i].position_id));
+					strncpy(pos_reports[i].account, e.account.c_str(), sizeof(CFXCMPositionReport::account));
+					strncpy(pos_reports[i].symbol, e.symbol.c_str(), sizeof(CFXCMPositionReport::symbol));
+					strncpy(pos_reports[i].currency, e.currency.c_str(), sizeof(CFXCMPositionReport::currency));
+					strncpy(pos_reports[i].position_id, e.position_id.c_str(), sizeof(CFXCMPositionReport::position_id));
 					if (e.close_order_id.has_value())
-						strncpy(pos_reports[i].close_order_id, e.close_order_id.value().c_str(), sizeof(pos_reports[i].close_order_id));
+						strncpy(pos_reports[i].close_order_id, e.close_order_id.value().c_str(), sizeof(CFXCMPositionReport::close_order_id));
 					else
 						pos_reports[i].close_order_id[0] = '\0';
 					if (e.close_cl_ord_id.has_value())
-						strncpy(pos_reports[i].close_cl_ord_id, e.close_cl_ord_id.value().c_str(), sizeof(pos_reports[i].close_cl_ord_id));
+						strncpy(pos_reports[i].close_cl_ord_id, e.close_cl_ord_id.value().c_str(), sizeof(CFXCMPositionReport::close_cl_ord_id));
 					else
 						pos_reports[i].close_cl_ord_id[0] = '\0';
 					pos_reports[i].settle_price = e.settle_price;
-					pos_reports[i].is_open = e.is_open;
+					pos_reports[i].is_open = e.is_open ? 1 : 0;
 					pos_reports[i].interest = e.interest;
 					pos_reports[i].commission = e.commission;
 					pos_reports[i].open_time = common::nanos_to_date(e.open_time);
@@ -2039,20 +2048,20 @@ namespace zorro {
 				auto pos_reports = (CFXCMPositionReport*)dw_parameter;
 				int i = 0;
 				for (const auto e : closed_position_reports) {
-					strncpy(pos_reports[i].account, e.account.c_str(), sizeof(pos_reports[i].account));
-					strncpy(pos_reports[i].symbol, e.symbol.c_str(), sizeof(pos_reports[i].symbol));
-					strncpy(pos_reports[i].currency, e.currency.c_str(), sizeof(pos_reports[i].currency));
-					strncpy(pos_reports[i].position_id, e.position_id.c_str(), sizeof(pos_reports[i].position_id));
+					strncpy(pos_reports[i].account, e.account.c_str(), sizeof(CFXCMPositionReport::account));
+					strncpy(pos_reports[i].symbol, e.symbol.c_str(), sizeof(CFXCMPositionReport::symbol));
+					strncpy(pos_reports[i].currency, e.currency.c_str(), sizeof(CFXCMPositionReport::currency));
+					strncpy(pos_reports[i].position_id, e.position_id.c_str(), sizeof(CFXCMPositionReport::position_id));
 					if (e.close_order_id.has_value())
-						strncpy(pos_reports[i].close_order_id, e.close_order_id.value().c_str(), sizeof(pos_reports[i].close_order_id));
+						strncpy(pos_reports[i].close_order_id, e.close_order_id.value().c_str(), sizeof(CFXCMPositionReport::close_order_id));
 					else
 						pos_reports[i].close_order_id[0] = '\0';
 					if (e.close_cl_ord_id.has_value())
-						strncpy(pos_reports[i].close_cl_ord_id, e.close_cl_ord_id.value().c_str(), sizeof(pos_reports[i].close_cl_ord_id));
+						strncpy(pos_reports[i].close_cl_ord_id, e.close_cl_ord_id.value().c_str(), sizeof(CFXCMPositionReport::close_cl_ord_id));
 					else
 						pos_reports[i].close_cl_ord_id[0] = '\0';
 					pos_reports[i].settle_price = e.settle_price;
-					pos_reports[i].is_open = e.is_open;
+					pos_reports[i].is_open = e.is_open ? 1 : 0;
 					pos_reports[i].interest = e.interest;
 					pos_reports[i].commission = e.commission;
 					pos_reports[i].open_time = common::nanos_to_date(e.open_time);

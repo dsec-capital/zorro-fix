@@ -29,15 +29,15 @@
 
 #define BROKER_CMD_SET_CANCEL_REPLACE_LOT_AMOUNT				2021
 
-struct COrderPositionArg {
+typedef struct COrderPositionArg {
 	int trade_id;				// input
-	bool trade_not_found;
-	bool has_open_position;		// output
 	char position_id[1024];		// output
-};
+	int trade_not_found;
+	int has_open_position;		 
+} COrderPositionArg;
 
 // OrderReport from order tracker (calculated via ExecReports)
-struct COrderReport {
+typedef struct COrderReport {
 	char symbol[256];
 	char ord_id[1024];
 	char cl_ord_id[1014];
@@ -50,18 +50,18 @@ struct COrderReport {
 	double cum_qty;
 	double leaves_qty;
 	char position_id[1024];
-};
+} COrderReport;
 
 // NetPosition from order tracker (calculated via ExecReports)
-struct CNetPosition {
+typedef struct CNetPosition {
 	char account[1024];
 	char symbol[1024];
 	double avg_px;
 	double qty;
-};
+} CNetPosition;
 
 // Order status report from order mass status request
-struct CStatusExecReport {
+typedef struct CStatusExecReport {
 	char symbol[256];
 	char ord_id[1024];
 	char cl_ord_id[1014];
@@ -80,12 +80,12 @@ struct CStatusExecReport {
 	double leaves_qty;
 	char text[4096];
 	int tot_num_reports;
-	bool last_rpt_requested;
+	int last_rpt_requested;
 	char position_id[1024];
-};
+} CStatusExecReport;
 
 // Position report obtained via FIX 
-struct CFXCMPositionReport { 
+typedef struct CFXCMPositionReport { 
 	char account[1024];
 	char symbol[1024];
 	char currency[1014];
@@ -93,7 +93,7 @@ struct CFXCMPositionReport {
 
 	double settle_price;
 
-	bool is_open;
+	int is_open;
 
 	// valid for open and closed positions 
 	double interest;
@@ -109,4 +109,4 @@ struct CFXCMPositionReport {
 	double close_time;			// nanoseconds timestamp utc converted to zorro time
 	char close_order_id[1024];
 	char close_cl_ord_id[1024];
-};
+} CFXCMPositionReport;
