@@ -41,6 +41,7 @@ struct COrderReport {
 	double order_qty;
 	double cum_qty;
 	double leaves_qty;
+	char position_id[1024];
 };
 
 // NetPosition from order tracker (calculated via ExecReports)
@@ -72,6 +73,7 @@ struct CStatusExecReport {
 	char text[4096];
 	int tot_num_reports;
 	bool last_rpt_requested;
+	char position_id[1024];
 };
 
 // Position report obtained via FIX 
@@ -79,7 +81,7 @@ struct CFXCMPositionReport {
 	char account[1024];
 	char symbol[1024];
 	char currency[1014];
-	char pos_id[1024];
+	char position_id[1024];
 
 	double settle_price;
 

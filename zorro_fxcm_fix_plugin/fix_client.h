@@ -147,7 +147,7 @@ namespace zorro
 		std::string account;
 		std::string symbol;
 		std::string currency;
-		std::string pos_id;
+		std::string position_id;
 
 		double settle_price;
 
@@ -305,7 +305,7 @@ namespace zorro
 			FXCM_SERVER_TIMEZONE_NAME = 9030,	// Server time zone name 
 			FXCM_USED_MARGIN = 9038,			// Float Amount of used margin nominated for an account or position (liquidation level)
 			FXCM_POS_INTEREST = 9040,			// Float Amount of interest applied to the position
-			FXCM_POS_ID = 9041,					// String
+			FXCM_POS_ID = 9041,					// String, also known as the ticker - the id of the position that was opened for a trade
 			FXCM_POS_OPEN_TIME = 9042,			// UTCTimestamp Time when trading position was opened
 			FXCM_CLOSE_SETTLE_PRICE = 9043,		// Float Closing price of trading position
 			FXCM_POS_CLOSE_TIME = 9044,			// UTCTimestamp Time when trading position was closed

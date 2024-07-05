@@ -43,7 +43,10 @@ namespace common {
 			double last_px,
 			double cum_qty,
 			double leaves_qty,
-			const std::string& text
+			const std::string& text,
+			const std::string& custom_1 = "",
+			const std::string& custom_2 = "",
+			const std::string& custom_3 = ""
 		);
 
 		std::string symbol{};
@@ -63,8 +66,11 @@ namespace common {
 		double cum_qty{};
 		double leaves_qty{};
 		std::string text{};
+		std::string custom_1{};
+		std::string custom_2{};
+		std::string custom_3{};
 
-		std::string to_string() const;
+		std::string to_string(const std::string& c1 = "", const std::string& c2 = "", const std::string& c3 = "") const;
 	};
 
 	std::ostream& operator<<(std::ostream&, const ExecReport&);
@@ -97,7 +103,10 @@ namespace common {
 			double leaves_qty,
 			const std::string& text,
 			int tot_num_reports,
-			bool last_rpt_requested
+			bool last_rpt_requested,
+			const std::string& custom_1 = "",
+			const std::string& custom_2 = "",
+			const std::string& custom_3 = ""
 		);
 
 		std::string symbol{};
@@ -120,8 +129,11 @@ namespace common {
 		std::string text{};
 		int tot_num_reports{};
 		bool last_rpt_requested{};
+		std::string custom_1{};
+		std::string custom_2{};
+		std::string custom_3{};
 
-		std::string to_string() const;
+		std::string to_string(const std::string& c1="", const std::string& c2 = "", const std::string& c3 = "") const;
 	};
 
 	std::ostream& operator<<(std::ostream&, const StatusExecReport&);

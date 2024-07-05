@@ -424,7 +424,7 @@ namespace zorro {
 			<< "account" << ", "
 			<< "symbol" << ", "
 			<< "currency" ", "
-			<< "pos_id" << ", "
+			<< "position_id" << ", "
 			<< "settle_price" << ", "
 			<< "is_open" << ", "
 			<< "interest" << ", "
@@ -441,7 +441,7 @@ namespace zorro {
 				<< report.account << ", "
 				<< report.symbol << ", "
 				<< report.currency << ", "
-				<< report.pos_id << ", "
+				<< report.position_id << ", "
 				<< report.settle_price << ", "
 				<< report.is_open << ", "
 				<< report.interest << ", "
@@ -1914,6 +1914,7 @@ namespace zorro {
 					order_reports[i].order_qty = kv.second.order_qty;
 					order_reports[i].cum_qty = kv.second.cum_qty;
 					order_reports[i].leaves_qty = kv.second.leaves_qty;
+					strncpy(order_reports[i].position_id, kv.second.custom_1.c_str(), sizeof(order_reports[i].position_id));
 					++i;
 				}
 			}
@@ -1962,6 +1963,7 @@ namespace zorro {
 					order_reports[i].leaves_qty = e.leaves_qty;
 					order_reports[i].tot_num_reports = e.tot_num_reports;
 					order_reports[i].last_rpt_requested = e.last_rpt_requested;
+					strncpy(order_reports[i].position_id, e.custom_1.c_str(), sizeof(order_reports[i].position_id));
 					++i;
 				}
 			}
@@ -1983,7 +1985,7 @@ namespace zorro {
 					strncpy(pos_reports[i].account, e.account.c_str(), sizeof(pos_reports[i].account));
 					strncpy(pos_reports[i].symbol, e.symbol.c_str(), sizeof(pos_reports[i].symbol));
 					strncpy(pos_reports[i].currency, e.currency.c_str(), sizeof(pos_reports[i].currency));
-					strncpy(pos_reports[i].pos_id, e.pos_id.c_str(), sizeof(pos_reports[i].pos_id));
+					strncpy(pos_reports[i].position_id, e.position_id.c_str(), sizeof(pos_reports[i].position_id));
 					if (e.close_order_id.has_value())
 						strncpy(pos_reports[i].close_order_id, e.close_order_id.value().c_str(), sizeof(pos_reports[i].close_order_id));
 					else
@@ -2012,7 +2014,7 @@ namespace zorro {
 					strncpy(pos_reports[i].account, e.account.c_str(), sizeof(pos_reports[i].account));
 					strncpy(pos_reports[i].symbol, e.symbol.c_str(), sizeof(pos_reports[i].symbol));
 					strncpy(pos_reports[i].currency, e.currency.c_str(), sizeof(pos_reports[i].currency));
-					strncpy(pos_reports[i].pos_id, e.pos_id.c_str(), sizeof(pos_reports[i].pos_id));
+					strncpy(pos_reports[i].position_id, e.position_id.c_str(), sizeof(pos_reports[i].position_id));
 					if (e.close_order_id.has_value())
 						strncpy(pos_reports[i].close_order_id, e.close_order_id.value().c_str(), sizeof(pos_reports[i].close_order_id));
 					else

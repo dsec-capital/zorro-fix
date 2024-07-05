@@ -147,7 +147,10 @@ namespace common {
 		double last_px,
 		double cum_qty,
 		double leaves_qty,
-		const std::string& text
+		const std::string& text,
+		const std::string& custom_1,
+		const std::string& custom_2,
+		const std::string& custom_3
 	) : symbol(symbol)
 	  , ord_id(ord_id)
 	  , cl_ord_id(cl_ord_id)
@@ -165,10 +168,16 @@ namespace common {
 	  , cum_qty(cum_qty)
 	  , leaves_qty(leaves_qty)
 	  , text(text)
+	  , custom_1(custom_1)
+	  , custom_2(custom_2)
+	  , custom_3(custom_3)
 	{}
 
-	std::string ExecReport::to_string() const {
+	std::string ExecReport::to_string(const std::string& c1, const std::string& c2, const std::string& c3) const {
 		std::stringstream ss;
+		auto h1 = c1 == "" ? "custom_1=" : (c1 + "=");
+		auto h2 = c2 == "" ? "custom_2=" : (c2 + "=");
+		auto h3 = c3 == "" ? "custom_3=" : (c3 + "=");
 		ss << "ExecReport[" 
 		   << "symbol=" << symbol << ", "
 		   << "ord_id=" << ord_id << ", "
@@ -184,7 +193,10 @@ namespace common {
 		   << "order_qty=" << std::to_string(order_qty) << ", "
 		   << "cum_qty=" << std::to_string(cum_qty) << ", "
 		   << "leaves_qty=" << std::to_string(leaves_qty) << ", "
-		   << "text=" << text
+		   << "text=" << text << ", "
+		   << h1 << custom_1 << ", "
+		   << h2 << custom_2 << ", "
+		   << h3 << custom_3
 		   << "]";
 		return ss.str();
 	}
@@ -214,7 +226,10 @@ namespace common {
 		double leaves_qty,
 		const std::string& text,
 		int tot_num_reports,
-		bool last_rpt_requested
+		bool last_rpt_requested, 
+		const std::string& custom_1,
+		const std::string& custom_2,
+		const std::string& custom_3
 	) : symbol(symbol)
 	  , ord_id(ord_id)
 	  , cl_ord_id(cl_ord_id)
@@ -235,10 +250,16 @@ namespace common {
 	  , text(text)
 	  , tot_num_reports(tot_num_reports)
 	  , last_rpt_requested(last_rpt_requested)
+      , custom_1(custom_1)
+      , custom_2(custom_2)
+      , custom_3(custom_3)
 	{}
 
-	std::string StatusExecReport::to_string() const {
+	std::string StatusExecReport::to_string(const std::string& c1, const std::string& c2, const std::string& c3) const {
 		std::stringstream ss;
+		auto h1 = c1 == "" ? "custom_1=" : (c1 + "=");
+		auto h2 = c2 == "" ? "custom_2=" : (c2 + "=");
+		auto h3 = c3 == "" ? "custom_3=" : (c3 + "=");
 		ss << "StatusExecReport["
 		   << "symbol=" << symbol << ", "
 		   << "ord_id=" << ord_id << ", "
@@ -257,7 +278,10 @@ namespace common {
 		   << "leaves_qty=" << std::to_string(leaves_qty) << ", "
 		   << "text=" << text << ", "
 		   << "tot_num_reports=" << tot_num_reports << ", "
-		   << "last_rpt_requested=" << last_rpt_requested
+		   << "last_rpt_requested=" << last_rpt_requested << ", "
+           << h1 << custom_1 << ", "
+		   << h2 << custom_2 << ", "
+		   << h3 << custom_3 
 		   << "]";
 		return ss.str();
 	}

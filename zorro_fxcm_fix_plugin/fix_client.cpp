@@ -128,7 +128,7 @@ namespace zorro {
 		   << "account=" << account << ", "
 		   << "symbol=" << symbol << ", "
 		   << "currency=" << currency << ", "
-		   << "pos_id=" << pos_id << ", "
+		   << "position_id=" << position_id << ", "
 		   << "settle_price=" << settle_price << ", "
 		   << "is_open=" << is_open << ", "
 		   << "interest=" << interest << ", "
@@ -614,7 +614,7 @@ namespace zorro {
 			FIX::TotalNumPosReports total_num_reports;
 
 			// valid for open and closed positions 
-			std::string pos_id;
+			std::string position_id;
 			double interest = 0;
 			double commission = 0;
 			std::chrono::nanoseconds open_time;
@@ -637,7 +637,7 @@ namespace zorro {
 			message.get(settle_price_type);
 			message.get(total_num_reports);
 
-			pos_id = message.getField(FXCM_POS_ID);
+			position_id = message.getField(FXCM_POS_ID);
 			interest = FIX::DoubleConvertor::convert(message.getField(FXCM_POS_INTEREST));
 			commission = FIX::DoubleConvertor::convert(message.getField(FXCM_POS_COMMISSION));
 			open_time = parse_datetime(message.getField(FXCM_POS_OPEN_TIME));
@@ -682,7 +682,7 @@ namespace zorro {
 				.account = account.getValue(),
 				.symbol = symbol.getValue(),
 				.currency = currency.getValue(),
-				.pos_id = pos_id,
+				.position_id = position_id,
 				.settle_price = settle_price.getValue(),
 				.is_open = is_open,
 				.interest = interest,
@@ -888,6 +888,14 @@ namespace zorro {
 				message.get(cum_qty);
 				message.getIfSet(text);
 
+				std::string position_id;
+				if (message.isSetField(FXCM_FIX_FIELDS::FXCM_POS_ID)) {
+					position_id = message.getField(FXCM_FIX_FIELDS::FXCM_POS_ID);
+				}
+				else {
+					log::error<false>("FixClient::on_message[ExecutionReport]: no position id set {}", fix_string(message));
+				}
+
 				ExecReport report(
 					symbol.getString(),
 					ord_id.getString(),
@@ -905,10 +913,11 @@ namespace zorro {
 					last_px.getValue(),
 					cum_qty.getValue(),
 					leaves_qty.getValue(),
-					text.getString()
+					text.getString(),
+					position_id
 				);
 
-				log::debug<dl0, false>("FixClient::on_message[ExecutionReport]: {}", report.to_string());
+				log::debug<dl0, false>("FixClient::on_message[ExecutionReport]: {}", report.to_string("position_id"));
 
 				exec_report_queue.push(report);
 			}
@@ -946,6 +955,14 @@ namespace zorro {
 						last_rpt_requested = s == "Y";
 					}
 
+					std::string position_id;
+					if (message.isSetField(FXCM_FIX_FIELDS::FXCM_POS_ID)) {
+						position_id = message.getField(FXCM_FIX_FIELDS::FXCM_POS_ID);
+					}
+					else {
+						log::error<false>("FixClient::on_message[ExecutionReport]: no position id set {}", fix_string(message));
+					}
+
 					StatusExecReport report(
 						symbol.getString(),
 						ord_id.getString(),
@@ -966,10 +983,14 @@ namespace zorro {
 						leaves_qty.getValue(),
 						text.getString(),
 						tot_num_reports,
-						last_rpt_requested
+						last_rpt_requested,
+						position_id
 					);
 
-					log::debug<dl0, false>("FixClient::on_message[StatusExecutionReport(ord_status!=FIX::OrdStatus_REJECTED)]: {}", report.to_string());
+					log::debug<dl0, false>(
+						"FixClient::on_message[StatusExecutionReport(ord_status!=FIX::OrdStatus_REJECTED)]: {}", 
+						report.to_string("position_id")
+					);
 
 					status_exec_report_queue.push(report);
 				}

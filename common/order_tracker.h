@@ -49,6 +49,9 @@ namespace common {
 		double order_qty{ 0 };
 		double cum_qty{ 0 };
 		double leaves_qty{ 0 };
+		std::string custom_1{} ;
+		std::string custom_2{};
+		std::string custom_3{};
 
 		bool is_buy() const;
 
@@ -58,7 +61,7 @@ namespace common {
 
 		bool is_cancelled() const;
 
-		std::string to_string() const;
+		std::string to_string(const std::string& c1 = "", const std::string& c2 = "", const std::string& c3 = "") const;
 	};
 
 	std::ostream& operator<<(std::ostream&, const OrderReport&);
@@ -135,7 +138,7 @@ namespace common {
 
 		bool process(const ExecReport& report);
 
-		std::string to_string() const;
+		std::string to_string(const std::string& c1 = "", const std::string& c2 = "", const std::string& c3 = "") const;
 	};
 
 }
