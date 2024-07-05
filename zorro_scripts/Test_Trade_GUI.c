@@ -24,10 +24,13 @@ int PartCancelAmountCol;
 int PositionRow;
 int PositionCol;
 int OrderActionCol;
+int PositionActionCol;
+
+COrderPositionArg order_pos_arg;
 
 void setupPannel() {
 	int n = 0;
-	panel(20, 16, GREY, 80);
+	panel(20, 17, GREY, 82);
 	panelSet(0, n++, "Buy", YELLOW, 1, 4);
 	panelSet(0, n++, "Sell", YELLOW, 1, 4);
 	panelSet(0, n++, ifelse(OrderMode == 0, "Market Order", "Limit Order"), YELLOW, 1, 4);
@@ -56,9 +59,13 @@ void setupPannel() {
 	int c = 0;
 	panelSet(TradePanelOffset - 1, c++, "Trade", ColorPanel[3], 1, 1);
 	panelSet(TradePanelOffset - 1, c++, "ID", ColorPanel[3], 1, 1);
-	panelSet(TradePanelOffset - 1, c, "Action", ColorPanel[3], 1, 1);
+	panelSet(TradePanelOffset - 1, c, "O Action", ColorPanel[3], 1, 1);
 	OrderActionCol = c;
 	c++;
+	panelSet(TradePanelOffset - 1, c, "P Action", ColorPanel[3], 1, 1);
+	PositionActionCol = c;
+	c++;
+	panelSet(TradePanelOffset - 1, c++, "PositionId", ColorPanel[3], 1, 1);
 	panelSet(TradePanelOffset - 1, c++, "Direction", ColorPanel[3], 1, 1);
 	panelSet(TradePanelOffset - 1, c++, "LimitPrice", ColorPanel[3], 1, 1);
 	panelSet(TradePanelOffset - 1, c++, "DistFT[PIP]", ColorPanel[3], 1, 1);
@@ -104,12 +111,15 @@ int tmf(var TradeIdx, var LimitPrice) {
 	bool Cancelable = TradeLots < TradeLotsTarget && (TradeIsOpen || TradeIsPending);
 	bool CancelledUnfilled = TradeLots < TradeLotsTarget && !TradeIsOpen;
 	bool Filled = TradeLots == TradeLotsTarget;
+	bool Closable = TradeLots > 0;
 
 	string Dir = ifelse(LimitPrice == 0, ifelse(TradeDir == 1, "Buy", "Sell"), ifelse(TradeDir == 1, "Bid", "Ask"));
 	
 	string CurrentStatus = panelGet(row, OrderActionCol);
 	if (CurrentStatus == "Failed")
 		return 0;
+
+	brokerCommand(BROKER_CMD_GET_ORDER_POSITION_ID, (void*)&order_pos_arg);
 
 	int c = 0;
 	panelSet(row, c++, strtr(ThisTrade), ColorPanel[2], 1, 4);
@@ -127,6 +137,12 @@ int tmf(var TradeIdx, var LimitPrice) {
 	else  
 		panelSet(row, c, "Unknown", OLIVE, 2, 4);	// more cases ?
 	++c;
+	if (Closable)
+		panelSet(row, c, "Close", ColorPanel[2], 1, 1);
+	else
+		panelSet(row, c, "No Pos", ColorPanel[2], 1, 1);
+	++c;
+	panelSet(row, c++, ifelse(order_pos_arg->has_open_position, order_pos_arg->position_id, "no position"), ColorPanel[2], 1, 1);
 	panelSet(row, c++, Dir, ColorPanel[2], 1, 1);
 	panelSet(row, c++, sftoa(LimitPrice, 5), ColorPanel[2], 1, 1);
 	panelSet(row, c++, sftoa(DistToFarTouch, 2), ColorPanel[2], 1, 1);
@@ -278,6 +294,9 @@ void click(int row, int col)
 				}
 			}
 		}
+	}
+	else if (Text == "Close") {
+		// TODO
 	}
 	else if (Text == "Cancel All") {
 		exitLong("*");

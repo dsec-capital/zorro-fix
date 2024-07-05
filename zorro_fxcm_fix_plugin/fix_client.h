@@ -246,6 +246,7 @@ namespace zorro
 			const FIX::OrderQty& order_qty,
 			const FIX::Price& price,
 			const FIX::StopPx& stop_price,
+			const std::optional<std::string>& position_id = std::optional<std::string>(),
 			const std::optional<FIX::Account>& account = std::optional<FIX::Account>()
 		) const;
 
@@ -256,6 +257,7 @@ namespace zorro
 			const FIX::ClOrdID& ,
 			const FIX::Side& side,
 			const FIX::OrderQty& order_qty,
+			const std::optional<std::string>& position_id = std::optional<std::string>(),
 			const std::optional<FIX::Account>& account = std::optional<FIX::Account>()
 		) const;
 
@@ -269,6 +271,7 @@ namespace zorro
 			const FIX::OrderQty& order_qty,
 			const FIX::Price& price,
 			const FIX::TimeInForce& tif,
+			const std::optional<std::string>& position_id = std::optional<std::string>(),
 			const std::optional<FIX::Account>& account = std::optional<FIX::Account>()
 		) const;
 

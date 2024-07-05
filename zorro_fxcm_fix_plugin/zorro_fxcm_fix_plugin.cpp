@@ -88,6 +88,7 @@ namespace zorro {
 	HWND window_handle;
 	bool dump_bars_to_file = true;
 	int cancel_replace_lot_amount = 0;
+	char current_position_id[1024];
 
 	std::shared_ptr<spdlog::logger> spd_logger = nullptr;
 	std::unique_ptr<FixService> fix_service = nullptr;
@@ -672,7 +673,7 @@ namespace zorro {
 				
 				log::debug<dl1, true>(
 					"BrokerLogin: processed {} final exec reports\n{}\n{}\nFIX service stopping...", 
-					n, order_tracker.to_string(), order_mapping_string()
+					n, order_tracker.to_string("position_id"), order_mapping_string()
 				);
 
 				fix_service->cancel();
@@ -704,7 +705,7 @@ namespace zorro {
 		if (n > 0) {
 			log::debug<dl1, true>(
 				"BrokerTime {} exec reports processed={}\n{}\n{}",
-				common::to_string(time), n, order_tracker.to_string(), order_mapping_string()
+				common::to_string(time), n, order_tracker.to_string("position_id"), order_mapping_string()
 			);
 		}
 
@@ -1638,7 +1639,7 @@ namespace zorro {
 
 						log::debug<dl0, true>(
 							"BrokerCommand[DO_CANCEL]: exec report processed={}\n{}\n{}",
-							report.value().to_string(), order_tracker.to_string(), order_mapping_string()
+							report.value().to_string(), order_tracker.to_string("position_id"), order_mapping_string()
 						);
 
 						return 1;
@@ -1891,7 +1892,34 @@ namespace zorro {
 			}
 
 			case BROKER_CMD_PRINT_ORDER_TRACKER: {
-				show(std::format("\n{}\n{}", order_tracker.to_string(), order_mapping_string()));
+				show(std::format("\n{}\n{}", order_tracker.to_string("position_id"), order_mapping_string()));
+				return 0;
+			}
+
+			case BROKER_CMD_GET_ORDER_POSITION_ID: {
+				auto arg = (COrderPositionArg*)dw_parameter;
+				auto it = order_id_by_internal_order_id.find(arg->trade_id);
+				if (it != order_id_by_internal_order_id.end())
+				{
+					auto [oit, success] = order_tracker.get_order(it->second);
+
+					if (success) {
+						auto order = oit->second;
+						if (!order.custom_1.empty()) {
+							strncpy(arg->position_id, order.custom_1.c_str(), sizeof(arg->position_id));
+							arg->has_open_position = true;
+						}
+						else {
+							arg->has_open_position = false;
+						}
+						arg->trade_not_found = false;
+						return 0;
+					} 
+				}
+
+				arg->position_id[0] = '\0';
+				arg->has_open_position = false;
+				arg->trade_not_found = true;
 				return 0;
 			}
 

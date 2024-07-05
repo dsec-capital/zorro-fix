@@ -5,8 +5,9 @@
 // additional broker commands
 #define BROKER_CMD_CREATE_ASSET_LIST_FILE						2000
 #define BROKER_CMD_CREATE_SECURITY_INFO_FILE					2001
-#define BROKER_CMD_GET_OPEN_POSITIONS							2002
-#define BROKER_CMD_GET_CLOSED_POSITIONS							2003
+
+// updated COrderPositionArg struct
+#define BROKER_CMD_GET_ORDER_POSITION_ID						2002		
 
 #define BROKER_CMD_PRINT_ORDER_TRACKER							2010
 #define BROKER_CMD_GET_ORDER_TRACKER_NUM_ORDER_REPORTS			2011
@@ -27,6 +28,13 @@
 #define BROKER_CMD_GET_CLOSED_POSITION_REPORT					2020
 
 #define BROKER_CMD_SET_CANCEL_REPLACE_LOT_AMOUNT				2021
+
+struct COrderPositionArg {
+	int trade_id;				// input
+	bool trade_not_found;
+	bool has_open_position;		// output
+	char position_id[1024];		// output
+};
 
 // OrderReport from order tracker (calculated via ExecReports)
 struct COrderReport {

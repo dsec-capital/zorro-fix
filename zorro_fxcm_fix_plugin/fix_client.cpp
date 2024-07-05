@@ -1245,6 +1245,7 @@ namespace zorro {
 		const FIX::OrderQty& order_qty, 
 		const FIX::Price& price, 
 		const FIX::StopPx& stop_price, 
+		const std::optional<std::string>& position_id,
 		const std::optional<FIX::Account>& account
 	) const {
 		FIX44::NewOrderSingle order(
@@ -1258,7 +1259,7 @@ namespace zorro {
 		order.set(order_qty);
 		order.set(tif);
 		
-		order.setField(FIX::TradingSessionID("FXCM"));  // TODO do it via group
+		order.setField(FIX::TradingSessionID("FXCM"));  // TODO do it via group?
 
 		if (account.has_value()) {
 			order.set(account.value());
@@ -1267,14 +1268,20 @@ namespace zorro {
 			order.set(FIX::Account(*account_ids.begin()));
 		}
 		else {
-			return std::optional<FIX::Message>();
+			return std::optional<FIX::Message>();  
 		}
 		 
-		if (ord_type == FIX::OrdType_LIMIT || ord_type == FIX::OrdType_STOP_LIMIT)
+		if (ord_type == FIX::OrdType_LIMIT || ord_type == FIX::OrdType_STOP_LIMIT) {
 			order.set(price);
+		}
 
-		if (ord_type == FIX::OrdType_STOP || ord_type == FIX::OrdType_STOP_LIMIT)
+		if (ord_type == FIX::OrdType_STOP || ord_type == FIX::OrdType_STOP_LIMIT) {
 			order.set(stop_price);
+		}
+
+		if (position_id.has_value()) {
+			order.setField(FXCM_FIX_FIELDS::FXCM_POS_ID, position_id.value());
+		}
 
 		log::debug<dl4, false>("FixClient::newOrderSingle[{}]: {}" , trading_session_id.toString(), fix_string(order));
 
@@ -1290,6 +1297,7 @@ namespace zorro {
 		const FIX::ClOrdID& cl_ord_id,
 		const FIX::Side& side,
 		const FIX::OrderQty& order_qty,
+		const std::optional<std::string>& position_id,
 		const std::optional<FIX::Account>& account
 	) const {
 		FIX44::OrderCancelRequest request(
@@ -1312,6 +1320,10 @@ namespace zorro {
 			return std::optional<FIX::Message>();
 		}
 
+		if (position_id.has_value()) {
+			request.setField(FXCM_FIX_FIELDS::FXCM_POS_ID, position_id.value());
+		}
+
 		log::debug<dl4, false>("FixClient::orderCancelRequest[{}]: {}", trading_session_id.toString(), fix_string(request));
 
 		FIX::Session::sendToTarget(request, trading_session_id);
@@ -1329,6 +1341,7 @@ namespace zorro {
 		const FIX::OrderQty& order_qty,
 		const FIX::Price& price,
 		const FIX::TimeInForce& tif,
+		const std::optional<std::string>& position_id,
 		const std::optional<FIX::Account>& account
 	) const {
 		FIX44::OrderCancelReplaceRequest request(
@@ -1353,6 +1366,10 @@ namespace zorro {
 		}
 		else {
 			return std::optional<FIX::Message>();
+		}
+
+		if (position_id.has_value()) {
+			request.setField(FXCM_FIX_FIELDS::FXCM_POS_ID, position_id.value());
 		}
 
 		log::debug<dl0, false>("FixClient::orderCancelReplaceRequest[{}]: {}", trading_session_id.toString(), fix_string(request));
