@@ -27,15 +27,8 @@ int OrderActionCol;
 int PositionActionCol;
 
 GetOrderPositionIdArg order_pos_arg;
-GetOrderMassStatusArg order_mass_status_arg {
-	reports = 0;
-	num_reports = 0;
-	print = 1;
-};
-GetPositionReportArg position_report_arg {
-	reports = 0;
-	num_reports = 0;
-};
+GetOrderMassStatusArg order_mass_status_arg;
+GetPositionReportArg position_report_arg;
 
 void setupPannel() {
 	int n = 0;
@@ -122,7 +115,7 @@ int tmf(var TradeIdx, var LimitPrice) {
 	bool Filled = TradeLots == TradeLotsTarget;
 
 	string Dir = ifelse(LimitPrice == 0, ifelse(TradeDir == 1, "Buy", "Sell"), ifelse(TradeDir == 1, "Bid", "Ask"));
-	
+
 	string CurrentStatus = panelGet(row, OrderActionCol);
 	if (CurrentStatus == "Failed")
 		return 0;
@@ -145,7 +138,7 @@ int tmf(var TradeIdx, var LimitPrice) {
 		panelSet(row, c, "Cancel", YELLOW, 2, 4);	// limit order that is new or partially filled
 	else if (CancelledUnfilled)
 		panelSet(row, c, "Cancelled", OLIVE, 1, 1);	// this is not clear how to properly detect
-	else  
+	else
 		panelSet(row, c, "Unknown", OLIVE, 1, 1);	// more cases ?
 	++c;
 	if (Closable)
@@ -428,6 +421,8 @@ function run()
 		RoundingStep = PIP;
 		AbsLimitLevel = false;
 		set(NFA | OFF);
+
+		order_mass_status_arg.print = 1;
 	}
 
 	set(TICKS + LOGFILE + PLOTNOW + PRELOAD);
@@ -463,7 +458,6 @@ function run()
 
 	if (is(INITRUN)) {
 		setupPannel();
-
 	}
 
 	if (!is(LOOKBACK)) {
@@ -472,9 +466,9 @@ function run()
 			sftoa(Balance, 2), sftoa(Equity, 2), sftoa(MarginVal, 2),
 			sftoa(priceClose(0), 5));
 
-		var Pos = brokerCommand(GET_POSITION, SymbolTrade);
-		if (Pos != 0) {
-			printf(" Pos %.2f", Pos);
+		var pos = brokerCommand(GET_POSITION, SymbolTrade);
+		if (pos != 0) {
+			printf(" Pos %.2f", pos);
 			panelSet(PositionRow, PositionCol, sftoa(pos, 2), ColorPanel[2], 1, 1);
 		}
 		for (open_trades) {
