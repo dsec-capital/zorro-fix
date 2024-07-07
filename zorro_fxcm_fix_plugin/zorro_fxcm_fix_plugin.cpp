@@ -89,9 +89,9 @@ namespace zorro {
 
 	std::shared_ptr<spdlog::logger> spd_logger = nullptr;
 	std::unique_ptr<FixService> fix_service = nullptr;
+	BlockingTimeoutQueue<TopOfBook> top_of_book_queue;
 	BlockingTimeoutQueue<ExecReport> exec_report_queue;
 	BlockingTimeoutQueue<StatusExecReport> status_exec_report_queue;
-	BlockingTimeoutQueue<TopOfBook> top_of_book_queue;
 	BlockingTimeoutQueue<ServiceMessage> service_message_queue;
 	BlockingTimeoutQueue<FXCMPositionReport> position_report_queue;
 	BlockingTimeoutQueue<FXCMPositionReports> position_snapshot_reports_queue;
@@ -140,6 +140,16 @@ namespace zorro {
 		return n;
 	}
 
+	int pop_position_reports() {
+		auto n = position_report_queue.pop_all(
+			[](const FXCMPositionReport& report) {
+				position_reports[report.position_id] = report;
+				log::debug<dl2, true>("pop_position_reports: report changed={}", report.to_string());
+			}
+		);
+		return n;
+	}
+
 	int pop_top_of_books() {
 		auto n = top_of_book_queue.pop_all(
 			[](const TopOfBook& top) { 
@@ -164,11 +174,11 @@ namespace zorro {
 
 	template<class R, class P>
 	std::pair<std::vector<StatusExecReport>, bool> pop_status_exec_reports(const std::string& mass_status_req_id, const std::chrono::duration<R, P>& timeout) {
-		log::debug<2, true>("pop_status_exec_reports: mass_status_req_id={}", mass_status_req_id);
+		log::debug<dl2, true>("pop_status_exec_reports: mass_status_req_id={}", mass_status_req_id);
 		std::vector<StatusExecReport> reports;
 		auto success = status_exec_report_queue.pop_until(
 			[&](const StatusExecReport& report) {
-				log::debug<2, true>("pop_status_exec_reports: got report={}", report.to_string());
+				log::debug<dl2, true>("pop_status_exec_reports: got report={}", report.to_string());
 				if (report.mass_status_req_id == mass_status_req_id) {
 					reports.push_back(report);
 				}
@@ -176,13 +186,13 @@ namespace zorro {
 				return done;
 			}, timeout
 		);
-		log::debug<2, true>("pop_status_exec_reports: reports obtained={}", reports.size());
+		log::debug<dl2, true>("pop_status_exec_reports: reports obtained={}", reports.size());
 		return std::make_pair(reports, success);
 	}
 
 	template<class R, class P>
 	std::optional<ExecReport> pop_exec_report_new(const std::string& expected_cl_ord_id, const std::chrono::duration<R, P>& timeout) {
-		log::debug<2, true>("pop_exec_report_new: expected_cl_ord_id={}", expected_cl_ord_id);
+		log::debug<dl2, true>("pop_exec_report_new: expected_cl_ord_id={}", expected_cl_ord_id);
 		std::optional<ExecReport> target_report = std::optional<ExecReport>();
 		auto success = exec_report_queue.pop_until(
 			[&](const ExecReport& report) {
@@ -203,13 +213,13 @@ namespace zorro {
 				return done;
 			}, timeout
 		);
-		log::debug<2, true>("pop_exec_report_new: report found={}", target_report.has_value());
+		log::debug<dl2, true>("pop_exec_report_new: report found={}", target_report.has_value());
 		return target_report;
 	}
 	
 	template<class R, class P>
 	std::optional<ExecReport> pop_exec_report_fill(const std::string& expected_cl_ord_id, const std::chrono::duration<R, P>& timeout) {
-		log::debug<2, true>("pop_exec_report_fill: expected_cl_ord_id={}", expected_cl_ord_id);
+		log::debug<dl2, true>("pop_exec_report_fill: expected_cl_ord_id={}", expected_cl_ord_id);
 		std::optional<ExecReport> target_report = std::optional<ExecReport>();
 		auto success = exec_report_queue.pop_until(
 			[&](const ExecReport& report) {
@@ -227,13 +237,13 @@ namespace zorro {
 				return done;
 			}, timeout
 		);
-		log::debug<2, true>("pop_exec_report_fill: report found={}", target_report.has_value());
+		log::debug<dl2, true>("pop_exec_report_fill: report found={}", target_report.has_value());
 		return target_report;
 	}
 
 	template<class R, class P>
 	std::optional<ExecReport> pop_exec_report_cancel(const std::string& expected_ord_id, const std::chrono::duration<R, P>& timeout) {
-		log::debug<2, true>("pop_exec_report_cancel: expected_ord_id={}", expected_ord_id);
+		log::debug<dl2, true>("pop_exec_report_cancel: expected_ord_id={}", expected_ord_id);
 		std::optional<ExecReport> target_report = std::optional<ExecReport>();
 		auto success = exec_report_queue.pop_until(
 			[&](const ExecReport& report) {
@@ -251,13 +261,13 @@ namespace zorro {
 				return done;
 			}, timeout
 		);
-		log::debug<2, true>("pop_exec_report_cancel: report found={}", target_report.has_value());
+		log::debug<dl2, true>("pop_exec_report_cancel: report found={}", target_report.has_value());
 		return target_report;
 	}
 
 	template<class R, class P>
 	std::optional<ExecReport> pop_exec_report_cancel_replace(const std::string& expected_ord_id, const std::chrono::duration<R, P>& timeout) {
-		log::debug<2, true>("pop_exec_report_cancel_replace: expected_ord_id={}", expected_ord_id);
+		log::debug<dl2, true>("pop_exec_report_cancel_replace: expected_ord_id={}", expected_ord_id);
 		std::optional<ExecReport> target_report = std::optional<ExecReport>();
 		auto success = exec_report_queue.pop_until(
 			[&](const ExecReport& report) {
@@ -275,7 +285,7 @@ namespace zorro {
 				return done;
 			}, timeout
 		);
-		log::debug<2, true>("pop_exec_report_cancel_replace: report found={}", target_report.has_value());
+		log::debug<dl2, true>("pop_exec_report_cancel_replace: report found={}", target_report.has_value());
 		return target_report;
 	}
 
@@ -292,17 +302,17 @@ namespace zorro {
 
 	template<class R, class P>
 	std::optional<ServiceMessage> pop_login_service_message(int expected_num_logins, const std::chrono::duration<R, P>& timeout) {
-		log::debug<2, true>("pop_login_service_message: expected_num_logins={}", expected_num_logins);
+		log::debug<dl2, true>("pop_login_service_message: expected_num_logins={}", expected_num_logins);
 		std::optional<ServiceMessage> message = std::optional<ServiceMessage>();
 		auto success = service_message_queue.pop_until(
 			[&](const ServiceMessage& msg) {
 				bool done = false;
 				const auto& msg_type = get_or_else<std::string>(msg, SERVICE_MESSAGE_TYPE, "unknown");
-				log::debug<2, true>("pop_login_service_message: service message type={}", msg_type);
+				log::debug<dl2, true>("pop_login_service_message: service message type={}", msg_type);
 				if (msg_type == SERVICE_MESSAGE_LOGON_STATUS) {
 					const auto& ready = get_or_else<bool>(msg, SERVICE_MESSAGE_LOGON_STATUS_READY, false);
 					const auto& session_logins = get_or_else<unsigned int>(msg, SERVICE_MESSAGE_LOGON_STATUS_SESSION_LOGINS, 0);
-					log::debug<2, true>("pop_login_service_message: ready={} session_logins={}", ready, session_logins);
+					log::debug<dl2, true>("pop_login_service_message: ready={} session_logins={}", ready, session_logins);
 					done = ready && session_logins == expected_num_logins;
 					if (done) {
 						message = std::optional<ServiceMessage>(msg);
@@ -311,7 +321,7 @@ namespace zorro {
 				return done;
 			}, timeout
 		);
-		log::debug<2, true>("pop_login_service_message: message found={}", message.has_value());
+		log::debug<dl2, true>("pop_login_service_message: message found={}", message.has_value());
 		return message;
 	}
 
@@ -790,9 +800,18 @@ namespace zorro {
 			);
 		}
 
-		auto m = pop_top_of_books();
+		n = pop_position_reports();
 
-		auto k = pop_service_message();
+		if (n > 0) {
+			log::debug<dl1, true>(
+				"BrokerTime {} position reports processed={}",
+				common::to_string(time), n
+			);
+		}
+
+		pop_top_of_books();
+
+		pop_service_message();
 
 		return ExchangeStatus::Open;
 	}
@@ -819,7 +838,7 @@ namespace zorro {
 	 */
 	DLLFUNC int BrokerAccount(char* account, double* balance, double* pdTradeVal, double* margin_val) 
 	{
-		log::debug<2, true>("BrokerAccount: requesting account details for account {}", account);
+		log::debug<dl2, true>("BrokerAccount: requesting account details for account {}", account);
 
 		auto it = collateral_reports.find(account);
 
@@ -1204,7 +1223,7 @@ namespace zorro {
 			return BrokerError::OrderRejectedOrTimeout;
 		}
 
-		log::debug<2, true>("BrokerBuy2 {}: NewOrderSingle {}", asset, fix_string(msg.value()));
+		log::debug<dl2, true>("BrokerBuy2 {}: NewOrderSingle {}", asset, fix_string(msg.value()));
 
 		if (ord_type.getValue() == FIX::OrdType_LIMIT || ord_type.getValue() == FIX::OrdType_MARKET) {
 
@@ -1365,7 +1384,7 @@ namespace zorro {
 					// trade opposite quantity for a fully filled order to offset the trade - here the amount is not needed
 					int signed_qty = static_cast<int>(order.side == FIX::Side_BUY ? -order.cum_qty : order.cum_qty);
 
-					log::debug<2, true>(
+					log::debug<dl2, true>(
 						"BrokerSell2[OrdStatus_FILLED]: closing filled order with {} order in opposite direction signed_qty={}", 
 						(limit == 0 ? "market" : "limit"), signed_qty
 					);
@@ -1380,7 +1399,7 @@ namespace zorro {
 					);
 
 					if (!msg.has_value()) {
-						log::debug<2, true>("BrokerSell2[OrdStatus_FILLED]: failed to create NewOrderSingle");
+						log::debug<dl2, true>("BrokerSell2[OrdStatus_FILLED]: failed to create NewOrderSingle");
 						return 0;
 					}
 
@@ -1607,7 +1626,7 @@ namespace zorro {
 						auto excess_qty = max(std::abs(amount), order.order_qty) - order.leaves_qty;
 						int signed_qty = static_cast<int>(order.side == FIX::Side_BUY ? -excess_qty : excess_qty);
 
-						log::debug<2, true>(
+						log::debug<dl2, true>(
 							"BrokerSell2[OrdStatus_PARTIALLY_FILLED]: closing filled order with {} order in opposite direction signed_qty={}",
 							(limit == 0 ? "market" : "limit"), signed_qty
 						);
@@ -1622,7 +1641,7 @@ namespace zorro {
 						);
 
 						if (!msg.has_value()) {
-							log::debug<2, true>("BrokerSell2[OrdStatus_PARTIALLY_FILLED]: failed to create NewOrderSingle");
+							log::debug<dl2, true>("BrokerSell2[OrdStatus_PARTIALLY_FILLED]: failed to create NewOrderSingle");
 							return 0;
 						}
 
