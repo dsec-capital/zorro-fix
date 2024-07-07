@@ -18,10 +18,10 @@
 #define BROKER_CMD_GET_ORDER_MASS_STATUS						2013
 
 // get open position reports, pass GetOpenPositionReportArg 
-#define BROKER_CMD_GET_OPEN_POSITION_REPORT						2014
+#define BROKER_CMD_GET_OPEN_POSITION_REPORTS					2014
 
 // get open position reports, pass GetOpenPositionReportArg 
-#define BROKER_CMD_GET_CLOSED_POSITION_REPORT					2015
+#define BROKER_CMD_GET_CLOSED_POSITION_REPORTS					2015
 
 #define BROKER_CMD_SET_CANCEL_REPLACE_LOT_AMOUNT				2020
 
@@ -123,7 +123,7 @@ typedef struct CFXCMPositionReport {
 	char close_cl_ord_id[1024];
 } CFXCMPositionReport;
 
-typedef struct GetOpenPositionReportArg {
+typedef struct GetPositionReportArg {
 	CFXCMPositionReport* reports;
 	int num_reports;
-} GetOpenPositionReportArg;
+} GetPositionReportArg;

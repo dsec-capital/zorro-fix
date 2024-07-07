@@ -2208,7 +2208,7 @@ namespace zorro {
 			}
 
 			case BROKER_CMD_GET_ORDER_TRACKER_ORDER_REPORTS: {
-				auto* args = (GetOrderTrackerOrderReportsArg*)dw_parameter;
+				auto* arg = (GetOrderTrackerOrderReportsArg*)dw_parameter;
 				c_order_tracker_order_reports.clear();
 				for (const auto kv : order_tracker.get_orders()) {
 					COrderReport order_report;
@@ -2226,12 +2226,12 @@ namespace zorro {
 					strncpy(order_report.position_id, get_position_id(kv.second).c_str(), sizeof(COrderReport::position_id));
 					c_order_tracker_order_reports.emplace_back(order_report);
 				}
-				args->num_reports = c_order_tracker_order_reports.size();
-				args->reports = c_order_tracker_order_reports.size() > 0 ? c_order_tracker_order_reports.data() : nullptr;
+				arg->num_reports = c_order_tracker_order_reports.size();
+				arg->reports = c_order_tracker_order_reports.size() > 0 ? c_order_tracker_order_reports.data() : nullptr;
 			}
 
 			case BROKER_CMD_GET_ORDER_TRACKER_NET_POSITIONS: {
-				auto* args = (GetOrderTrackerNetPositionsArg*)dw_parameter;
+				auto* arg = (GetOrderTrackerNetPositionsArg*)dw_parameter;
 				c_order_tracker_net_positions.clear();
 				for (const auto kv : order_tracker.get_net_positions()) {
 					CNetPosition net_pos;
@@ -2241,8 +2241,8 @@ namespace zorro {
 					net_pos.avg_px = kv.second.avg_px;
 					c_order_tracker_net_positions.emplace_back(net_pos);
 				}
-				args->num_reports = c_order_tracker_order_reports.size();
-				args->reports = c_order_tracker_net_positions.size() > 0 ? c_order_tracker_net_positions.data() : nullptr;
+				arg->num_reports = c_order_tracker_order_reports.size();
+				arg->reports = c_order_tracker_net_positions.size() > 0 ? c_order_tracker_net_positions.data() : nullptr;
 			}
 
 			case BROKER_CMD_GET_ORDER_MASS_STATUS: {
@@ -2252,18 +2252,18 @@ namespace zorro {
 				arg->reports = c_order_mass_status_reports.size() > 0 ? c_order_mass_status_reports.data() : nullptr;
 			}
 
-			case BROKER_CMD_GET_OPEN_POSITION_REPORT: {
-				auto* args = (GetOpenPositionReportArg*)dw_parameter;
+			case BROKER_CMD_GET_OPEN_POSITION_REPORTS: {
+				auto* arg = (GetPositionReportArg*)dw_parameter;
 				get_c_position_reports(c_open_position_reports, true);
-				args->num_reports = c_open_position_reports.size();
-				args->reports = c_open_position_reports.size() > 0 ? c_open_position_reports.data() : nullptr;
+				arg->num_reports = c_open_position_reports.size();
+				arg->reports = c_open_position_reports.size() > 0 ? c_open_position_reports.data() : nullptr;
 			}
 
-			case BROKER_CMD_GET_CLOSED_POSITION_REPORT: {
-				auto* args = (GetOpenPositionReportArg*)dw_parameter;
+			case BROKER_CMD_GET_CLOSED_POSITION_REPORTS: {
+				auto* arg = (GetPositionReportArg*)dw_parameter;
 				get_c_position_reports(c_closed_position_reports, false);
-				args->reports = c_closed_position_reports.size() > 0 ? c_closed_position_reports.data() : nullptr;
-				args->num_reports = c_closed_position_reports.size();
+				arg->reports = c_closed_position_reports.size() > 0 ? c_closed_position_reports.data() : nullptr;
+				arg->num_reports = c_closed_position_reports.size();
 			}
 
 			default: {

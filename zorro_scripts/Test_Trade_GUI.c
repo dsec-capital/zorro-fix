@@ -26,7 +26,16 @@ int PositionCol;
 int OrderActionCol;
 int PositionActionCol;
 
-COrderPositionArg order_pos_arg;
+GetOrderPositionIdArg order_pos_arg;
+GetOrderMassStatusArg order_mass_status_arg {
+	reports = 0;
+	num_reports = 0;
+	print = 1;
+};
+GetPositionReportArg position_report_arg {
+	reports = 0;
+	num_reports = 0;
+};
 
 void setupPannel() {
 	int n = 0;
@@ -377,13 +386,13 @@ void click(int row, int col)
 		brokerCommand(BROKER_CMD_PRINT_ORDER_TRACKER, 0);
 	}
 	else if (Text == "OpenPos[P]") {
-		brokerCommand(BROKER_CMD_GET_OPEN_POSITION_REPORT_SIZE, 1);
+		brokerCommand(BROKER_CMD_GET_OPEN_POSITION_REPORTS, (void*)&position_report_arg);
 	}
 	else if (Text == "ClosedPos[P]") {
-		brokerCommand(BROKER_CMD_GET_CLOSED_POSITION_REPORT_SIZE, 1);
+		brokerCommand(BROKER_CMD_GET_CLOSED_POSITION_REPORTS, (void*)&position_report_arg);
 	}
 	else if (Text == "OrdStatus[P]") {
-		brokerCommand(BROKER_CMD_GET_ORDER_ORDER_MASS_STATUS_SIZE, 1);
+		brokerCommand(BROKER_CMD_GET_ORDER_MASS_STATUS, (void*)&order_mass_status_arg);
 	}
 	else if (Text == "LogTOB[ON]") {
 		panelSet(row, col, "LogTOB[OFF]", 0, 0, 0);
