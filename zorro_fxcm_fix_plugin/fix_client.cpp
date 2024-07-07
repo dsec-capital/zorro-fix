@@ -954,13 +954,13 @@ namespace zorro {
 
 					auto tot_num_reports = 0;
 					if (message.isSetField(FIX::FIELD::TotNumReports)) {
-						auto s = message.getField(FIX::FIELD::TotNumReports);
+						const auto& s = message.getField(FIX::FIELD::TotNumReports);
 						tot_num_reports = std::atoi(s.c_str());
 					}
 
 					auto last_rpt_requested = true;
 					if (message.isSetField(FIX::FIELD::LastRptRequested)) {
-						auto s = message.getField(FIX::FIELD::LastRptRequested);
+						const auto& s = message.getField(FIX::FIELD::LastRptRequested);
 						last_rpt_requested = s == "Y";
 					}
 

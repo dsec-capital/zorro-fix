@@ -297,11 +297,11 @@ namespace zorro {
 		auto success = service_message_queue.pop_until(
 			[&](const ServiceMessage& msg) {
 				bool done = false;
-				auto msg_type = get_or_else<std::string>(msg, SERVICE_MESSAGE_TYPE, "unknown");
+				const auto& msg_type = get_or_else<std::string>(msg, SERVICE_MESSAGE_TYPE, "unknown");
 				log::debug<2, true>("pop_login_service_message: service message type={}", msg_type);
 				if (msg_type == SERVICE_MESSAGE_LOGON_STATUS) {
-					auto ready = get_or_else<bool>(msg, SERVICE_MESSAGE_LOGON_STATUS_READY, false);
-					auto session_logins = get_or_else<unsigned int>(msg, SERVICE_MESSAGE_LOGON_STATUS_SESSION_LOGINS, 0);
+					const auto& ready = get_or_else<bool>(msg, SERVICE_MESSAGE_LOGON_STATUS_READY, false);
+					const auto& session_logins = get_or_else<unsigned int>(msg, SERVICE_MESSAGE_LOGON_STATUS_SESSION_LOGINS, 0);
 					log::debug<2, true>("pop_login_service_message: ready={} session_logins={}", ready, session_logins);
 					done = ready && session_logins == expected_num_logins;
 					if (done) {
@@ -318,10 +318,10 @@ namespace zorro {
 	int pop_service_message() {
 		auto n = service_message_queue.pop_all(
 			[](const ServiceMessage& msg) {
-				auto msg_type = get_or_else<std::string>(msg, SERVICE_MESSAGE_TYPE, "unknown");
+				const auto& msg_type = get_or_else<std::string>(msg, SERVICE_MESSAGE_TYPE, "unknown");
 				if (msg_type == SERVICE_MESSAGE_REJECT) {
-					auto reject_type = get_or_else<std::string>(msg, SERVICE_MESSAGE_REJECT_TYPE, "unknown");
-					auto reject_text = get_or_else<std::string>(msg, SERVICE_MESSAGE_REJECT_TEXT, "unknown");
+					const auto& reject_type = get_or_else<std::string>(msg, SERVICE_MESSAGE_REJECT_TYPE, "unknown");
+					const auto& reject_text = get_or_else<std::string>(msg, SERVICE_MESSAGE_REJECT_TEXT, "unknown");
 					log::error<true>("new rejection ServiceMessage obtained type={} text={}", reject_type, reject_text);
 				}
 				service_message_history.emplace_back(msg);
@@ -380,7 +380,7 @@ namespace zorro {
 
 	void get_c_position_reports(std::vector<CFXCMPositionReport>& c_pos_reports, bool is_open) {
 		c_pos_reports.clear();
-		for (const auto kv : position_reports) {
+		for (const auto& kv : position_reports) {
 			const auto& e = kv.second;
 			if (e.is_open == is_open) {
 				CFXCMPositionReport pos_report;
@@ -2187,7 +2187,7 @@ namespace zorro {
 					auto [oit, success] = order_tracker.get_order(it->second);
 
 					if (success) {
-						auto order = oit->second;
+						const auto& order = oit->second;
 						const auto& position_id = get_position_id(order);
 						if (!position_id.empty()) {
 							strncpy(arg->position_id, position_id.c_str(), sizeof(GetOrderPositionIdArg::position_id));
@@ -2210,7 +2210,7 @@ namespace zorro {
 			case BROKER_CMD_GET_ORDER_TRACKER_ORDER_REPORTS: {
 				auto* arg = (GetOrderTrackerOrderReportsArg*)dw_parameter;
 				c_order_tracker_order_reports.clear();
-				for (const auto kv : order_tracker.get_orders()) {
+				for (const auto& kv : order_tracker.get_orders()) {
 					COrderReport order_report;
 					strncpy(order_report.symbol, kv.second.symbol.c_str(), sizeof(COrderReport::symbol));
 					strncpy(order_report.ord_id, kv.second.ord_id.c_str(), sizeof(COrderReport::ord_id));
@@ -2228,12 +2228,13 @@ namespace zorro {
 				}
 				arg->num_reports = c_order_tracker_order_reports.size();
 				arg->reports = c_order_tracker_order_reports.size() > 0 ? c_order_tracker_order_reports.data() : nullptr;
+				return c_order_tracker_order_reports.size();
 			}
 
 			case BROKER_CMD_GET_ORDER_TRACKER_NET_POSITIONS: {
 				auto* arg = (GetOrderTrackerNetPositionsArg*)dw_parameter;
 				c_order_tracker_net_positions.clear();
-				for (const auto kv : order_tracker.get_net_positions()) {
+				for (const auto& kv : order_tracker.get_net_positions()) {
 					CNetPosition net_pos;
 					strncpy(net_pos.symbol, kv.second.symbol.c_str(), sizeof(CNetPosition::symbol));
 					strncpy(net_pos.account, kv.second.account.c_str(), sizeof(CNetPosition::account));
@@ -2243,6 +2244,7 @@ namespace zorro {
 				}
 				arg->num_reports = c_order_tracker_order_reports.size();
 				arg->reports = c_order_tracker_net_positions.size() > 0 ? c_order_tracker_net_positions.data() : nullptr;
+				return c_order_tracker_order_reports.size();
 			}
 
 			case BROKER_CMD_GET_ORDER_MASS_STATUS: {
@@ -2250,6 +2252,7 @@ namespace zorro {
 				get_fxcm_order_mass_status(arg->print > 0);
 				arg->num_reports = c_order_mass_status_reports.size();
 				arg->reports = c_order_mass_status_reports.size() > 0 ? c_order_mass_status_reports.data() : nullptr;
+				return c_order_mass_status_reports.size();
 			}
 
 			case BROKER_CMD_GET_OPEN_POSITION_REPORTS: {
@@ -2257,6 +2260,7 @@ namespace zorro {
 				get_c_position_reports(c_open_position_reports, true);
 				arg->num_reports = c_open_position_reports.size();
 				arg->reports = c_open_position_reports.size() > 0 ? c_open_position_reports.data() : nullptr;
+				return c_open_position_reports.size();
 			}
 
 			case BROKER_CMD_GET_CLOSED_POSITION_REPORTS: {
@@ -2264,6 +2268,7 @@ namespace zorro {
 				get_c_position_reports(c_closed_position_reports, false);
 				arg->reports = c_closed_position_reports.size() > 0 ? c_closed_position_reports.data() : nullptr;
 				arg->num_reports = c_closed_position_reports.size();
+				return c_closed_position_reports.size();
 			}
 
 			default: {
