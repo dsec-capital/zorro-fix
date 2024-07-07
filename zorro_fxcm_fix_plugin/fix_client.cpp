@@ -186,23 +186,23 @@ namespace zorro {
 
 	FixClient::FixClient(
 		const FIX::SessionSettings& session_settings,
-		unsigned int requests_on_logon,
 		unsigned int num_required_session_logins,
 		BlockingTimeoutQueue<ExecReport>& exec_report_queue,
 		BlockingTimeoutQueue<StatusExecReport>& status_exec_report_queue,
 		BlockingTimeoutQueue<TopOfBook>& top_of_book_queue,
 		BlockingTimeoutQueue<ServiceMessage>& service_message_queue,
-		BlockingTimeoutQueue<FXCMPositionReports>& position_reports_queue,
+		BlockingTimeoutQueue<FXCMPositionReport>& position_report_queue, 
+		BlockingTimeoutQueue<FXCMPositionReports>& position_snapshot_reports_queue,
 		BlockingTimeoutQueue<FXCMCollateralReport>& collateral_report_queue,
 		BlockingTimeoutQueue<FXCMTradingSessionStatus>& trading_session_status_queue
 	) : session_settings(session_settings)
-      , requests_on_logon(requests_on_logon)
       , num_required_session_logins(num_required_session_logins)
 	  , exec_report_queue(exec_report_queue)
 	  , status_exec_report_queue(status_exec_report_queue)
 	  , top_of_book_queue(top_of_book_queue)
       , service_message_queue(service_message_queue)
-	  , position_reports_queue(position_reports_queue)
+	  , position_report_queue(position_report_queue)
+      , position_snapshot_reports_queue(position_snapshot_reports_queue)
       , collateral_report_queue(collateral_report_queue)
       , trading_session_status_queue(trading_session_status_queue)
 	  , done(false)
@@ -303,15 +303,6 @@ namespace zorro {
 		);
 
 		service_message_queue.push(service_msg);
-
-		if (is_trading_session(sess_id)) {
-			if (requests_on_logon & static_cast<unsigned int>(RequestsOnLogon::RequestsOnLogon_TradingSessionStatus)) {
-				trading_session_status_request();
-			}
-			if (requests_on_logon & static_cast<unsigned int>(RequestsOnLogon::RequestsOnLogon_CollateralReport)) {
-				collateral_inquiry();
-			}
-		}
 	}
 
 	void FixClient::onLogout(const FIX::SessionID& sess_id)
@@ -598,7 +589,7 @@ namespace zorro {
 				"FixClient::onMessage[FIX44::RequestForPositionsAck]: publish empty position report list text={}",
 				message.getField(FIX::FIELD::Text)
 			);
-			position_reports_queue.push(FXCMPositionReports());
+			position_snapshot_reports_queue.push(FXCMPositionReports());
 		}
 	}
 
@@ -611,7 +602,7 @@ namespace zorro {
 			FIX::PosReqType pos_req_type; 
 			FIX::SettlPrice settle_price;
 			FIX::SettlPriceType settle_price_type;
-			FIX::TotalNumPosReports total_num_reports;
+			FIX::UnsolicitedIndicator unsoliciated_ind;
 
 			// valid for open and closed positions 
 			std::string position_id;
@@ -635,7 +626,6 @@ namespace zorro {
 			message.get(pos_req_type);
 			message.get(settle_price);
 			message.get(settle_price_type);
-			message.get(total_num_reports);
 
 			position_id = message.getField(FXCM_POS_ID);
 			interest = FIX::DoubleConvertor::convert(message.getField(FXCM_POS_INTEREST));
@@ -696,17 +686,36 @@ namespace zorro {
 				.close_cl_ord_id = is_closed ? close_cl_ord_id : std::optional<std::string>(),
 			};
 
-			position_report_list.emplace_back(position_report);
+			message.get(unsoliciated_ind);
 
-			bool is_last = total_num_reports.getValue() == position_report_list.size();
-			if (is_last) {
-				log::debug<dl4, false>("FixClient::onMessage[FIX44::PositionReport]: publish {} position reports", position_report_list.size());
+			if (unsoliciated_ind.getValue()) { // this message is result of a subscription
+				log::debug<dl1, false>("FixClient::onMessage[FIX44::PositionReport]: publish position subscription report");
 
-				FXCMPositionReports reports{
-					.reports = std::move(position_report_list)
-				};
-				position_reports_queue.push(reports);
-				position_report_list = std::vector<FXCMPositionReport>();
+				position_report_queue.push(position_report);
+			}
+			else { // 325=N (snapshot request)
+				FIX::TotalNumPosReports total_num_reports;
+				message.get(total_num_reports);
+
+				bool last = false;
+				if (message.isSetField(FIX::FIELD::LastRptRequested)) {
+					last = message.getField(FIX::FIELD::LastRptRequested) == "Y";
+				}
+
+				position_report_list.emplace_back(position_report);
+
+				bool is_last = total_num_reports.getValue() == position_report_list.size();
+				if (is_last) {
+					log::debug<dl1, false>(
+						"FixClient::onMessage[FIX44::PositionReport]: publish {} position snapshot reports, last={}", 
+						position_report_list.size(), (last ? "true" : "false")
+					);
+					position_snapshot_reports_queue.push(
+						FXCMPositionReports{.reports=std::move(position_report_list)}
+					);
+
+					position_report_list = std::vector<FXCMPositionReport>();
+				}
 			}
 		}
 		catch (FIX::FieldNotFound& error) {
@@ -1194,13 +1203,13 @@ namespace zorro {
 		return request;
 	}
 
-	FIX::Message FixClient::request_for_positions(const std::string& account, int pos_req_type)
+	FIX::Message FixClient::request_for_positions(const std::string& account, int pos_req_type, const char subscription_req_type)
 	{
 		FIX44::RequestForPositions request;
 		request.setField(FIX::PosReqID(id_generator.genID()));
 		request.setField(FIX::PosReqType(pos_req_type));
 		request.setField(FIX::Account(account));
-		request.setField(FIX::SubscriptionRequestType(FIX::SubscriptionRequestType_SNAPSHOT));
+		request.setField(FIX::SubscriptionRequestType(subscription_req_type));
 		request.setField(FIX::AccountType(FIX::AccountType_CARRIED_NON_CUSTOMER_SIDE_CROSS_MARGINED));
 		request.setField(FIX::TransactTime());
 		request.setField(FIX::ClearingBusinessDate());

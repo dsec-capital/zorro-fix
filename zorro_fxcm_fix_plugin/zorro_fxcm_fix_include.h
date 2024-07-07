@@ -6,35 +6,31 @@
 #define BROKER_CMD_CREATE_ASSET_LIST_FILE						2000
 #define BROKER_CMD_CREATE_SECURITY_INFO_FILE					2001
 
-// updated COrderPositionArg struct
+// get the order's position id, pass GetOrderPositionIdArg struct as arg
 #define BROKER_CMD_GET_ORDER_POSITION_ID						2002		
 
 #define BROKER_CMD_PRINT_ORDER_TRACKER							2010
-#define BROKER_CMD_GET_ORDER_TRACKER_NUM_ORDER_REPORTS			2011
-#define BROKER_CMD_GET_ORDER_TRACKER_ORDER_REPORTS				2012
-#define BROKER_CMD_GET_ORDER_TRACKER_NUM_NET_POSITIONS			2013
-#define BROKER_CMD_GET_ORDER_TRACKER_NETPOSITIONS				2014
 
-// initiates order mass status report and returns the size, get it with BROKER_CMD_GET_ORDER_ORDER_MASS_STATUS
-#define BROKER_CMD_GET_ORDER_ORDER_MASS_STATUS_SIZE				2015
-#define BROKER_CMD_GET_ORDER_ORDER_MASS_STATUS					2016
+#define BROKER_CMD_GET_ORDER_TRACKER_ORDER_REPORTS				2011
+#define BROKER_CMD_GET_ORDER_TRACKER_NET_POSITIONS				2012
 
-// initiate a position report request, get it with BROKER_CMD_GET_POSITION_REPORT
-#define BROKER_CMD_GET_OPEN_POSITION_REPORT_SIZE				2017
-#define BROKER_CMD_GET_OPEN_POSITION_REPORT						2018
+// get all order status with a order mass status report, pass GetOrderMassStatusArg
+#define BROKER_CMD_GET_ORDER_MASS_STATUS						2013
 
-// initiate a position report request, get it with BROKER_CMD_GET_POSITION_REPORT
-#define BROKER_CMD_GET_CLOSED_POSITION_REPORT_SIZE				2019
-#define BROKER_CMD_GET_CLOSED_POSITION_REPORT					2020
+// get open position reports, pass GetOpenPositionReportArg 
+#define BROKER_CMD_GET_OPEN_POSITION_REPORT						2014
 
-#define BROKER_CMD_SET_CANCEL_REPLACE_LOT_AMOUNT				2021
+// get open position reports, pass GetOpenPositionReportArg 
+#define BROKER_CMD_GET_CLOSED_POSITION_REPORT					2015
 
-typedef struct COrderPositionArg {
+#define BROKER_CMD_SET_CANCEL_REPLACE_LOT_AMOUNT				2020
+
+typedef struct GetOrderPositionIdArg {
 	int trade_id;				// input
 	char position_id[1024];		// output
 	int trade_not_found;
 	int has_open_position;		 
-} COrderPositionArg;
+} GetOrderPositionIdArg;
 
 // OrderReport from order tracker (calculated via ExecReports)
 typedef struct COrderReport {
@@ -52,6 +48,11 @@ typedef struct COrderReport {
 	char position_id[1024];
 } COrderReport;
 
+typedef struct GetOrderTrackerOrderReportsArg {
+	COrderReport* reports;
+	int num_reports;
+} GetOrderTrackerOrderReportsArg;
+
 // NetPosition from order tracker (calculated via ExecReports)
 typedef struct CNetPosition {
 	char account[1024];
@@ -59,6 +60,11 @@ typedef struct CNetPosition {
 	double avg_px;
 	double qty;
 } CNetPosition;
+
+typedef struct GetOrderTrackerNetPositionsArg {
+	CNetPosition* reports;
+	int num_reports;
+} GetOrderTrackerNetPositionsArg;
 
 // Order status report from order mass status request
 typedef struct CStatusExecReport {
@@ -83,6 +89,12 @@ typedef struct CStatusExecReport {
 	int last_rpt_requested;
 	char position_id[1024];
 } CStatusExecReport;
+
+typedef struct GetOrderMassStatusArg {
+	CStatusExecReport* reports;
+	int num_reports;
+	int print;  
+} GetOrderMassStatusArg;
 
 // Position report obtained via FIX 
 typedef struct CFXCMPositionReport { 
@@ -110,3 +122,8 @@ typedef struct CFXCMPositionReport {
 	char close_order_id[1024];
 	char close_cl_ord_id[1024];
 } CFXCMPositionReport;
+
+typedef struct GetOpenPositionReportArg {
+	CFXCMPositionReport* reports;
+	int num_reports;
+} GetOpenPositionReportArg;

@@ -172,7 +172,7 @@ namespace zorro
 	};
 
 	struct FXCMPositionReports {
-		std::vector< FXCMPositionReport> reports;
+		std::vector<FXCMPositionReport> reports;
 
 		std::string to_string() const;
 	};
@@ -194,13 +194,13 @@ namespace zorro
 	public:
 		FixClient(
 			const FIX::SessionSettings& session_settings,
-			unsigned int requests_on_logon,
 			unsigned int num_required_session_logins, 
 			BlockingTimeoutQueue<ExecReport>& exec_report_queue,
 			BlockingTimeoutQueue<StatusExecReport>& status_exec_report_queue,
 			BlockingTimeoutQueue<TopOfBook>& top_of_book_queue,
 			BlockingTimeoutQueue<ServiceMessage>& service_message_queue,
-			BlockingTimeoutQueue<FXCMPositionReports>& position_reports_queue,
+			BlockingTimeoutQueue<FXCMPositionReport>& position_report_queue,
+			BlockingTimeoutQueue<FXCMPositionReports>& position_snapshot_reports_queue,
 			BlockingTimeoutQueue<FXCMCollateralReport>& collateral_report_queue,
 			BlockingTimeoutQueue<FXCMTradingSessionStatus>& trading_session_status_queue
 		);
@@ -224,7 +224,11 @@ namespace zorro
 		// pos_req_type = 0 for open position, 1 for closed position 
 		// subscription_request_type = FIX::SubscriptionRequestType(FIX::SubscriptionRequestType_SNAPSHOT)
 		// or FIX::SubscriptionRequestType(FIX::SubscriptionRequestType_SNAPSHOT_AND_UPDATES)
-		FIX::Message request_for_positions(const std::string& account, int pos_req_type);
+		FIX::Message request_for_positions(
+			const std::string& account, 
+			int pos_req_type, 
+			const char subscription_req_type = FIX::SubscriptionRequestType_SNAPSHOT_AND_UPDATES
+		);
 
 		// Sends OrderMassStatusRequest to get status of all open orders
 		FIX::Message order_mass_status_request();
@@ -340,13 +344,13 @@ namespace zorro
 		};
 
 		FIX::SessionSettings session_settings;
-		unsigned int requests_on_logon;
 		unsigned int num_required_session_logins;
 		BlockingTimeoutQueue<ExecReport>& exec_report_queue;
 		BlockingTimeoutQueue<StatusExecReport>& status_exec_report_queue;
 		BlockingTimeoutQueue<TopOfBook>& top_of_book_queue;
 		BlockingTimeoutQueue<ServiceMessage>& service_message_queue;
-		BlockingTimeoutQueue<FXCMPositionReports>& position_reports_queue;
+		BlockingTimeoutQueue<FXCMPositionReport>& position_report_queue;
+		BlockingTimeoutQueue<FXCMPositionReports>& position_snapshot_reports_queue;
 		BlockingTimeoutQueue<FXCMCollateralReport>& collateral_report_queue;
 		BlockingTimeoutQueue<FXCMTradingSessionStatus>& trading_session_status_queue;
 
