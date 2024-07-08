@@ -39,6 +39,7 @@
 #include "common/fix.h"
 
 #include <variant>
+#include <future>
 
 namespace zorro
 {
@@ -51,6 +52,17 @@ namespace zorro
 	typedef std::map<
 		std::string, std::variant<bool, int, unsigned int, double, std::string>
 	> ServiceMessage;
+
+	template<class T>
+	inline const T& sm_get_or_else(const ServiceMessage& map, const std::string_view& key, const T& other) {
+		auto it = map.find(std::string(key));
+		if (it != map.end()) {
+			return std::get<T>(it->second);
+		}
+		else {
+			return other;
+		}
+	}
 
 	constexpr std::string_view SERVICE_MESSAGE_TYPE = "type";
 	constexpr std::string_view SERVICE_MESSAGE_LOGON_STATUS = "logon_status";

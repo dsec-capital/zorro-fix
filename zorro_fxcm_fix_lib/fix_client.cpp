@@ -295,7 +295,7 @@ namespace zorro {
 		session_login_status.insert_or_assign(sess_id.toString(), true);
 		
 		auto service_msg = logon_service_message();
-		auto session_logins = get_or_else<unsigned int>(service_msg, SERVICE_MESSAGE_LOGON_STATUS_SESSION_LOGINS, 0);
+		auto session_logins = sm_get_or_else<unsigned int>(service_msg, SERVICE_MESSAGE_LOGON_STATUS_SESSION_LOGINS, 0);
 
 		log::debug<dl0, false>(
 			"FixClient::onLogon sessionID={} login count={} status={}", 

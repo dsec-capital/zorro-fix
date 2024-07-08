@@ -4,8 +4,8 @@
 
 #include "pch.h"
 
-#include "fix_client.h"
-#include "fix_service.h"
+#include "zorro_fxcm_fix_lib/fix_client.h"
+#include "zorro_fxcm_fix_lib/fix_service.h"
 #include "zorro_fxcm_fix_plugin.h"
 
 #include "common/market_data.h"
@@ -54,12 +54,13 @@ namespace zorro {
 
 	httplib::Client rest_client(std::format("{}:{}", rest_host, rest_port));
 
+	std::string settings_cfg_file = "Plugin/zorro_fxcm_fix_client.cfg";
+
 	int max_snaphsot_waiting_iterations = 10; 
 	std::chrono::milliseconds fix_waiting_time = 2000ms;
 	std::chrono::milliseconds fix_login_waiting_time = 10000ms;
 	std::chrono::milliseconds fix_exec_report_waiting_time = 500ms;
 	std::chrono::milliseconds fix_termination_waiting_time = 4000ms;
-	std::string settings_cfg_file = "Plugin/zorro_fxcm_fix_client.cfg";
 	unsigned int num_required_session_logins = 2;
 
 	int client_order_id = 0;
@@ -144,7 +145,7 @@ namespace zorro {
 		auto n = position_report_queue.pop_all(
 			[](const FXCMPositionReport& report) {
 				position_reports[report.position_id] = report;
-				log::debug<dl2, true>("pop_position_reports: report changed={}", report.to_string());
+				log::debug<dl1, true>("pop_position_reports: report changed={}", report.to_string());
 			}
 		);
 		return n;
@@ -289,17 +290,6 @@ namespace zorro {
 		return target_report;
 	}
 
-	template<class T>
-	inline const T& get_or_else(const ServiceMessage& map, const std::string_view& key, const T& other) {
-		auto it = map.find(std::string(key));
-		if (it != map.end()) {
-			return std::get<T>(it->second);
-		}
-		else {
-			return other;
-		}
-	}
-
 	template<class R, class P>
 	std::optional<ServiceMessage> pop_login_service_message(int expected_num_logins, const std::chrono::duration<R, P>& timeout) {
 		log::debug<dl2, true>("pop_login_service_message: expected_num_logins={}", expected_num_logins);
@@ -307,11 +297,11 @@ namespace zorro {
 		auto success = service_message_queue.pop_until(
 			[&](const ServiceMessage& msg) {
 				bool done = false;
-				const auto& msg_type = get_or_else<std::string>(msg, SERVICE_MESSAGE_TYPE, "unknown");
+				const auto& msg_type = sm_get_or_else<std::string>(msg, SERVICE_MESSAGE_TYPE, "unknown");
 				log::debug<dl2, true>("pop_login_service_message: service message type={}", msg_type);
 				if (msg_type == SERVICE_MESSAGE_LOGON_STATUS) {
-					const auto& ready = get_or_else<bool>(msg, SERVICE_MESSAGE_LOGON_STATUS_READY, false);
-					const auto& session_logins = get_or_else<unsigned int>(msg, SERVICE_MESSAGE_LOGON_STATUS_SESSION_LOGINS, 0);
+					const auto& ready = sm_get_or_else<bool>(msg, SERVICE_MESSAGE_LOGON_STATUS_READY, false);
+					const auto& session_logins = sm_get_or_else<unsigned int>(msg, SERVICE_MESSAGE_LOGON_STATUS_SESSION_LOGINS, 0);
 					log::debug<dl2, true>("pop_login_service_message: ready={} session_logins={}", ready, session_logins);
 					done = ready && session_logins == expected_num_logins;
 					if (done) {
@@ -328,10 +318,10 @@ namespace zorro {
 	int pop_service_message() {
 		auto n = service_message_queue.pop_all(
 			[](const ServiceMessage& msg) {
-				const auto& msg_type = get_or_else<std::string>(msg, SERVICE_MESSAGE_TYPE, "unknown");
+				const auto& msg_type = sm_get_or_else<std::string>(msg, SERVICE_MESSAGE_TYPE, "unknown");
 				if (msg_type == SERVICE_MESSAGE_REJECT) {
-					const auto& reject_type = get_or_else<std::string>(msg, SERVICE_MESSAGE_REJECT_TYPE, "unknown");
-					const auto& reject_text = get_or_else<std::string>(msg, SERVICE_MESSAGE_REJECT_TEXT, "unknown");
+					const auto& reject_type = sm_get_or_else<std::string>(msg, SERVICE_MESSAGE_REJECT_TYPE, "unknown");
+					const auto& reject_text = sm_get_or_else<std::string>(msg, SERVICE_MESSAGE_REJECT_TEXT, "unknown");
 					log::error<true>("new rejection ServiceMessage obtained type={} text={}", reject_type, reject_text);
 				}
 				service_message_history.emplace_back(msg);

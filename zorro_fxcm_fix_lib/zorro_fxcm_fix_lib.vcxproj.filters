@@ -15,28 +15,24 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <None Include="cpp.hint" />
-    <None Include="zorro_fxcm_fix_client_template.cfg" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="zorro_fxcm_fix_plugin.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="pch.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="zorro_fxcm_fix_include.h">
+    <ClInclude Include="fix_client.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="fix_service.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="zorro_fxcm_fix_plugin.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="dllmain.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="pch.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="fix_service.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="fix_client.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

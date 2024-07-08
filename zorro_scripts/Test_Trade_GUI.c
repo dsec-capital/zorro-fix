@@ -128,8 +128,8 @@ int tmf(var TradeIdx, var LimitPrice) {
 	int c = 0;
 	panelSet(row, c++, strtr(ThisTrade), ColorPanel[2], 1, 4);
 	panelSet(row, c++, sftoa((var)TradeID, 0), ColorPanel[2], 1, 1);
-	if (TradeID == 0)
-		panelSet(row, c, "Faild", ORANGE, 2, 4);	// failed or rejected
+	if (TradeID == 0)  // some strange 
+		panelSet(row, c, "Faild", ORANGE, 1, 1);	// failed or rejected
 	else if (LimitPrice == 0)
 		panelSet(row, c, "Filled", ORANGE, 1, 1);	// market order
 	else if (Filled)
@@ -196,7 +196,7 @@ void doTrade(int What)
 			printf("\n==> Limit Buy at OrderLimit=%.5f [%s] from top %.5f limit depth %i", OrderLimit, ifelse(AbsLimitLevel, "ABS", "REL"), TopBid, LimitDepth);
 			TRADE* trade = enterLong(tmf, (var)NextTradeIdx, OrderLimit);
 			if (!trade) {
-				panelSet(NextTradeIdx, OrderActionCol, "Failed", ORANGE, 2, 4);
+				panelSet(TradePanelOffset + NextTradeIdx, OrderActionCol, "Failed", ORANGE, 1, 1);
 			}
 			NextTradeIdx++;
 			OrderLimit = 0;
@@ -205,7 +205,7 @@ void doTrade(int What)
 			printf("\n==> Market Buy at top %.5f", TopBid);
 			TRADE* trade = enterLong(tmf, (var)NextTradeIdx, 0);
 			if (!trade) {
-				panelSet(NextTradeIdx, OrderActionCol, "Failed", ORANGE, 2, 4);
+				panelSet(TradePanelOffset + NextTradeIdx, OrderActionCol, "Failed", ORANGE, 1, 1);
 			}
 			NextTradeIdx++;
 		}
@@ -224,7 +224,7 @@ void doTrade(int What)
 			printf("\n==> Limit Sell at OrderLimit=%.5f from top %.5f limit depth %i", OrderLimit, TopAsk, LimitDepth);
 			TRADE* trade = enterShort(tmf, (var)NextTradeIdx, OrderLimit);
 			if (!trade) {
-				panelSet(NextTradeIdx, OrderActionCol, "Failed", ORANGE, 2, 4);
+				panelSet(TradePanelOffset + NextTradeIdx, OrderActionCol, "Failed", ORANGE, 1, 1);
 			}
 			NextTradeIdx++;
 			OrderLimit = 0;
@@ -233,7 +233,7 @@ void doTrade(int What)
 			printf("\n==> Market Sell at top %.5f", TopAsk);
 			TRADE* trade = enterShort(tmf, (var)NextTradeIdx, 0);
 			if (!trade) {
-				panelSet(NextTradeIdx, OrderActionCol, "Failed", ORANGE, 2, 4);
+				panelSet(TradePanelOffset + NextTradeIdx, OrderActionCol, "Failed", ORANGE, 1, 1);
 			}
 			NextTradeIdx++;
 		}
