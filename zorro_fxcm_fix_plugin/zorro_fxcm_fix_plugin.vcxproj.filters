@@ -17,6 +17,7 @@
   <ItemGroup>
     <None Include="cpp.hint" />
     <None Include="zorro_fxcm_fix_client_template.cfg" />
+    <None Include="zorro_fxcm_fix_plugin_config.toml" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="zorro_fxcm_fix_plugin.h">

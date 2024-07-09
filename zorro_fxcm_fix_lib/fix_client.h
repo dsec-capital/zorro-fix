@@ -228,7 +228,9 @@ namespace zorro
 		FIX::Message trading_session_status_request();
 
 		// Sends the CollateralInquiry message in order to receive a CollateralReport message.
-		FIX::Message collateral_inquiry();
+		FIX::Message collateral_inquiry(
+			const char subscription_req_type = FIX::SubscriptionRequestType_SNAPSHOT_AND_UPDATES
+		);
 
 		// Sends RequestForPositions in order to receive a PositionReport messages if positions
 		// matching the requested criteria exist; otherwise, a RequestForPositionsAck will be

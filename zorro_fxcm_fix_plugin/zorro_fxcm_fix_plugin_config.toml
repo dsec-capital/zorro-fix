@@ -1,0 +1,22 @@
+[zorro]
+internal_order_id_start=1000
+dump_bars_to_file = false
+
+[log]
+spdlog_level = "debug"
+spdlog_logging_verbosity = 1
+spdlog_flush_interval_s = 2
+
+[fix]
+num_required_session_logins = 2
+waiting_time_ms = 2000
+login_waiting_time_ms = 10000
+exec_report_waiting_time_ms = 1000
+termination_waiting_time_ms = 2000
+
+["fxcm"]
+connection = "Demo"
+fxcm_market_data_server_host = "http://localhost"
+fxcm_market_data_server_port = 8083
+
+

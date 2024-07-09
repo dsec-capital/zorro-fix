@@ -1188,13 +1188,13 @@ namespace zorro {
 		return request;
 	}
 
-	FIX::Message FixClient::collateral_inquiry()
+	FIX::Message FixClient::collateral_inquiry(const char subscription_req_type)
 	{
 		// will trigger a CollateralReport for each account under the login
 		FIX44::CollateralInquiry request;
 		request.setField(FIX::CollInquiryID(id_generator.genID()));
 		request.setField(FIX::TradingSessionID("FXCM"));
-		request.setField(FIX::SubscriptionRequestType(FIX::SubscriptionRequestType_SNAPSHOT));
+		request.setField(FIX::SubscriptionRequestType(subscription_req_type));
 
 		log::debug<dl4, false>("FixClient::collateral_inquiry: {}", fix_string(request));
 

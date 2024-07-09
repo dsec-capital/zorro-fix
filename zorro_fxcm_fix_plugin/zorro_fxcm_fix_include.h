@@ -11,26 +11,40 @@
 
 #define BROKER_CMD_PRINT_ORDER_TRACKER							2010
 
-#define BROKER_CMD_GET_ORDER_TRACKER_ORDER_REPORTS				2011
-#define BROKER_CMD_GET_ORDER_TRACKER_NET_POSITIONS				2012
+// print the position reports which are maintained from listening to streaming position updates
+// takes bitmask argument to filter positions print_open = arg & (1 << 0), print_closed = arg & (1 << 2)
+#define BROKER_CMD_PRINT_POSIITION_REPORTS						2011
+#define PrintOpenPositionReports (1 << 0)
+#define PrintClosedPositionReports (1 << 0)
+#define PrintAllPositionReports (PrintOpenPositionReports + PrintClosedPositionReports)
+
+#define BROKER_CMD_PRINT_COLLATERAL_REPORTS						2012
+
+#define BROKER_CMD_GET_ORDER_TRACKER_ORDER_REPORTS				2015
+#define BROKER_CMD_GET_ORDER_TRACKER_NET_POSITIONS				2016
 
 // get all order status with a order mass status report, pass GetOrderMassStatusArg
-#define BROKER_CMD_GET_ORDER_MASS_STATUS						2013
+#define BROKER_CMD_GET_ORDER_MASS_STATUS						2017
 
 // get open position reports, pass GetOpenPositionReportArg 
-#define BROKER_CMD_GET_OPEN_POSITION_REPORTS					2014
+#define BROKER_CMD_GET_OPEN_POSITION_REPORTS					2018
 
 // get open position reports, pass GetOpenPositionReportArg 
-#define BROKER_CMD_GET_CLOSED_POSITION_REPORTS					2015
+#define BROKER_CMD_GET_CLOSED_POSITION_REPORTS					2019
 
-#define BROKER_CMD_SET_CANCEL_REPLACE_LOT_AMOUNT				2020
-
+// Argument struct for broker command BROKER_CMD_GET_ORDER_POSITION_ID
 typedef struct GetOrderPositionIdArg {
 	int trade_id;				// input
 	char position_id[1024];		// output
 	int trade_not_found;
 	int has_open_position;		 
 } GetOrderPositionIdArg;
+
+// Argument struct for broker command DO_CANCEL - attention, more general than in Zorro doc
+typedef struct DoCancelArg {
+	int trade_id;				// input
+	int amount;					// input
+} DoCancelArg;
 
 // OrderReport from order tracker (calculated via ExecReports)
 typedef struct COrderReport {
