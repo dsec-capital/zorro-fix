@@ -46,13 +46,13 @@ namespace zorro {
 
 	FixService::~FixService() {
 		if (!initiator->isStopped()) {
-			initiator->stop();
+			initiator->stop(true);
 		}
 		delete initiator;
-		delete settings;
 		delete store_factory;
 		delete log_factory;
 		delete fix_client;
+		delete settings;
 	}
 
 #ifdef HAVE_SSL

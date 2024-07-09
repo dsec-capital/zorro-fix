@@ -158,6 +158,30 @@ namespace fxcm {
 		return message;
 	}
 
+	template<class R, class P>
+	std::optional<ServiceMessage> pop_logout_service_message(const std::chrono::duration<R, P>& timeout) {
+		log::debug<dl2, true>("pop_logout_service_message");
+		std::optional<ServiceMessage> message = std::optional<ServiceMessage>();
+		auto success = service_message_queue.pop_until(
+			[&](const ServiceMessage& msg) {
+				bool done = false;
+				const auto& msg_type = sm_get_or_else<std::string>(msg, SERVICE_MESSAGE_TYPE, "unknown");
+				log::debug<dl2, true>("pop_logout_service_message: service message type={}", msg_type);
+				if (msg_type == SERVICE_MESSAGE_LOGON_STATUS) {
+					const auto& session_logins = sm_get_or_else<unsigned int>(msg, SERVICE_MESSAGE_LOGON_STATUS_SESSION_LOGINS, 1); // make if non-zero to really wait for 0
+					log::debug<dl2, true>("pop_logout_service_message: session_logins={}", session_logins);
+					done = session_logins == 0;
+					if (done) {
+						message = std::optional<ServiceMessage>(msg);
+					}
+				}
+				return done;
+			}, timeout
+		);
+		log::debug<dl2, true>("pop_logout_service_message: message found={}", message.has_value());
+		return message;
+	}
+
 	int pop_service_message() {
 		auto n = service_message_queue.pop_all(
 			[](const ServiceMessage& msg) {

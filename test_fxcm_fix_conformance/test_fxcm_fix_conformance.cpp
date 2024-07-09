@@ -45,17 +45,44 @@ void test_login() {
 		log::debug<0, true>("FIX login failed");
 	}
 
+	std::this_thread::sleep_for(1s);
+
+	log::debug<0, true>("waiting for FIX logout...");
+	service->client().logout();
+
+	auto fix_logout_msg = pop_logout_service_message(2s);
+	if (fix_logout_msg) {
+		log::debug<0, true>("FIX lougout successful");
+	}
+	else {
+		log::debug<0, true>("FIX logout failed");
+	}
+
 	service->cancel();
 }
 
+/*	
+	Limitations:
+
+	For unknown reasons QuickFix x86 build has an issue when destructing a SocketInitiator.
+	The x64 bit version seems to work all fine.
+
+*/
 int main()
 {
 	auto cwd = std::filesystem::current_path().string();
 
 	auto spd_logger = create_logger("test_fxcm_fix_conformace.log", spdlog::level::debug);
 
-	test_login();
+	try {
 
-    std::cout << "Hello World!\n";
+		test_login();
+
+	}
+	catch (FIX::UnsupportedMessageType& e) {
+		log::debug<0, true>("unsupported message type {}", e.what());
+	}
+
+    std::cout << "tests completed" << std::endl;
 }
 

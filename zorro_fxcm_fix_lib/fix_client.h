@@ -27,6 +27,8 @@
 #include "quickfix/fix44/TradingSessionStatus.h"
 #include "quickfix/fix44/TradingSessionStatusRequest.h"
 #include "quickfix/fix44/BusinessMessageReject.h"
+#include "quickfix/fix44/Logon.h"
+#include "quickfix/fix44/Logout.h"
 
 #include "spdlog/spdlog.h"
 
@@ -292,6 +294,8 @@ namespace zorro
 			const std::optional<std::string>& position_id = std::optional<std::string>(),
 			const std::optional<FIX::Account>& account = std::optional<FIX::Account>()
 		) const;
+
+		void logout();
 
 	private:
 

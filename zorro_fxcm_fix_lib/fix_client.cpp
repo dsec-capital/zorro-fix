@@ -1388,6 +1388,12 @@ namespace zorro {
 		return std::optional<FIX::Message>(request);
 	}
 
+	void FixClient::logout() {
+		FIX44::Logout logout;
+		FIX::Session::sendToTarget(logout, trading_session_id);
+		FIX::Session::sendToTarget(logout, market_data_session_id);
+	}
+
 	bool FixClient::has_book(const std::string& symbol) {
 		return top_of_books.contains(symbol);
 	}

@@ -153,7 +153,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
       <AdditionalLibraryDirectories>$(SolutionDir)$(LibrariesArchitecture)\$(Configuration);$(SolutionDir)third-parties\quickfix\$(LibrariesArchitecture)-$(Configuration)\lib</AdditionalLibraryDirectories>
-      <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);quickfixd.lib;common.lib;zorro_common.lib;zorro_fxcm_fix_lib.lib</AdditionalDependencies>
+      <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);quickfixd.lib;ws2_32.lib;common.lib;zorro_common.lib;zorro_fxcm_fix_lib.lib</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>"$(SolutionDir)scripts\copy_zorro_scripts_x64.bat"</Command>
@@ -179,7 +179,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
       <AdditionalLibraryDirectories>$(SolutionDir)$(LibrariesArchitecture)\$(Configuration);$(SolutionDir)third-parties\quickfix\$(LibrariesArchitecture)-$(Configuration)\lib</AdditionalLibraryDirectories>
-      <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);quickfix.lib;common.lib;zorro_common.lib;zorro_fxcm_fix_lib.lib</AdditionalDependencies>
+      <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);quickfix.lib;ws2_32.lib;common.lib;zorro_common.lib;zorro_fxcm_fix_lib.lib</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>"$(SolutionDir)scripts\copy_zorro_scripts_x64.bat"</Command>
