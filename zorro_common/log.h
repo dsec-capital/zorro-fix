@@ -81,8 +81,8 @@ namespace zorro {
 		spdlog::set_level(log_level);
 		spdlog::flush_every(flush_interval);
 		log::debug<2, true>(
-			"Logging started, log_filename={}, level={}, cwd={}", 
-			log_filename, static_cast<int>(spd_logger->level()), cwd
+			"Logging started, log_filename={}, level={}, logging_verbosity={}, cwd={}", 
+			log_filename, static_cast<int>(spd_logger->level()), log::logging_verbosity, cwd
 		);
 		return spd_logger;
 	}

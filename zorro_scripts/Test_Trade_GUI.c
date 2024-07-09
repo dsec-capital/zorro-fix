@@ -29,6 +29,7 @@ int PositionActionCol;
 GetOrderPositionIdArg order_pos_arg;
 GetOrderMassStatusArg order_mass_status_arg;
 GetPositionReportArg position_report_arg;
+CancelReplaceArg cancel_replace_arg;
 
 void setupPannel() {
 	int n = 0;
@@ -42,6 +43,7 @@ void setupPannel() {
 	panelSet(0, n++, "OrdTracker[P]", YELLOW, 1, 4);
 	panelSet(0, n++, "OpenPos[P]", YELLOW, 1, 4);
 	panelSet(0, n++, "ClosedPos[P]", YELLOW, 1, 4);
+	panelSet(0, n++, "Collat[P]", YELLOW, 1, 4);
 	panelSet(0, n++, "OrdStatus[P]", YELLOW, 1, 4);
 	panelSet(0, n, ifelse(AbsLimitLevel, "Lmt[ABS]", "Lmt[REL]"), YELLOW, 1, 4);
 	panelSet(1, n, "0", 0, 1, 2);
@@ -258,43 +260,46 @@ void click(int row, int col)
 		int id = atoi(panelGet(row, 1));
 		for (open_trades) {
 			if (TradeID == id) {
-				printf("\n***** %s found trade - going to cancel", strtr(ThisTrade));
-
 				bool Cancelable = TradeLots < TradeLotsTarget && (TradeIsOpen || TradeIsPending);
+				int new_lots_gui = atoi(panelGet(PartCancelAmountRow, PartCancelAmountCol));
+				int new_lots = ifelse(CancelAll, 0, new_lots_gui);
+				printf("\n***** going to cancel %s | %i to new_lots=%i", strtr(ThisTrade), ThisTrade->nID, new_lots);
+
 				if (Cancelable) {
 					if (CancelWithBrokerCmd) {
-						int newLots = 0;
-						if (CancelAll) {
-							brokerCommand(BROKER_CMD_SET_CANCEL_REPLACE_LOT_AMOUNT, 0);
-							printf("\nfull cancel with brokerCommand");
-						}
-						else {
-							newLots = atoi(panelGet(PartCancelAmountRow, PartCancelAmountCol));
-							brokerCommand(BROKER_CMD_SET_CANCEL_REPLACE_LOT_AMOUNT, newLots);
-							printf("\npartial cancel with brokerCommand to new lots %i", newLots);
-						}
-						int result = brokerCommand(DO_CANCEL, ThisTrade->nID);
-						if (result) {
-							if (newLots > 0) {
-								ThisTrade->nLotsTarget = newLots;
-								printf("\npartial cancel with brokerCommand to new lot %i", newLots);
+						cancel_replace_arg.trade_id = ThisTrade->nID;
+						cancel_replace_arg.amount = new_lots;
+						printf("\ncancel with brokerCommand");
+						int res = brokerCommand(DO_CANCEL, (void*)&cancel_replace_arg);
+						if (res) {
+							if (new_lots > 0) {
+								ThisTrade->nLotsTarget = new_lots;
+								printf("\npartial cancel - update nLotsTarget to new lot %i", new_lots);
 							}
 							else {
 								cancelTrade(ThisTrade->nID);
 							}
+							panelSet(row, col, "Cancelled", OLIVE, 1, 1);
 						}
 						else {
-							printf("\nDO_CANCEL failed result=%i", result);
+							printf("\nDO_CANCEL failed");
+							panelSet(row, col, "Failed", OLIVE, 1, 1);
 						}
 					}
 					else {
-						printf("\n  cancel with exit trade fully only");
-						exitTrade(ThisTrade);
+						printf("\ncancel with exit trade - Zorro limitation: only full cancel supported - cancel full");
+						// int res = exitTrade(ThisTrade, 0, new_lots); // Zorro bug, new_lots is not passed to BrokerSell2
+						int res = exitTrade(ThisTrade);
+						if (res) {
+							panelSet(row, col, "Cancelled", OLIVE, 1, 1);
+						}
+						else {
+							panelSet(row, col, "Failed", OLIVE, 1, 1);
+						}
 					}
-					panelSet(row, col, "Cancelled", OLIVE, 1, 1);
 				}
 				else {
-					printf("\n  trade not cancelable");
+					printf("\ntrade not cancelable");
 				}
 			}
 		}
@@ -380,9 +385,14 @@ void click(int row, int col)
 	}
 	else if (Text == "OpenPos[P]") {
 		brokerCommand(BROKER_CMD_GET_OPEN_POSITION_REPORTS, (void*)&position_report_arg);
+		brokerCommand(BROKER_CMD_PRINT_POSIITION_REPORTS, 1);
 	}
 	else if (Text == "ClosedPos[P]") {
 		brokerCommand(BROKER_CMD_GET_CLOSED_POSITION_REPORTS, (void*)&position_report_arg);
+		brokerCommand(BROKER_CMD_PRINT_POSIITION_REPORTS, 2);
+	}
+	else if (Text == "Collat[P]") {
+		brokerCommand(BROKER_CMD_PRINT_COLLATERAL_REPORTS, 0);
 	}
 	else if (Text == "OrdStatus[P]") {
 		brokerCommand(BROKER_CMD_GET_ORDER_MASS_STATUS, (void*)&order_mass_status_arg);

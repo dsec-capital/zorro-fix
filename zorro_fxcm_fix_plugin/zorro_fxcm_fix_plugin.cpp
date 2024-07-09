@@ -60,6 +60,9 @@ namespace zorro {
 	auto rest_host_env = common::get_env("FXCM_MAKRET_DATA_SERVER_HOST").value_or("http://localhost");
 	auto rest_port_env = common::get_env("FXCM_MAKRET_DATA_SERVER_PORT").value_or("8083");
 
+	auto zorro_install_dir = common::get_env("ZorroInstallDir").value_or("C:/temp");
+	auto zorro_log_dir = std::format("{}/Log", zorro_install_dir);
+
 	toml::table tbl = toml::parse_file(plugin_cfg_file);
 	auto fix_cfg = tbl["fix"];
 	auto log_cfg = tbl["log"];
@@ -631,7 +634,7 @@ namespace zorro {
 		{
 			if (!spd_logger) {
 				auto postfix = timestamp_postfix();
-				auto logger_name = std::format("Log/zorro_fxcm_fix_plugin_spdlog_{}.log", postfix);
+				auto logger_name = std::format("{}/zorro_fxcm_fix_plugin_spdlog_{}.log", zorro_log_dir, postfix);
 				spd_logger = create_file_logger(logger_name, spdlog_level, spdlog_flush_interval);
 			}
 		}
@@ -1455,80 +1458,6 @@ namespace zorro {
 
 					return trade_id;
 				}
-				//else if (order.ord_status == FIX::OrdStatus_NEW) {
-				//	auto ord_type = FIX::OrdType(order.ord_type);
-				//	auto side = FIX::Side(order.side);
-				//	auto tif = FIX::TimeInForce(order.tif);
-				//	auto price = FIX::Price(order.price);
-
-				//	auto new_qty = max(order.order_qty - std::abs(amount), 0);
-
-				//	if (new_qty == 0) { // cancel
-				//		log::debug<dl1, true>("BrokerSell2[OrdStatus_NEW]: cancel order_qty {}", order.leaves_qty);
-
-				//		auto msg = fix_service->client().order_cancel_request(
-				//			symbol, ord_id, orig_cl_ord_id, cl_ord_id, side, FIX::OrderQty(order.leaves_qty), position_id
-				//		);
-
-				//		if (!msg.has_value()) {
-				//			log::error<true>("BrokerSell2[OrdStatus_NEW]: failed to create OrderCancelRequest");
-				//			return 0;
-				//		}
-
-				//		auto report = pop_exec_report_cancel(ord_id.getString(), fix_exec_report_waiting_time);
-
-				//		if (!report.has_value()) {
-				//			log::error<true>(
-				//				"BrokerSell2[OrdStatus_NEW]: timeout after {} while waiting for FIX exec report on cancel order",
-				//				fix_exec_report_waiting_time
-				//			);
-				//			return 0;
-				//		}
-
-				//		if (report.value().exec_type == FIX::ExecType_REJECTED && report.value().ord_status == FIX::OrdStatus_REJECTED) {
-				//			log::error<true>(
-				//				"BrokerSell2[OrdStatus_NEW]: rejected order cl_ord_id{} reason={}", report.value().cl_ord_id, report.value().text
-				//			);
-				//			return 0;
-				//		}
-
-				//		return trade_id;
-				//	}
-				//	else { // cancel replace
-				//		log::debug<dl1, true>(
-				//			"BrokerSell2[OrdStatus_NEW]: cancel/replace remaining quantity {} to new quantity {}", 
-				//			order.leaves_qty, new_qty
-				//		);
-
-				//		auto msg = fix_service->client().order_cancel_replace_request(
-				//			symbol, ord_id, orig_cl_ord_id, cl_ord_id, side, ord_type, FIX::OrderQty(new_qty), price, tif, position_id
-				//		);
-
-				//		if (!msg.has_value()) {
-				//			log::error<true>("BrokerSell2[OrdStatus_NEW]: failed to create OrderCancelReplaceRequest");
-				//			return 0;
-				//		}
-
-				//		auto report = pop_exec_report_cancel_replace(ord_id.getString(), fix_exec_report_waiting_time);
-
-				//		if (!report.has_value()) {
-				//			log::error<true>(
-				//				"BrokerSell2[OrdStatus_NEW]: timeout after {} while waiting for FIX exec report on cancel/replace order",
-				//				fix_exec_report_waiting_time
-				//			);
-				//			return 0;
-				//		}
-
-				//		if (report.value().exec_type == FIX::ExecType_REJECTED && report.value().ord_status == FIX::OrdStatus_REJECTED) {
-				//			log::error<true>(
-				//				"BrokerSell2[OrdStatus_NEW]: rejected order cl_ord_id{} reason={}", report.value().cl_ord_id, report.value().text
-				//			);
-				//			return 0;
-				//		}
-
-				//		return trade_id;
-				//	}
-				//} 
 				else {
 					// it is possible that leaves_qty < amount <= order_qty
 					// in this case we have to
@@ -1541,14 +1470,14 @@ namespace zorro {
 					auto price = FIX::Price(order.price);
 
 					if (std::abs(amount) == order.leaves_qty) { // cancel all
-						log::debug<dl1, true>("BrokerSell2[OrdStatus_PARTIALLY_FILLED]: cancel order_qty {}", order.leaves_qty);
+						log::debug<dl1, true>("BrokerSell2: cancel order_qty {}", order.leaves_qty);
 
 						auto msg = fix_service->client().order_cancel_request(
 							symbol, ord_id, orig_cl_ord_id, cl_ord_id, side, FIX::OrderQty(order.leaves_qty), position_id
 						);
 
 						if (!msg.has_value()) {
-							log::error<true>("BrokerSell2[OrdStatus_PARTIALLY_FILLED]: failed to create OrderCancelRequest");
+							log::error<true>("BrokerSell2: failed to create OrderCancelRequest");
 							return 0;
 						}
 
@@ -1564,17 +1493,17 @@ namespace zorro {
 
 						if (report.value().exec_type == FIX::ExecType_REJECTED && report.value().ord_status == FIX::OrdStatus_REJECTED) {
 							log::error<true>(
-								"BrokerSell2[OrdStatus_PARTIALLY_FILLED]: rejected order cl_ord_id{} reason={}", 
+								"BrokerSell2: rejected order cl_ord_id{} reason={}", 
 								report.value().cl_ord_id, report.value().text
 							);
 							return 0;
 						}
 					}
-					else if (std::abs(amount) < order.leaves_qty) { // cancel replace
+					else if (std::abs(amount) < order.leaves_qty) { // cancel replace - Zorro bug, amount not properly forwarded to BrokerSell2
 						auto new_qty = max(order.leaves_qty - std::abs(amount), 0);
 
 						log::debug<dl1, true>(
-							"BrokerSell2[OrdStatus_PARTIALLY_FILLED]: cancel/replace remaining quantity {} to new quantity {}", 
+							"BrokerSell2: cancel/replace remaining quantity {} to new quantity {}", 
 							order.leaves_qty, new_qty
 						);
 
@@ -1583,7 +1512,7 @@ namespace zorro {
 						);
 
 						if (!msg.has_value()) {
-							log::error<true>("BrokerSell2[OrdStatus_PARTIALLY_FILLED]: failed to create OrderCancelReplaceRequest");
+							log::error<true>("BrokerSell2: failed to create OrderCancelReplaceRequest");
 							return 0;
 						}
 
@@ -1591,7 +1520,7 @@ namespace zorro {
 
 						if (!report.has_value()) {
 							log::error<true>(
-								"BrokerSell2[OrdStatus_PARTIALLY_FILLED]: timeout after {} while waiting for FIX exec report on cancel/replace order",
+								"BrokerSell2: timeout after {} while waiting for FIX exec report on cancel/replace order",
 								fix_exec_report_waiting_time
 							);
 							return 0;
@@ -1599,18 +1528,18 @@ namespace zorro {
 
 						if (report.value().exec_type == FIX::ExecType_REJECTED && report.value().ord_status == FIX::OrdStatus_REJECTED) {
 							log::error<true>(
-								"BrokerSell2[OrdStatus_PARTIALLY_FILLED]: rejected order cl_ord_id{} reason={}", report.value().cl_ord_id, report.value().text
+								"BrokerSell2: rejected order cl_ord_id{} reason={}", report.value().cl_ord_id, report.value().text
 							);
 							return 0;
 						}
 					}
-					else { // std::abs(amount) > order.leaves_qty 
+					else { // std::abs(amount) > order.leaves_qty - Zorro bug, amount not properly forwarded to BrokerSell2
 						auto msg = fix_service->client().order_cancel_request(
 							symbol, ord_id, orig_cl_ord_id, cl_ord_id, side, FIX::OrderQty(order.leaves_qty), position_id
 						);
 
 						if (!msg.has_value()) {
-							log::error<true>("BrokerSell2[OrdStatus_PARTIALLY_FILLED]: failed to create OrderCancelRequest");
+							log::error<true>("BrokerSell2: failed to create OrderCancelRequest");
 							return 0;
 						}
 
@@ -1626,7 +1555,7 @@ namespace zorro {
 
 						if (report.value().exec_type == FIX::ExecType_REJECTED && report.value().ord_status == FIX::OrdStatus_REJECTED) {
 							log::error<true>(
-								"BrokerSell2[OrdStatus_PARTIALLY_FILLED]: rejected order cl_ord_id{} reason={}",
+								"BrokerSell2: rejected order cl_ord_id{} reason={}",
 								report.value().cl_ord_id, report.value().text
 							);
 							return 0;
@@ -1637,7 +1566,7 @@ namespace zorro {
 						int signed_qty = static_cast<int>(order.side == FIX::Side_BUY ? -excess_qty : excess_qty);
 
 						log::debug<dl2, true>(
-							"BrokerSell2[OrdStatus_PARTIALLY_FILLED]: closing filled order with {} order in opposite direction signed_qty={}",
+							"BrokerSell2: closing filled order with {} order in opposite direction signed_qty={}",
 							(limit == 0 ? "market" : "limit"), signed_qty
 						);
 
@@ -1651,7 +1580,7 @@ namespace zorro {
 						);
 
 						if (!msg.has_value()) {
-							log::debug<dl2, true>("BrokerSell2[OrdStatus_PARTIALLY_FILLED]: failed to create NewOrderSingle");
+							log::debug<dl2, true>("BrokerSell2: failed to create NewOrderSingle");
 							return 0;
 						}
 
@@ -1661,7 +1590,7 @@ namespace zorro {
 
 						if (!report.has_value()) {
 							log::error<true>(
-								"BrokerSell2[OrdStatus_PARTIALLY_FILLED]: timeout after {} while waiting for FIX exec report on new market order",
+								"BrokerSell2: timeout after {} while waiting for FIX exec report on new market order",
 								fix_exec_report_waiting_time
 							);
 							return 0;
@@ -1669,7 +1598,7 @@ namespace zorro {
 
 						if (report.value().exec_type == FIX::ExecType_REJECTED && report.value().ord_status == FIX::OrdStatus_REJECTED) {
 							log::error<true>(
-								"BrokerSell2[OrdStatus_PARTIALLY_FILLED]: rejected order cl_ord_id{} reason={}", report.value().cl_ord_id, report.value().text
+								"BrokerSell2: rejected order cl_ord_id{} reason={}", report.value().cl_ord_id, report.value().text
 							);
 							return 0;
 						}
@@ -1678,7 +1607,7 @@ namespace zorro {
 
 						if (!success) {
 							log::error<true>(
-								"BrokerSell2[OrdStatus_PARTIALLY_FILLED]: could not find closing order in order tracker with order id={}",
+								"BrokerSell2: could not find closing order in order tracker with order id={}",
 								report.value().ord_id
 							);
 							return 0;
@@ -1857,9 +1786,9 @@ namespace zorro {
 			}
 
 			// Returns 1 when the order was cancelled, or 0 when the order was not found or could not be cancelled.	
-			// Note that it takes a struct pointer to DoCancelArg, which is more general than in the Zorro doc. 					
+			// Note that it takes a struct pointer to CancelReplaceArg, which is more general than in the Zorro doc. 					
 			case DO_CANCEL: {
-				auto arg = (DoCancelArg*)dw_parameter;
+				auto arg = (CancelReplaceArg*)dw_parameter;
 				int trade_id = arg->trade_id;
 				int cancel_replace_lot_amount = arg->amount;
 				log::debug<dl0, true>("BrokerCommand {}[{}](trade_id={})", broker_command_string(command), command, trade_id);
@@ -2205,20 +2134,24 @@ namespace zorro {
 
 			case BROKER_CMD_PRINT_POSIITION_REPORTS: {
 				int flags = (int)dw_parameter;
+				log::debug<dl0, true>("BrokerCommand {}[{}]: flags={}", BROKER_CMD_PRINT_POSIITION_REPORTS, command, flags);
+
 				std::stringstream ss;
 
-				if (flags & PrintOpenPositionReports) {
+				if (flags & 1) {
 					ss << "\nFXCMPositionReports[Open][";
 					for (const auto& kv : position_reports) {
-						ss << "\n  " << kv.second.to_string();
+						if (kv.second.is_open)
+							ss << "\n  " << kv.second.to_string();
 					}
 					ss << "\n]";
 				}
 
-				if (flags & PrintClosedPositionReports) {
+				if (flags & 2) {
 					ss << "\nFXCMPositionReports[Closed][";
 					for (const auto& kv : position_reports) {
-						ss << "\n  " << kv.second.to_string();
+						if (!kv.second.is_open)
+							ss << "\n  " << kv.second.to_string();
 					}
 					ss << "\n]\n";
 				}

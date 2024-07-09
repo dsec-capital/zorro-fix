@@ -41,10 +41,10 @@ typedef struct GetOrderPositionIdArg {
 } GetOrderPositionIdArg;
 
 // Argument struct for broker command DO_CANCEL - attention, more general than in Zorro doc
-typedef struct DoCancelArg {
+typedef struct CancelReplaceArg {
 	int trade_id;				// input
 	int amount;					// input
-} DoCancelArg;
+} CancelReplaceArg;
 
 // OrderReport from order tracker (calculated via ExecReports)
 typedef struct COrderReport {
