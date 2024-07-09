@@ -26,10 +26,44 @@ namespace zorro {
 	int(__cdecl* BrokerError)(const char* txt) = nullptr;
 }
 
-std::string settings_cfg_file = "zorro_fxcm_fix_client.cfg";
+std::string settings_cfg_file_default = "zorro_fxcm_fix_client.cfg";
+
+class FixTest {
+public:
+	FixTest() : settings_cfg_file(settings_cfg_file_default) {}
+
+	void setup() {
+		service = create_fix_service(settings_cfg_file);
+		service->start();
+		auto fix_login_msg = pop_login_service_message(2, 2s);
+		ready = fix_login_msg.has_value();
+	}
+
+	void teardown() {
+		service->client().logout();
+		auto fix_logout_msg = pop_logout_service_message(2s);
+		service->cancel();
+		completed = fix_logout_msg.has_value();
+	}
+
+	virtual void test() = 0;
+
+	void run() {
+		setup();
+		if (ready) {
+			test();
+		}
+		teardown();
+	}
+
+	std::string settings_cfg_file;
+	bool ready{ false };
+	bool completed{ false };
+	std::unique_ptr<FixService> service;
+};
 
 void test_login() {
-	auto service = create_fix_service(settings_cfg_file);
+	auto service = create_fix_service(settings_cfg_file_default);
 
 	log::debug<0, true>("FIX service starting...");
 	service->start();
@@ -61,6 +95,28 @@ void test_login() {
 	service->cancel();
 }
 
+class FixMarketDataSubscriptionTest : public FixTest {
+public:
+	FixMarketDataSubscriptionTest() : FixTest() {};
+
+	void test() {
+		service->client().subscribe_market_data(FIX::Symbol("AUD/USD"), false);
+
+		auto wait = 2s;
+		int n = 5;
+		int success = 0;
+		for (int i = 0; i < n; ++i) {
+			TopOfBook top;
+			if (top_of_book_queue.pop(top, wait)) {
+				log::debug<0, true>("{}", top.to_string());
+				++success;
+			}
+		}
+
+		log::debug<0, true>("{} out of {} successful top of book updates within timout time {}", success, n, wait);
+	}
+};
+
 /*	
 	Limitations:
 
@@ -76,8 +132,9 @@ int main()
 
 	try {
 
-		test_login();
+		//test_login();
 
+		FixMarketDataSubscriptionTest().run();
 	}
 	catch (FIX::UnsupportedMessageType& e) {
 		log::debug<0, true>("unsupported message type {}", e.what());
