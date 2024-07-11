@@ -263,6 +263,96 @@ public:
 	}
 };
 
+class OrderCancelReplaceTest : public FixTest {
+public:
+	int amount;
+	int reduce_amount;
+	int num_replaces;
+	FIX::OrdType ord_type{ FIX::OrdType(FIX::OrdType_LIMIT) };
+	FIX::Price limit_price;
+	FIX::TimeInForce tif;
+	FIX::Symbol symbol;
+	FIX::StopPx stop_price;
+
+	OrderCancelReplaceTest(
+		int amount = 8000,
+		int reduce_amount = 2000,
+		int num_replaces = 2,
+		const FIX::Price& limit_price = FIX::Price(0),
+		const FIX::StopPx& stop_price = FIX::StopPx(0),
+		const FIX::TimeInForce& tif = FIX::TimeInForce(FIX::TimeInForce_GOOD_TILL_CANCEL),
+		const FIX::Symbol& symbol = FIX::Symbol("AUD/USD")
+	) : FixTest(),
+		amount(amount),
+		reduce_amount(reduce_amount),
+		num_replaces(num_replaces),
+		limit_price(limit_price),
+		stop_price(stop_price),
+		tif(tif),
+		symbol(symbol)
+	{};
+
+	void test() {
+		auto cl_ord_id = FIX::ClOrdID(next_client_order_id());
+		auto qty = FIX::OrderQty(std::abs(amount));
+		auto side = amount > 0 ? FIX::Side(FIX::Side_BUY) : FIX::Side(FIX::Side_SELL);
+
+		service->client().new_order_single(symbol, cl_ord_id, side, ord_type, tif, qty, limit_price, stop_price);
+
+		auto report = pop_exec_report_new(cl_ord_id.getString(), 1s);
+
+		if (report.has_value()) {
+			log::debug<0, true>("exec report=\n{}", report.value().to_string());
+
+			auto ord_id = FIX::OrderID(report.value().ord_id);
+			auto orig_cl_ord_id = FIX::OrigClOrdID(report.value().cl_ord_id);
+			auto position_id = get_position_id(report.value());
+			auto leaves_qty = FIX::OrderQty(report.value().leaves_qty);
+
+			auto new_qty = report.value().leaves_qty;
+
+			std::optional<ExecReport> cancel_replace_report;
+
+			for (int i = 0; i < num_replaces; ++i) {
+				auto cl_ord_id = FIX::ClOrdID(next_client_order_id());
+				new_qty -= reduce_amount;
+				service->client().order_cancel_replace_request(
+					symbol, ord_id, orig_cl_ord_id, cl_ord_id, side, ord_type, FIX::OrderQty(new_qty), limit_price, tif, position_id
+				);
+
+				cancel_replace_report = pop_exec_report_cancel_replace(ord_id.getString(), 2s);
+
+				if (cancel_replace_report.has_value()) {
+					log::debug<0, true>("cancel/replace exec report=\n{}", cancel_replace_report.value().to_string());
+				}
+				else {
+					log::debug<0, true>("cancel/replace exec report timed out in {}", 2s);
+				}
+
+				auto orig_cl_ord_id = FIX::OrigClOrdID(cl_ord_id.getString());
+			}
+
+			auto report_for_cancel_request = cancel_replace_report.value_or(report.value());
+			cl_ord_id = FIX::ClOrdID(next_client_order_id());
+			orig_cl_ord_id = FIX::OrigClOrdID(report_for_cancel_request.cl_ord_id);
+			leaves_qty = FIX::OrderQty(report_for_cancel_request.leaves_qty);
+
+			service->client().order_cancel_request(
+				symbol, ord_id, orig_cl_ord_id, cl_ord_id, side, leaves_qty, position_id
+			);
+
+			auto cancel_report = pop_exec_report_cancel(ord_id.getString(), 2s);
+
+			if (cancel_report.has_value()) {
+				log::debug<0, true>("cancel exec report=\n{}", cancel_report.value().to_string());
+			}
+			else {
+				log::debug<0, true>("cancel exec report timed out in {}", 2s);
+			}
+		}
+	}
+};
+
 /*	
 	Limitations:
 
@@ -278,16 +368,18 @@ int main()
 
 	try {
 
-		//test_login();
+		test_login();
 
-		//MarketDataSubscriptionTest().run();
-		//CollateralInquiryTest().run();
-		//TradingSessionStatusTest().run()
-		//PositionReportsTest().run();
-		//OrderTest(5000, true, FIX::OrdType(FIX::OrdType_MARKET)).run();
-		//OrderTest(-5000, true, FIX::OrdType(FIX::OrdType_MARKET)).run();
-		//OrderTest(5000, true, FIX::OrdType(FIX::OrdType_LIMIT), FIX::Price(0.64)).run();
+		MarketDataSubscriptionTest().run();
+		CollateralInquiryTest().run();
+		TradingSessionStatusTest().run();
+		PositionReportsTest().run();
+		OrderTest(5000, true, FIX::OrdType(FIX::OrdType_MARKET)).run();
+		OrderTest(-5000, true, FIX::OrdType(FIX::OrdType_MARKET)).run();
+		OrderTest(5000, true, FIX::OrdType(FIX::OrdType_LIMIT), FIX::Price(0.64)).run();
 		OrderTest(-5000, true, FIX::OrdType(FIX::OrdType_LIMIT), FIX::Price(0.69)).run();
+		OrderCancelReplaceTest(8000, 2000, 2, FIX::Price(0.64)).run();
+		OrderCancelReplaceTest(-8000, 2000, 2, FIX::Price(0.69)).run();
 	}
 	catch (FIX::UnsupportedMessageType& e) {
 		log::debug<0, true>("unsupported message type {}", e.what());

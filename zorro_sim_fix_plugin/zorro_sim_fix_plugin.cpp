@@ -718,7 +718,7 @@ namespace zorro {
 	}
 
 	// https://zorro-project.com/manual/en/brokercommand.htm
-	DLLFUNC double BrokerCommand(int command, DWORD dw_parameter) {
+	DLLFUNC double BrokerCommand(int command, intptr_t dw_parameter) {
 		switch (command) {
 			case GET_COMPLIANCE: {
 				auto result = 2;
