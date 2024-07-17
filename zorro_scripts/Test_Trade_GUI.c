@@ -31,7 +31,7 @@ GetOrderMassStatusArg order_mass_status_arg;
 GetPositionReportArg position_report_arg;
 CancelReplaceArg cancel_replace_arg;
 
-void setupPannel() {
+void setupPanel() {
 	int n = 0;
 	panel(20, 17, GREY, 82);
 	panelSet(0, n++, "Buy", YELLOW, 1, 4);
@@ -467,7 +467,7 @@ function run()
 	LimitDepth = slider(2, 10, -50, 200, "Limit", "Limit depth in Points from top");
 
 	if (is(INITRUN)) {
-		setupPannel();
+		setupPanel();
 	}
 
 	if (!is(LOOKBACK)) {
