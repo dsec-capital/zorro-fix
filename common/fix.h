@@ -18,7 +18,6 @@ namespace common::fix {
 		REQUEST_REJECTED = 6
 	};
 
-
 	inline bool is_market_data_message(const FIX::Message& message) {
 		const auto& msg_type = message.getHeader().getField(FIX::FIELD::MsgType);
 		return msg_type == FIX::MsgType_MarketDataSnapshotFullRefresh || msg_type == FIX::MsgType_MarketDataIncrementalRefresh;

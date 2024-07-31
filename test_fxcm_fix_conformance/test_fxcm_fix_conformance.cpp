@@ -110,6 +110,20 @@ void test_login() {
 	service->cancel();
 }
 
+class HeartBeatTest : public FixTest {
+public:
+	HeartBeatTest() : FixTest() {};
+
+	void test() {
+		service->client().heartbeat("test_req", true);
+
+		auto wait = 5s;
+		std::this_thread::sleep_for(wait);
+
+		log::debug<0, true>("waited {} for heartbeat response", wait);
+	}
+};
+
 class MarketDataSubscriptionTest : public FixTest {
 public:
 	MarketDataSubscriptionTest() : FixTest() {};
@@ -117,7 +131,30 @@ public:
 	void test() {
 		service->client().subscribe_market_data(FIX::Symbol("AUD/USD"), false);
 
-		auto wait = 2s;
+		auto wait = 5s;
+		int n = 5;
+		int success = 0;
+		for (int i = 0; i < n; ++i) {
+			TopOfBook top;
+			if (top_of_book_queue.pop(top, wait)) {
+				log::debug<0, true>("{}", top.to_string());
+				++success;
+			}
+		}
+
+		log::debug<0, true>("{} out of {} successful top of book updates within timout time {}", success, n, wait);
+	}
+};
+
+class MarketDataSubscriptionIncrementalTest : public FixTest {
+public:
+	MarketDataSubscriptionIncrementalTest() : FixTest() {};
+
+	void test() {
+		service->client().market_data_snapshot(FIX::Symbol("AUD/USD"));
+		service->client().subscribe_market_data(FIX::Symbol("AUD/USD"), true);
+
+		auto wait = 5s;
 		int n = 5;
 		int success = 0;
 		for (int i = 0; i < n; ++i) {
@@ -366,20 +403,23 @@ int main()
 
 	auto spd_logger = create_logger("test_fxcm_fix_conformace.log", spdlog::level::debug);
 
+	zorro::log::logging_verbosity = 4;
+
 	try {
+		//test_login();
 
-		test_login();
-
-		MarketDataSubscriptionTest().run();
-		CollateralInquiryTest().run();
-		TradingSessionStatusTest().run();
-		PositionReportsTest().run();
-		OrderTest(5000, true, FIX::OrdType(FIX::OrdType_MARKET)).run();
-		OrderTest(-5000, true, FIX::OrdType(FIX::OrdType_MARKET)).run();
-		OrderTest(5000, true, FIX::OrdType(FIX::OrdType_LIMIT), FIX::Price(0.64)).run();
-		OrderTest(-5000, true, FIX::OrdType(FIX::OrdType_LIMIT), FIX::Price(0.69)).run();
-		OrderCancelReplaceTest(8000, 2000, 2, FIX::Price(0.64)).run();
-		OrderCancelReplaceTest(-8000, 2000, 2, FIX::Price(0.69)).run();
+		//HeartBeatTest().run();
+		//MarketDataSubscriptionTest().run();
+		MarketDataSubscriptionIncrementalTest().run();
+		//CollateralInquiryTest().run();
+		//TradingSessionStatusTest().run();
+		//PositionReportsTest().run();
+		//OrderTest(5000, true, FIX::OrdType(FIX::OrdType_MARKET)).run();
+		//OrderTest(-5000, true, FIX::OrdType(FIX::OrdType_MARKET)).run();
+		//OrderTest(5000, true, FIX::OrdType(FIX::OrdType_LIMIT), FIX::Price(0.64)).run();
+		//OrderTest(-5000, true, FIX::OrdType(FIX::OrdType_LIMIT), FIX::Price(0.69)).run();
+		//OrderCancelReplaceTest(8000, 2000, 2, FIX::Price(0.64)).run();
+		//OrderCancelReplaceTest(-8000, 2000, 2, FIX::Price(0.69)).run();
 	}
 	catch (FIX::UnsupportedMessageType& e) {
 		log::debug<0, true>("unsupported message type {}", e.what());

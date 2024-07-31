@@ -72,10 +72,11 @@ namespace zorro {
 	inline std::shared_ptr<spdlog::logger> create_file_logger(
 		const std::string& log_filename, 
 		spdlog::level::level_enum log_level = spdlog::level::debug, 
-		std::chrono::seconds flush_interval = std::chrono::seconds(2)
+		std::chrono::seconds flush_interval = std::chrono::seconds(2),
+		bool truncate = true
 	) {
 		auto cwd = std::filesystem::current_path().string();
-		auto spd_logger = spdlog::basic_logger_mt("standard", log_filename);
+		auto spd_logger = spdlog::basic_logger_mt("standard", log_filename, truncate);
 		spd_logger->set_level(log_level);
 		spdlog::set_default_logger(spd_logger);
 		spdlog::set_level(log_level);

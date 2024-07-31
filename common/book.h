@@ -6,7 +6,6 @@
 
 namespace common {
 
-
 	class Book {
 	public:
 		typedef std::chrono::nanoseconds timestamp_t;

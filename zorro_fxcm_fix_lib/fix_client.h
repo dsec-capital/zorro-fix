@@ -29,6 +29,7 @@
 #include "quickfix/fix44/BusinessMessageReject.h"
 #include "quickfix/fix44/Logon.h"
 #include "quickfix/fix44/Logout.h"
+#include "quickfix/fix44/Heartbeat.h"
 
 #include "spdlog/spdlog.h"
 
@@ -296,6 +297,8 @@ namespace zorro
 		) const;
 
 		void logout();
+
+		void heartbeat(const std::string& test_req_id, bool trading_sess);
 
 	private:
 

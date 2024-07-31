@@ -15,6 +15,8 @@
 #include "common/time_utils.h"
 #include "zorro_common/log.h"
 
+#define FIX_MSG_TRACE_LOG
+
 namespace zorro {
 
 	using namespace common;
@@ -26,9 +28,25 @@ namespace zorro {
 	constexpr int dl4 = 4;
 	constexpr int dl5 = 5;
 
+#ifdef FIX_MSG_TRACE_LOG
+	std::shared_ptr<spdlog::logger> fix_msg_trace_log;
+#endif
+
 	std::string fix_string(const FIX::Message& msg) {
 		auto s = msg.toString();
 		std::replace(s.begin(), s.end(), '\x1', '|');  
+		return s;
+	}
+
+	std::string fix_string_masked(const FIX::Message& msg) {
+		FIX::Message msg_copy = msg;
+		FIX::SenderCompID sender_comp_id;
+		auto is_data = msg_copy.getHeader().getField(sender_comp_id).getString().starts_with("MD");
+		auto masked_sender_comp_id = is_data ? "MDataSenderCompID_Masked" : "TExecSenderCompID_Masked";
+		msg_copy.getHeader().setField(FIX::SenderCompID(masked_sender_comp_id));
+		msg_copy.setField(FIX::Account("Account_Masked"));
+		auto s = msg_copy.toString();
+		std::replace(s.begin(), s.end(), '\x1', '|');
 		return s;
 	}
 	
@@ -214,6 +232,11 @@ namespace zorro {
 				"FixClient::FixClient account id from session settings={}", account
 			);
 		}
+
+#ifdef FIX_MSG_TRACE_LOG
+		fix_msg_trace_log = spdlog::basic_logger_mt("fix", std::format("fix_message_tracer_{}.log", common::timestamp_postfix()), true);
+		fix_msg_trace_log->set_level(spdlog::level::debug);
+#endif
 	}
 
 	std::future<bool> FixClient::login_state() {
@@ -320,6 +343,10 @@ namespace zorro {
 	) EXCEPT(FIX::FieldNotFound, FIX::IncorrectDataFormat, FIX::IncorrectTagValue, FIX::RejectLogon)
 	{
 		log::debug<dl2, false>("FixClient::fromAdmin IN <{}> {}", sessionID.toString(), fix_string(message));
+
+#ifdef FIX_MSG_TRACE_LOG
+		fix_msg_trace_log->debug("Admin IN  {}", fix_string_masked(message));
+#endif
 	}
 
 	void FixClient::toAdmin(FIX::Message& message, const FIX::SessionID& sessionID) 
@@ -338,7 +365,11 @@ namespace zorro {
 		auto sub_id = session_settings.get().getString("TargetSubID");
 		message.getHeader().setField(FIX::TargetSubID(sub_id));
 
-		log::debug<dl2, false>("FixClient::toAdmin OUT <{}> {}", sessionID.toString(), fix_string(message));
+		log::debug<dl2, false>("Admin OUT <{}> {}", sessionID.toString(), fix_string(message));
+
+#ifdef FIX_MSG_TRACE_LOG
+		fix_msg_trace_log->debug("Admin OUT {}", fix_string_masked(message));
+#endif
 	}
 
 	void FixClient::fromApp(const FIX::Message& message, const FIX::SessionID& sessionID)
@@ -355,6 +386,10 @@ namespace zorro {
 		else {
 			log::debug<dl1, false>("FixClient::fromApp IN <{}> {}", sessionID.toString(), fix_string(message));
 		}
+
+#ifdef FIX_MSG_TRACE_LOG
+		fix_msg_trace_log->debug("App   IN  {}", fix_string_masked(message));
+#endif
 
 		crack(message, sessionID);
 	}
@@ -373,6 +408,10 @@ namespace zorro {
 		message.getHeader().setField(FIX::TargetSubID(sub_ID));
 
 		log::debug<dl0, false>("FixClient::toApp OUT <{}> {}", sessionID.toString(), fix_string(message));
+
+#ifdef FIX_MSG_TRACE_LOG
+		fix_msg_trace_log->debug("App   OUT {}", fix_string_masked(message));
+#endif
 	}
 
 	// The TradingSessionStatus message is used to provide an update on the status of the market. Furthermore, 
@@ -1392,6 +1431,15 @@ namespace zorro {
 		FIX44::Logout logout;
 		FIX::Session::sendToTarget(logout, trading_session_id);
 		FIX::Session::sendToTarget(logout, market_data_session_id);
+	}
+
+	void FixClient::heartbeat(const std::string& test_req_id, bool trading_sess) {
+		FIX44::Heartbeat hb;
+		hb.setField(FIX::TestReqID(test_req_id));
+		if (trading_sess)
+			FIX::Session::sendToTarget(hb, trading_session_id);
+		else
+			FIX::Session::sendToTarget(hb, market_data_session_id);
 	}
 
 	bool FixClient::has_book(const std::string& symbol) {
