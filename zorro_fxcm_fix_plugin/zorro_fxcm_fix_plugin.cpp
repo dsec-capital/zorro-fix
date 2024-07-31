@@ -45,10 +45,12 @@ namespace zorro {
 	constexpr std::size_t dl3 = 3;
 	constexpr std::size_t dl4 = 4;
 
-#ifdef WIN32
+#if defined(WIN32) && !defined(WIN64)
 	std::string settings_cfg_file = "Plugin/zorro_fxcm_fix_client.cfg";
 	std::string plugin_cfg_file = "Plugin/zorro_fxcm_fix_plugin_config.toml";
-#elif WIN64 
+#endif 
+
+#if defined WIN64 
 	std::string settings_cfg_file = "Plugin64/zorro_fxcm_fix_client.cfg";
 	std::string plugin_cfg_file = "Plugin64/zorro_fxcm_fix_plugin_config.toml";
 #else
