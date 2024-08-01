@@ -95,17 +95,17 @@ namespace zorro {
 	}
 
 	int get_position_size(const std::string& symbol) {
-		auto& np = order_tracker.net_position(symbol);
+		auto& np = order_tracker.get_net_position(symbol);
 		return (int)np.qty;
 	}
 
 	double get_avg_entry_price(const std::string& symbol) {
-		auto& np = order_tracker.net_position(symbol);
+		auto& np = order_tracker.get_net_position(symbol);
 		return np.avg_px;
 	}
 
-	int get_num_orders() {
-		return order_tracker.num_orders();
+	int num_order_reports() {
+		return order_tracker.num_order_reports();
 	}
 
 	std::string next_client_order_id() {
@@ -718,7 +718,7 @@ namespace zorro {
 	}
 
 	// https://zorro-project.com/manual/en/brokercommand.htm
-	DLLFUNC double BrokerCommand(int command, DWORD dw_parameter) {
+	DLLFUNC double BrokerCommand(int command, intptr_t dw_parameter) {
 		switch (command) {
 			case GET_COMPLIANCE: {
 				auto result = 2;
@@ -748,7 +748,7 @@ namespace zorro {
 			}
 
 			case GET_NTRADES: {
-				auto result = get_num_orders();
+				auto result = num_order_reports();
 				log::debug<1, true>("BrokerCommand {}[{}] = {}", broker_command_string(command), command, result);
 				return result;
 			}

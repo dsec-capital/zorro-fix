@@ -29,6 +29,7 @@ namespace common {
 			const char ord_type,
 			const char ord_status,
 			const char side,
+			const char tif,
 			double price,
 			double avg_px,
 			double order_qty,
@@ -42,11 +43,15 @@ namespace common {
 		char ord_type{ FIX::OrdType_MARKET };
 		char ord_status{ FIX::OrdStatus_REJECTED };
 		char side{ FIX::Side_UNDISCLOSED };
+		char tif{ FIX::TimeInForce_GOOD_TILL_CANCEL };
 		double price{ 0 };
 		double avg_px{ 0 };
 		double order_qty{ 0 };
 		double cum_qty{ 0 };
 		double leaves_qty{ 0 };
+		std::string custom_1{} ;
+		std::string custom_2{};
+		std::string custom_3{};
 
 		bool is_buy() const;
 
@@ -56,7 +61,7 @@ namespace common {
 
 		bool is_cancelled() const;
 
-		std::string to_string() const;
+		std::string to_string(const std::string& c1 = "", const std::string& c2 = "", const std::string& c3 = "") const;
 	};
 
 	std::ostream& operator<<(std::ostream&, const OrderReport&);
@@ -117,17 +122,23 @@ namespace common {
 
 		const std::string& get_account() const;
 
-		NetPosition& net_position(const std::string& symbol);
+		NetPosition& get_net_position(const std::string& symbol);
 
 		std::pair<typename OrderTracker::const_iterator, bool> get_pending_order(const std::string& ord_id) const;
 
 		std::pair<typename OrderTracker::const_iterator, bool> get_order(const std::string& ord_id) const;
 
-		int num_orders() const;
+		const std::unordered_map<std::string, OrderReport>& get_orders() const;
+
+		const std::unordered_map<std::string, NetPosition>& get_net_positions() const;
+
+		int num_order_reports() const;
+
+		int num_net_positions() const;
 
 		bool process(const ExecReport& report);
 
-		std::string to_string() const;
+		std::string to_string(const std::string& c1 = "", const std::string& c2 = "", const std::string& c3 = "") const;
 	};
 
 }

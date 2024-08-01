@@ -21,9 +21,16 @@
 #include "quickfix/fix44/PositionReport.h"
 #include "quickfix/fix44/RequestForPositions.h"
 #include "quickfix/fix44/RequestForPositionsAck.h"
+#include "quickfix/fix44/OrderMassStatusRequest.h"
+#include "quickfix/fix44/OrderStatusRequest.h"
 #include "quickfix/fix44/SecurityList.h"
 #include "quickfix/fix44/TradingSessionStatus.h"
 #include "quickfix/fix44/TradingSessionStatusRequest.h"
+#include "quickfix/fix44/BusinessMessageReject.h"
+#include "quickfix/fix44/Logon.h"
+#include "quickfix/fix44/Logout.h"
+#include "quickfix/fix44/Heartbeat.h"
+#include "quickfix/fix44/TestRequest.h"
 
 #include "spdlog/spdlog.h"
 
@@ -36,6 +43,7 @@
 #include "common/fix.h"
 
 #include <variant>
+#include <future>
 
 namespace zorro
 {
@@ -49,10 +57,26 @@ namespace zorro
 		std::string, std::variant<bool, int, unsigned int, double, std::string>
 	> ServiceMessage;
 
+	template<class T>
+	inline const T& sm_get_or_else(const ServiceMessage& map, const std::string_view& key, const T& other) {
+		auto it = map.find(std::string(key));
+		if (it != map.end()) {
+			return std::get<T>(it->second);
+		}
+		else {
+			return other;
+		}
+	}
+
 	constexpr std::string_view SERVICE_MESSAGE_TYPE = "type";
 	constexpr std::string_view SERVICE_MESSAGE_LOGON_STATUS = "logon_status";
 	constexpr std::string_view SERVICE_MESSAGE_LOGON_STATUS_READY = "ready";
 	constexpr std::string_view SERVICE_MESSAGE_LOGON_STATUS_SESSION_LOGINS = "session_logins";
+
+	constexpr std::string_view SERVICE_MESSAGE_REJECT = "reject";
+	constexpr std::string_view SERVICE_MESSAGE_REJECT_TYPE = "reject_type";
+	constexpr std::string_view SERVICE_MESSAGE_REJECT_TEXT = "reject_text";
+	constexpr std::string_view SERVICE_MESSAGE_REJECT_RAW_MESSAGE = "raw_message";
 
 	enum FXCMProductId {
 		UnknownProductId = 0,
@@ -139,7 +163,7 @@ namespace zorro
 		std::string account;
 		std::string symbol;
 		std::string currency;
-		std::string pos_id;
+		std::string position_id;
 
 		double settle_price;
 
@@ -164,7 +188,7 @@ namespace zorro
 	};
 
 	struct FXCMPositionReports {
-		std::vector< FXCMPositionReport> reports;
+		std::vector<FXCMPositionReport> reports;
 
 		std::string to_string() const;
 	};
@@ -186,12 +210,13 @@ namespace zorro
 	public:
 		FixClient(
 			const FIX::SessionSettings& session_settings,
-			unsigned int requests_on_logon,
 			unsigned int num_required_session_logins, 
 			BlockingTimeoutQueue<ExecReport>& exec_report_queue,
+			BlockingTimeoutQueue<StatusExecReport>& status_exec_report_queue,
 			BlockingTimeoutQueue<TopOfBook>& top_of_book_queue,
 			BlockingTimeoutQueue<ServiceMessage>& service_message_queue,
-			BlockingTimeoutQueue<FXCMPositionReports>& position_reports_queue,
+			BlockingTimeoutQueue<FXCMPositionReport>& position_report_queue,
+			BlockingTimeoutQueue<FXCMPositionReports>& position_snapshot_reports_queue,
 			BlockingTimeoutQueue<FXCMCollateralReport>& collateral_report_queue,
 			BlockingTimeoutQueue<FXCMTradingSessionStatus>& trading_session_status_queue
 		);
@@ -207,7 +232,9 @@ namespace zorro
 		FIX::Message trading_session_status_request();
 
 		// Sends the CollateralInquiry message in order to receive a CollateralReport message.
-		FIX::Message collateral_inquiry();
+		FIX::Message collateral_inquiry(
+			const char subscription_req_type = FIX::SubscriptionRequestType_SNAPSHOT_AND_UPDATES
+		);
 
 		// Sends RequestForPositions in order to receive a PositionReport messages if positions
 		// matching the requested criteria exist; otherwise, a RequestForPositionsAck will be
@@ -215,15 +242,20 @@ namespace zorro
 		// pos_req_type = 0 for open position, 1 for closed position 
 		// subscription_request_type = FIX::SubscriptionRequestType(FIX::SubscriptionRequestType_SNAPSHOT)
 		// or FIX::SubscriptionRequestType(FIX::SubscriptionRequestType_SNAPSHOT_AND_UPDATES)
-		FIX::Message request_for_positions(const std::string& account, int pos_req_type);
-
-		FIX::Message market_data_snapshot(const FIX::Symbol& symbol);
-
-		std::optional<FIX::Message> subscribe_market_data(const FIX::Symbol& symbol, bool incremental);
-
-		std::optional<FIX::Message> unsubscribe_market_data(
-			const FIX::Symbol& symbol
+		FIX::Message request_for_positions(
+			const std::string& account, 
+			int pos_req_type, 
+			const char subscription_req_type = FIX::SubscriptionRequestType_SNAPSHOT_AND_UPDATES
 		);
+
+		// Sends OrderMassStatusRequest to get status of all open orders
+		FIX::Message order_mass_status_request();
+
+		FIX::Message market_data_snapshot(const FIX::Symbol& symbol, bool incremental = true, bool subscribe_after_snapshot = false);
+
+		std::optional<FIX::Message> subscribe_market_data(const FIX::Symbol& symbol, bool incremental = true, bool add_session_high_low = false);
+
+		std::optional<FIX::Message> unsubscribe_market_data(const FIX::Symbol& symbol, bool add_session_high_low = false);
 
 		std::optional<FIX::Message> new_order_single(
 			const FIX::Symbol& symbol,
@@ -234,6 +266,7 @@ namespace zorro
 			const FIX::OrderQty& order_qty,
 			const FIX::Price& price,
 			const FIX::StopPx& stop_price,
+			const std::optional<std::string>& position_id = std::optional<std::string>(),
 			const std::optional<FIX::Account>& account = std::optional<FIX::Account>()
 		) const;
 
@@ -244,6 +277,7 @@ namespace zorro
 			const FIX::ClOrdID& ,
 			const FIX::Side& side,
 			const FIX::OrderQty& order_qty,
+			const std::optional<std::string>& position_id = std::optional<std::string>(),
 			const std::optional<FIX::Account>& account = std::optional<FIX::Account>()
 		) const;
 
@@ -256,12 +290,20 @@ namespace zorro
 			const FIX::OrdType& ord_type,
 			const FIX::OrderQty& order_qty,
 			const FIX::Price& price,
+			const FIX::TimeInForce& tif,
+			const std::optional<std::string>& position_id = std::optional<std::string>(),
 			const std::optional<FIX::Account>& account = std::optional<FIX::Account>()
 		) const;
+
+		void logout();
+
+		void test_request(const std::string& test_req_id, bool trading_sess);
 
 	private:
 
 		ServiceMessage logon_service_message() const;
+
+		ServiceMessage reject_service_message(const std::string& reject_type, const std::string& reject_text, const std::string& raw) const;
 
 		bool is_trading_session(const FIX::SessionID& sess_id) const;
 
@@ -290,7 +332,7 @@ namespace zorro
 			FXCM_SERVER_TIMEZONE_NAME = 9030,	// Server time zone name 
 			FXCM_USED_MARGIN = 9038,			// Float Amount of used margin nominated for an account or position (liquidation level)
 			FXCM_POS_INTEREST = 9040,			// Float Amount of interest applied to the position
-			FXCM_POS_ID = 9041,					// String
+			FXCM_POS_ID = 9041,					// String, also known as the ticker - the id of the position that was opened for a trade
 			FXCM_POS_OPEN_TIME = 9042,			// UTCTimestamp Time when trading position was opened
 			FXCM_CLOSE_SETTLE_PRICE = 9043,		// Float Closing price of trading position
 			FXCM_POS_CLOSE_TIME = 9044,			// UTCTimestamp Time when trading position was closed
@@ -322,12 +364,13 @@ namespace zorro
 		};
 
 		FIX::SessionSettings session_settings;
-		unsigned int requests_on_logon;
 		unsigned int num_required_session_logins;
 		BlockingTimeoutQueue<ExecReport>& exec_report_queue;
+		BlockingTimeoutQueue<StatusExecReport>& status_exec_report_queue;
 		BlockingTimeoutQueue<TopOfBook>& top_of_book_queue;
 		BlockingTimeoutQueue<ServiceMessage>& service_message_queue;
-		BlockingTimeoutQueue<FXCMPositionReports>& position_reports_queue;
+		BlockingTimeoutQueue<FXCMPositionReport>& position_report_queue;
+		BlockingTimeoutQueue<FXCMPositionReports>& position_snapshot_reports_queue;
 		BlockingTimeoutQueue<FXCMCollateralReport>& collateral_report_queue;
 		BlockingTimeoutQueue<FXCMTradingSessionStatus>& trading_session_status_queue;
 
@@ -339,12 +382,11 @@ namespace zorro
 		std::promise<bool> login_promise;
 		std::atomic<bool> done;
 		IDGenerator id_generator;
+		bool subscribe_after_snapshot{ false };
 
 		std::map<std::string, std::string> market_data_subscriptions;
 		std::map<std::string, TopOfBook> top_of_books;
 		std::vector<FXCMPositionReport> position_report_list;
-
-		bool log_market_data;
 
 		std::mutex mutex;
 
@@ -373,6 +415,8 @@ namespace zorro
 		void fromApp(
 			const FIX::Message& message, const FIX::SessionID& sessionID
 		) EXCEPT(FIX::FieldNotFound, FIX::IncorrectDataFormat, FIX::IncorrectTagValue, FIX::UnsupportedMessageType);
+
+		void onMessage(const FIX44::Heartbeat&, const FIX::SessionID&);
 
 		void onMessage(const FIX44::TradingSessionStatus&, const FIX::SessionID&);
 

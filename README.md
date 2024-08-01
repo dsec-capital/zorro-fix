@@ -18,6 +18,7 @@ Contributions, bug reports and constructive feedback are very welcome.
 
 ## Version History
 
+  - v2.2.0 Adding FXCM FIX conformance tests and fixing various small issues, separating FXCM FIX client into separate library, updated README.md 
   - v2.1.0 FXCM ForexConnect is accessed through a proxy server, smaller bug fixes, order status messages, 64 bit version 
   - v2.0.0 First FXCM FIX plugin, separated and updated Simulation FIX plugin 
   - v1.0.1 Improving order cancellation and many smaller bug fixing
@@ -27,8 +28,9 @@ Contributions, bug reports and constructive feedback are very welcome.
 
 ## Dependencies
 
-The project uses most modern [C++ 20](https://en.cppreference.com/w/cpp/20) and depends on the following 
-header only third party components:
+The project uses most modern [C++ 20](https://en.cppreference.com/w/cpp/20) and depends on the following third party components:
+
+### Header Only Dependencies
 
   - [httplib ](third_parties/httplib)
   - [nlohmann json](third_parties/nlohmann)
@@ -36,22 +38,21 @@ header only third party components:
   - [magic_enum](third_parties/magic_enum)
   - [spdlog](third_parties/spdlog)
 
-
 ### Library Dependencies
 
   - [QuickFix](third_parties/quickfix) with prebuilt static libraries included for x86 and x64
   - [FXCM ForexConnect SDK](third_parties/fxcm) which requires separate installation 
-   - [x86](http://fxcodebase.com/bin/forexconnect/1.6.5/ForexConnectAPI-1.6.5-win32.exe)
-   - [x64](http://fxcodebase.com/bin/forexconnect/1.6.5/ForexConnectAPI-1.6.5-win64.exe)
+     - [x86](http://fxcodebase.com/bin/forexconnect/1.6.5/ForexConnectAPI-1.6.5-win32.exe)
+     - [x64](http://fxcodebase.com/bin/forexconnect/1.6.5/ForexConnectAPI-1.6.5-win64.exe)
 
 
 ### Environtment Configuration
 
-The environment variable `ZorroInstallDir` has to point to the Zorro installation 
+The environment variable `ZorroInstallDir` has to point to the Zorro installation. 
 
 ```
 echo %ZorroInstallDir%
-C:\zorro\Zorro_2614
+C:\zorro\Zorro_2620
 ```
 
 The FXCM FIX plugin and the FXCM market data server needs a few enviornment environment variables. 
@@ -63,7 +64,7 @@ The FXCM FIX plugin and the FXCM market data server needs a few enviornment envi
   - `FXCM_PASSWORD`:password (may be same as `FIX_PASSWORD`)
   - `FXCM_MAKRET_DATA_SERVER_LOG_PATH`: log path tick data and incremental bar updates can be configured by specifying the environment variable 
 
-The installation of FXCM ForexConnect SDK sets the following environment variables
+The installation of FXCM ForexConnect SDK sets the following environment variables:
 
 ```
 echo %FOREXCONNECT_PATH_X64%
@@ -79,13 +80,25 @@ C:\Program Files (x86)\Candleworks\ForexConnectAPI
 
 Assure that they point to the installed version of the ForexConnect SDK.
 
-In order to use the C++ test script from Zorro, add the path to the Visual Studio build directory to 
-the `Zorro.ini` file:
+In order to use the C++ test script from Zorro, add the path to the Visual Studio build directory to the `Zorro.ini` file:
 
 ```
 VCPath = "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build" 
 ```
 
+
+## Zorro Test Scripts
+
+The directory `zorro_scripts` containes various Zorro trading scripts for testing:
+
+   - `Test_FIX.c` quoting with limit orders
+   - `Test_Requote_FIX.c` quoting with limit orders and canceling and requote if market moves
+   - `Test_Requote_TMF_FIX.c` requoting and use a Zorro trade management function
+   - `Test_FIX+.cpp` DLL version of quoting with limit orders which can be run with Zorro64.exe
+   - `Test_FIX_Mkt.c` buy and sell with market orders
+   - `Test_Trade_GUI.c` executing orders with a Zorro Panel - requires Zorro S license
+   
+   
 
 ## FXCM FIX Plugin  
 
@@ -98,14 +111,19 @@ Zorro already comes with a [plugin for FXCM](https://zorro-project.com/manual/en
 is that it offers much better rate limits as can be seen from the 
 [FXCM API comparison](https://www.fxcm.com/markets/algorithmic-trading/compare-api/). 
 
+The following additional features are on the road map:
+
+  - Other order types beside market and limit orders, e.g. adding IOC, FOK limit orders, stop loss and take profit.
+  - Integrate Ability to pull FXCM historical tick data in `BrokerHistory2`
+
 
 ### Supported Features
 
 The FXCM FIX client plugin implements all of Zorro's [broker plugin functions](https://zorro-project.com/manual/en/brokerplugin.htm).
 
   - Historical market data through [FXCM ForexConnect SDK](https://fxcodebase.com/wiki/index.php/Download)
-  - Subscribe to real time market data either as snapshot and updates or snapshot and incremental update.
-    Noet that FXCM only provides top of book and generally no volume
+  - Subscribe to real time market data either as snapshot and updates or snapshot and incremental update; 
+    note that FXCM only provides top of book and generally no volume
   - NewOrderSingle supporting market and limit orders
   - Order cancellation and order modification 
   - Trading session status (message TradingSessionStatus)
@@ -113,7 +131,19 @@ The FXCM FIX client plugin implements all of Zorro's [broker plugin functions](h
   - Collateral inquiry (message CollateralReport)
   - Execution reports (message ExecReport)
 
-More details can be found in [FXCM FIX client application](zorro_fxcm_fix_plugin/application.h). 
+More details can be found in [FXCM FIX client](zorro_fxcm_fix_lib/fix_client.h) and its [implementation](zorro_fxcm_fix_lib/fix_client.cpp).
+
+### Configuration
+
+The FXCM FIX plugin can be configured with
+
+  - TOML file [zorro_fxcm_fix_plugin_config.toml](zorro_fxcm_fix_plugin/zorro_fxcm_fix_plugin_config.toml)
+  - FIX session config template file [zorro_fxcm_fix_client_template.cfg](zorro_fxcm_fix_plugin/zorro_fxcm_fix_client_template.cfg)
+
+Note that the post build step takes the FIX session config template file replaces the credentials from the environment variables 
+and copies the so configured file to the plugin directory under `ZorroInstallDir`.
+
+
 
 ## FXCM Market Data Proxy Server
 
@@ -141,7 +171,21 @@ C:\repos\zorro-fix\x64\Debug>fxcm_market_data_server.exe
 [2024-06-19 20:24:00.266] [combined] [info] server stated on 0.0.0.0:8080
 ```
 
-It logs to the screen as well as to the log file `fxcm_proxy_server.log`.
+### Supported Endpoints:
+
+The following REST endpoints are available:
+
+  - `/status` [http://localhost:8083/status](http://localhost:8083/status)
+  - `/instr` [http://localhost:8083/instr?symbol=EUR/USD](http://localhost:8083/instr?symbol=EUR/USD)
+  - `/subscribe` [http://localhost:8083/subscribe?symbol=EUR/USD](http://localhost:8083/subscribe?symbol=EUR/USD)
+  - `/bars` [http://localhost:8083/bars?symbol=EUR/USD&from=2024-06-18%2000:00:00&timeframe=m1](http://localhost:8083/bars?symbol=EUR/USD&from=2024-06-18%2000:00:00&timeframe=m1)
+  - `/ticks` [http://localhost:8083/ticks?symbol=EUR/USD&from=2024-06-27%2000:00:00](http://localhost:8083/ticks?symbol=EUR/USD&from=2024-06-27%2000:00:00)
+  - `/ticks_to_csv` [http://localhost:8083/ticks_to_csv?symbol=EUR/USD&from=2024-06-27%2000:00:00&to==2024-06-27%2006:00:00](http://localhost:8083/ticks_to_csv?symbol=EUR/USD&from=2024-06-27%2000:00:00&to==2024-06-27%2006:00:00)
+
+The `/subscribe` endpoint can be used to subscribe to tick based realtime updates for a symbol. Under the hood it uses the `LiveBarStreamer`,
+which is updated with every incoming tick and generates a bar once the bar period is completed. 
+
+The proxy server logs to the screen as well as to the log file `fxcm_proxy_server.log`.
 
 
 ### Installation
@@ -160,11 +204,11 @@ The FXCM FIX client plugin requires the FXCM ForexConnect SDK in the search path
 
 The project requires the following environment variables to be defined:
 
-  - ZorroInstallDir: directory where Zorro is installed
-  - FIX_ACCOUNT_ID: account id provided by FXCM
-  - FIX_USER_NAME: user name provided by FXCM
-  - FIX_PASSWORD: password provided by FXCM
-  - FIX_TARGET_SUBID: target subid provided by FXCM
+  - `ZorroInstallDir`: directory where Zorro is installed
+  - `FIX_ACCOUNT_ID`: account id provided by FXCM
+  - `FIX_USER_NAME`: user name provided by FXCM
+  - `FIX_PASSWORD`: password provided by FXCM
+  - `FIX_TARGET_SUBID`: target subid provided by FXCM
 
 These environment variables are used in various automation scripts in the [scripts](scripts) folders 
 as well as in Visual Studio post build events. 
@@ -172,19 +216,6 @@ as well as in Visual Studio post build events.
 Eventually it is necessary to update the [FIX session config template](zorro_fxcm_fix_plugin/zorro_fxcm_fix_client_template.cfg).
 Note that this file is configured appropriately from the values of the environment variables and copied to the 
 Zorro installation directory as part of the post build process. 
-
-
-### TODO
-
-The FXCM FIX client plugin is rather complete. The following tasks are on the road map:
-
-  - Other order types beside market and limit orders, e.g. adding stop loss.
-  - Build 64 bit version 
-  - Order mass status report for open working orders
-  - Position reports subscriptions for udpates  
-  - Convenient Zorro script for FIX conformance testing with FXCM
-  - Ability to pull FXCM historical tick data in `BrokerHistory2`
-  - More testing
 
 
 ### References
@@ -199,12 +230,12 @@ The FXCM FIX client plugin is rather complete. The following tasks are on the ro
   - [ForexConnect online documentation](https://fxcodebase.com/bin/forexconnect/1.4.1/help/CPlusPlus/web-content.html#index.html)
   - [FXCM market data](https://github.com/fxcm/MarketData)
 
-
+  
 
 ## Simulation FIX Plugin 
 
 The goal of the FIX Simulator plugin is to provide a market data simulator and connect to it via FIX. 
-Currently the the following standard FIX functionality is implemented:
+Currently it covers the following FIX functionalities:
 
   - Subscribe to (simulated) market data
     - MarketDataRequest (out)
@@ -216,22 +247,9 @@ Currently the the following standard FIX functionality is implemented:
     - OrderCancelReplaceRequest (out)
     - ExecReport (in) 
 
-
-### TODO
-
-The Simulation FIX client plugin and the FIX simulation server are work in progress. Current tasks on the roadmap are:
-
-  - [fix_sumulation_server]: account functionality to support `BrokerAccount`
-  - [fix_sumulation_server]: support for position (including asset balances) and trade reports, both, snapshot and updates
-  - [fix_sumulation_server]: support for secruity list  
-  - [fix_sumulation_server]: support order status request and mass order status request  
-  - [zorro_sim_fix_plugin]: implement function `BrokerAccount` for example with position snapshot and updates 
-  - [zorro_sim_fix_plugin]: integrate position update and trade capture report  
-  - [zorro_sim_fix_plugin]: integrate order status request repsoneses  
-  - [zorro_sim_fix_plugin]: more testing
-
-The market simulators only handle top of book. Eventually we want a fully simulated book, e.g. based in the `Fodra-Pham` model 
-or any other suitable order book simulation model. 
+The Simulation FIX client plugin and the FIX simulation server are work in progress. For instance it does not support
+accounts which is required to implement `BrokerAccount`. The market simulators only handle top of book. Eventually we 
+want a fully simulated book, e.g. based in the `Fodra-Pham` model or any other suitable order book simulation model. 
 
 
 ### FIX Simulation Server
@@ -245,18 +263,9 @@ Before starting `Zorro` the simulation server must be started:
 fix_simulation_server.exe session.cfg market_config.toml
 ```
 
-The FIX session configuration `session.cfg` is the first argument. The second argument is the
+The FIX session configuration `session.cfg` must be the first argument. The second argument is the
 market configuration `market_config.toml`. These files are copied to the build directories 
 with a post build event. 
-
-
-### Zorro Plugin
-
-Start `Zorro` as usual and check if there is a plugin with the name `_FixPlugin`. 
-This can be used with the `Test_FIX.c` trading script. 
-
-The FIX session configuration for the plugin is specified in `zorro_fix_client.cfg`. The file
-will be copied to the `Zorro` plugin directory `%ZorroInstallDir%\Plugin` with a post build event.
 
 
 

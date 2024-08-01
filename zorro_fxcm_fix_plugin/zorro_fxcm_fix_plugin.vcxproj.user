@@ -5,7 +5,7 @@
     </LocalDebuggerEnvironment>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
     <LocalDebuggerCommand>$(ZorroInstallDir)\Zorro64\Zorro64.exe </LocalDebuggerCommand>
-    <LocalDebuggerCommandArguments>-run TestFix</LocalDebuggerCommandArguments>
+    <LocalDebuggerCommandArguments>-run Test_Trade_GUI -stay</LocalDebuggerCommandArguments>
     <LocalDebuggerWorkingDirectory>$(ZorroInstallDir)\Zorro64</LocalDebuggerWorkingDirectory>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -13,12 +13,12 @@
     </LocalDebuggerEnvironment>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
     <LocalDebuggerCommand>$(ZorroInstallDir)\Zorro64\Zorro64.exe </LocalDebuggerCommand>
-    <LocalDebuggerCommandArguments>-run TestFix</LocalDebuggerCommandArguments>
+    <LocalDebuggerCommandArguments>-run Test_Trade_GUI -stay</LocalDebuggerCommandArguments>
     <LocalDebuggerWorkingDirectory>$(ZorroInstallDir)\Zorro64</LocalDebuggerWorkingDirectory>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LocalDebuggerCommand>$(ZorroInstallDir)\Zorro.exe </LocalDebuggerCommand>
-    <LocalDebuggerCommandArguments>-run TestFix</LocalDebuggerCommandArguments>
+    <LocalDebuggerCommandArguments>-run Test_Trade_GUI -stay</LocalDebuggerCommandArguments>
     <LocalDebuggerWorkingDirectory>$(ZorroInstallDir)</LocalDebuggerWorkingDirectory>
     <LocalDebuggerEnvironment>
     </LocalDebuggerEnvironment>
@@ -26,7 +26,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LocalDebuggerCommand>$(ZorroInstallDir)\Zorro.exe </LocalDebuggerCommand>
-    <LocalDebuggerCommandArguments>-run TestFix</LocalDebuggerCommandArguments>
+    <LocalDebuggerCommandArguments>-run Test_Trade_GUI -stay</LocalDebuggerCommandArguments>
     <LocalDebuggerWorkingDirectory>$(ZorroInstallDir)</LocalDebuggerWorkingDirectory>
     <LocalDebuggerEnvironment>
     </LocalDebuggerEnvironment>

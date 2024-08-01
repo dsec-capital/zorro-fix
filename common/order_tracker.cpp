@@ -14,11 +14,15 @@ namespace common {
 	  , ord_type(report.ord_type)
 	  , ord_status(report.ord_status)
 	  , side(report.side)
+	  , tif(report.tif)
 	  , price(report.price)
 	  , avg_px(report.avg_px)
 	  , order_qty(report.order_qty)
 	  , cum_qty(report.cum_qty)
 	  , leaves_qty(report.leaves_qty)
+      , custom_1(report.custom_1)
+	  , custom_2(report.custom_2)
+	  , custom_3(report.custom_3)
 	{}
 
 	OrderReport::OrderReport(
@@ -28,6 +32,7 @@ namespace common {
 		const char ord_type,
 		const char ord_status,
 		const char side,
+		const char tif,
 		double price,
 		double avg_px,
 		double order_qty,
@@ -39,6 +44,7 @@ namespace common {
 	  , ord_type(ord_type)
 	  , ord_status(ord_status)
 	  , side(side)
+      , tif(tif)
 	  , price(price)
 	  , avg_px(avg_px)
 	  , order_qty(order_qty)
@@ -63,20 +69,29 @@ namespace common {
 		return ord_status == FIX::OrdStatus_CANCELED;
 	}
 
-	std::string OrderReport::to_string() const {
-		return std::string("OrderReport[") +
-			"symbol=" + symbol + ", "
-			"ord_id=" + ord_id + ", "
-			"cl_ord_id=" + cl_ord_id + ", "
-			"ord_status=" + ord_status_string(ord_status) + ", "
-			"ord_type=" + ord_type_string(ord_type) + ", "
-			"side=" + side_string(side) + ", "
-			"price=" + std::to_string(price) + ", "
-			"avg_px=" + std::to_string(avg_px) + ", "
-			"order_qty=" + std::to_string(order_qty) + ", "
-			"cum_qty=" + std::to_string(cum_qty) + ", "
-			"leaves_qty=" + std::to_string(leaves_qty) +
-			"]";
+	std::string OrderReport::to_string(const std::string& c1, const std::string& c2, const std::string& c3) const {
+		std::stringstream ss;	
+		auto h1 = c1 == "" ? "custom_1=" : (c1 + "=");
+		auto h2 = c2 == "" ? "custom_2=" : (c2 + "=");
+		auto h3 = c3 == "" ? "custom_3=" : (c3 + "=");
+		ss << "OrderReport[" 
+		   << "symbol=" << symbol << ", "
+		   << "ord_id=" << ord_id << ", "
+		   << "cl_ord_id=" << cl_ord_id << ", "
+		   << "ord_status=" << ord_status_string(ord_status) << ", "
+		   << "ord_type=" << ord_type_string(ord_type) << ", "
+		   << "side=" << side_string(side) << ", "
+		   << "tif=" << time_in_force_string(side) << ", "
+		   << "price=" << std::to_string(price) << ", "
+		   << "avg_px=" << std::to_string(avg_px) << ", "
+		   << "order_qty=" << std::to_string(order_qty) << ", "
+		   << "cum_qty=" << std::to_string(cum_qty) << ", "
+		   << "leaves_qty=" << std::to_string(leaves_qty) << ", "
+		   << h1 << custom_1 << ", "
+		   << h2 << custom_2 << ", "
+		   << h3 << custom_3
+		   << "]";
+		return ss.str();
 	}
 
 	std::ostream& operator<<(std::ostream& ostream, const OrderReport& report)
@@ -88,17 +103,19 @@ namespace common {
 		const std::string& account,
 		const std::string& symbol
 	) : account(account)
-		, symbol(symbol)
+	  , symbol(symbol)
 	{}
 
 	std::string Position::to_string() const {
-		return std::string("Position[") +
-			"account=" + account + ", "
-			"symbol=" + symbol + ", "
-			"avg_px=" + std::to_string(avg_px) + ", "
-			"qty_long=" + std::to_string(qty_long) + ", "
-			"qty_short=" + std::to_string(qty_short) +
-			"]";
+		std::stringstream ss;
+		ss << "Position[" 
+		   << "account=" << account << ", "
+		   << "symbol=" << symbol << ", "
+		   << "avg_px=" << std::to_string(avg_px) << ", "
+		   << "qty_long=" << std::to_string(qty_long) << ", "
+		   << "qty_short=" << std::to_string(qty_short) 
+		   << "]";
+		return ss.str();
 	}
 
 	double Position::net_qty() const {
@@ -118,10 +135,12 @@ namespace common {
 	{}
 
 	std::string NetPosition::to_string() const {
-		return "account=" + account + ", "
-			"symbol=" + symbol + ", "
-			"avg_px=" + std::to_string(avg_px) + ", "
-			"qty=" + std::to_string(qty);
+		std::stringstream ss;
+		ss << "account=" << account << ", "
+		   << "symbol=" << symbol << ", "
+		   << "avg_px=" << std::to_string(avg_px) << ", "
+		   << "qty=" << std::to_string(qty);
+		return ss.str();
 	}
 
 	std::ostream& operator<<(std::ostream& ostream, const NetPosition& pos)
@@ -131,7 +150,7 @@ namespace common {
 
 	OrderTracker::OrderTracker(const std::string& account) : account(account) {}
 
-	NetPosition& OrderTracker::net_position(const std::string& symbol) {
+	NetPosition& OrderTracker::get_net_position(const std::string& symbol) {
 		auto it = position_by_symbol.find(symbol);
 		if (it == position_by_symbol.end()) {
 			it = position_by_symbol.try_emplace(symbol, account, symbol).first;
@@ -144,13 +163,25 @@ namespace common {
 		return std::make_pair(it, it != pending_orders_by_cl_ord_id.end());
 	}
 
+	const std::unordered_map<std::string, OrderReport>& OrderTracker::get_orders() const {
+		return orders_by_ord_id;
+	}
+
+	const std::unordered_map<std::string, NetPosition>& OrderTracker::get_net_positions() const {
+		return position_by_symbol;
+	}
+
 	std::pair<typename OrderTracker::const_iterator, bool> OrderTracker::get_order(const std::string& ord_id) const {
 		auto it = orders_by_ord_id.find(ord_id);
 		return std::make_pair(it, it != orders_by_ord_id.end());
 	}
 
-	int OrderTracker::num_orders() const {
+	int OrderTracker::num_order_reports() const {
 		return static_cast<int>(orders_by_ord_id.size());
+	}
+
+	int OrderTracker::num_net_positions() const {
+		return static_cast<int>(position_by_symbol.size());
 	}
 
 	bool OrderTracker::process(const ExecReport& report) {
@@ -189,7 +220,7 @@ namespace common {
 			case FIX::ExecType_TRADE: {
 				orders_by_ord_id.insert_or_assign(report.ord_id, std::move(OrderReport(report)));
 				if (report.ord_status == FIX::OrdStatus_FILLED || report.ord_status == FIX::OrdStatus_PARTIALLY_FILLED) {
-					auto& position = net_position(report.symbol);
+					auto& position = get_net_position(report.symbol);
 					if (report.side == FIX::Side_BUY) {
 						auto prev = position.qty;
 						position.qty += report.last_qty;
@@ -246,16 +277,18 @@ namespace common {
 		return account;
 	}
 
-	std::string OrderTracker::to_string() const {
+	std::string OrderTracker::to_string(const std::string& c1, const std::string& c2, const std::string& c3) const {
 		std::string rows;
 		rows += std::format("OrderTracker[{}][\n", account);
-		rows += "  pending orders:\n";
-		for (auto& [cl_ord_id, order] : pending_orders_by_cl_ord_id) {
-			rows += std::format("    cl_ord_id={} order={}\n", cl_ord_id, order.to_string());
+		if (!pending_orders_by_cl_ord_id.empty()) {
+			rows += "  pending orders:\n";
+			for (auto& [cl_ord_id, order] : pending_orders_by_cl_ord_id) {
+				rows += std::format("    cl_ord_id={} order={}\n", cl_ord_id, order.to_string(c1, c2, c3));
+			}
 		}
 		rows += "  orders:\n";
 		for (auto& [ord_id, order] : orders_by_ord_id) {
-			rows += std::format("    ord_id={} order={}\n", ord_id, order.to_string());
+			rows += std::format("    ord_id={} order={}\n", ord_id, order.to_string(c1, c2, c3));
 		}
 		rows += "  positions:\n";
 		for (auto& [symbol, pos] : position_by_symbol) {

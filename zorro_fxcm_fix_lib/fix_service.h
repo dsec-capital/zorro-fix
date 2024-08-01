@@ -31,12 +31,13 @@ namespace zorro {
 	public:
 		FixService(
 			const std::string& settings_cfg_file,
-			unsigned int requests_on_logon,
 			unsigned int num_required_session_logins,
 			BlockingTimeoutQueue<ExecReport>& exec_report_queue,
+			BlockingTimeoutQueue<StatusExecReport>& status_exec_report_queue,
 			BlockingTimeoutQueue<TopOfBook>& top_of_book_queue,
 			BlockingTimeoutQueue<ServiceMessage>& service_message_queue,
-			BlockingTimeoutQueue<FXCMPositionReports>& position_reports_queue,
+			BlockingTimeoutQueue<FXCMPositionReport>& position_report_queue,
+			BlockingTimeoutQueue<FXCMPositionReports>& position_snapshot_reports_queue,
 			BlockingTimeoutQueue<FXCMCollateralReport>& collateral_report_queue,
 			BlockingTimeoutQueue<FXCMTradingSessionStatus>& trading_session_status_queue
 		);
@@ -46,12 +47,13 @@ namespace zorro {
 #ifdef HAVE_SSL
 		FixService(
 			const std::string& settings_cfg_file,
-			unsigned int requests_on_logon,
 			unsigned int num_required_session_logins,
 			BlockingTimeoutQueue<ExecReport>& exec_report_queue,
+			BlockingTimeoutQueue<StatusExecReport>& status_exec_report_queue,
 			BlockingTimeoutQueue<TopOfBook>& top_of_book_queue,
 			BlockingTimeoutQueue<ServiceMessage>& service_message_queue,
-			BlockingTimeoutQueue<FXCMPositionReports>& position_reports_queue,
+			BlockingTimeoutQueue<FXCMPositionReport>& position_reports_queue,
+			BlockingTimeoutQueue<FXCMPositionReports>& position_snapshot_reports_queue,
 			BlockingTimeoutQueue<FXCMCollateralReport>& collateral_report_queue,
 			BlockingTimeoutQueue<FXCMTradingSessionStatus>& trading_session_status_queue
 			const std::string& isSSL

@@ -1,10 +1,12 @@
 #pragma once
 
 #include <memory>
+#include <filesystem>
 
 #include "httplib/httplib.h"
 #include "nlohmann/json.h"
 #include "spdlog/spdlog.h"
+#include "csv2/csv2.hpp"
 
 #include "common/bar.h"
 #include "common/json.h"
@@ -32,6 +34,14 @@ namespace fxcm {
             spdlog::error("timeframe {} incorrect", timeframe);
         }
         return timeframeObj;
+    }
+
+    std::string reformat_timestring(const std::string& str) {
+        auto res = str;
+        std::replace(res.begin(), res.end(), ':', '-');
+        std::replace(res.begin(), res.end(), '.', '-');
+        std::replace(res.begin(), res.end(), ' ', 'T');
+        return res;
     }
 
     class ProxyServer {
@@ -67,6 +77,7 @@ namespace fxcm {
         ProxyServer(
             const std::string& login,
             const std::string& password,
+            const std::string& csv_export_path,
             const std::string& connection,
             const std::string& url,
             const std::string& server_host,
@@ -109,17 +120,16 @@ namespace fxcm {
                 server.stop();
             });
 
-            // http://localhost:8080/status
+            // http://localhost:8083/status
             server.Get("/status", [this](const Request& req, Response& res) {
                 spdlog::info("<==== /status ready={} startd={}", ready, common::to_string(started));
                 json j;
                 j["started"] = common::to_string(started);
                 j["ready"] = ready;
-                auto body = j.dump();
-                res.set_content(body, "application/json");
+                res.set_content(j.dump(), "application/json");
             });
 
-            // http://localhost:8080/instr?symbol=EUR/USD
+            // http://localhost:8083/instr?symbol=EUR/USD
             server.Get("/instr", [this](const Request& req, Response& res) {
                 try {
                     std::string symbol = "nan";
@@ -170,12 +180,11 @@ namespace fxcm {
 
                     json j;
                     j["error"] = error;
-                    auto body = j.dump();
-                    res.set_content(body, "application/json");
+                    res.set_content(j.dump(), "application/json");
                 }
             });
 
-            // for example http://localhost:8080/subscribe?symbol=EUR/USD
+            // for example http://localhost:8083/subscribe?symbol=EUR/USD
             server.Get("/subscribe", [this](const Request& req, Response& res) {
                 try {
                     std::string symbol = "";
@@ -250,13 +259,14 @@ namespace fxcm {
 
                     json j;
                     j["error"] = error;
-                    auto body = j.dump();
-                    res.set_content(body, "application/json");
+                    res.set_content(j.dump(), "application/json");
                 }
             });
-            
-            // for example http://localhost:8080/bars?symbol=EUR/USD&from=2024-06-18 00:00:00&timeframe=m1
-            server.Get("/bars", [this](const Request& req, Response& res) {                
+
+            // for example http://localhost:8083/bars?symbol=EUR/USD&from=2024-06-18 00:00:00&timeframe=m1
+            server.Get("/bars", [this](const Request& req, Response& res) {
+                std::string symbol = "nan";
+
                 try {
                     if (!ready) {
                         throw std::runtime_error("server not ready!");
@@ -265,7 +275,6 @@ namespace fxcm {
                     std::stringstream msg;
                     msg << "<==== /bars";
 
-                    std::string symbol = "nan";
                     std::string timeframe = "m1";
                     std::chrono::nanoseconds from{ 0 };
                     auto to = common::get_current_system_clock();
@@ -331,22 +340,19 @@ namespace fxcm {
                             has_error = true;
                         }
 
-                        if (!has_error) 
+                        if (!has_error)
                         {
                             responseListener->wait();
 
-                            // print results if any
                             O2G2Ptr<pricehistorymgr::IPriceHistoryCommunicatorResponse> response = responseListener->getResponse();
                             if (response) {
-                                spdlog::debug("response obtainded!");
-
                                 pricehistorymgr::IError* error = NULL;
                                 O2G2Ptr<IO2GMarketDataSnapshotResponseReader> reader = communicator->createResponseReader(response, &error);
                                 O2G2Ptr<pricehistorymgr::IError> autoError(error);
                                 if (reader) {
                                     if (!reader->isBar())
                                     {
-                                        error_message = std::format("failded sending requestexpected bars");
+                                        error_message = std::format("failded sending request - expected bars");
                                         has_error = true;
                                     }
                                     else {
@@ -355,7 +361,7 @@ namespace fxcm {
                                         if (n > 0) {
                                             LocalFormat format;
 
-                                            spdlog::debug(
+                                            spdlog::info(
                                                 "{} bars from {} to {} in request interval from {} to {}",
                                                 n, format.formatDate(reader->getDate(0)), format.formatDate(reader->getDate(n - 1)),
                                                 format.formatDate(date_from), format.formatDate(date_to)
@@ -411,7 +417,7 @@ namespace fxcm {
                         throw std::runtime_error(error_message);
                     }
 
-                    spdlog::debug("fetched num_bars={}", bars.size());
+                    spdlog::info("fetched {} number of bars", bars.size());
                 }
                 catch (...) {
                     std::string what = "unknown exception";
@@ -423,15 +429,374 @@ namespace fxcm {
                         what = e.what();
                     }
                     catch (...) {}
-                    auto error = std::format("error: no bar data for error={}", what);
+                    auto error = std::format("error: no bar data for {} error={}", symbol, what);
                     spdlog::error(error);
 
                     json j;
                     j["error"] = error;
-                    auto body = j.dump();
-                    res.set_content(body, "application/json");
+                    res.set_content(j.dump(), "application/json");
                 }
             });
+            
+            // for example http://localhost:8083/ticks?symbol=EUR/USD&from=2024-06-27 00:00:00 
+            server.Get("/ticks", [this](const Request& req, Response& res) {                
+                std::string symbol = "nan";
+
+                try {
+                    if (!ready) {
+                        throw std::runtime_error("server not ready!");
+                    }
+
+                    std::stringstream msg;
+                    msg << "<==== /ticks";
+
+                    std::string timeframe = "t1";
+                    std::chrono::nanoseconds from{ 0 };
+                    auto to = common::get_current_system_clock();
+                    int count{ 0 };
+
+                    if (req.has_param("symbol")) {
+                        symbol = req.get_param_value("symbol");
+                        msg << std::format(" symbol={}", symbol);
+                    }
+                    if (req.has_param("from")) {
+                        auto from_param = req.get_param_value("from");
+                        from = common::parse_datetime(from_param);
+                        msg << std::format(" from={}", from_param);
+                    }
+                    if (req.has_param("to")) {
+                        auto to_param = req.get_param_value("to");
+                        to = common::parse_datetime(to_param);
+                        msg << std::format(" to={}", to_param);
+                    }
+                    if (req.has_param("count")) {
+                        auto to_count = req.get_param_value("count");
+                        count = std::stoi(to_count);
+                        msg << std::format(" count={}", to_count);
+                    }
+
+                    spdlog::info(msg.str());
+                    std::vector<common::Quote<DATE>> quotes;
+                    auto date_from = common::nanos_to_date(from);
+                    auto date_to = common::nanos_to_date(to);
+                    auto quotes_count = count;
+
+                    O2G2Ptr<CommunicatorStatusListener> communicatorStatusListener(new CommunicatorStatusListener());
+                    communicator->addStatusListener(communicatorStatusListener);
+
+                    bool has_error = false;
+                    std::string error_message;
+
+                    if (communicator->isReady() || communicatorStatusListener->waitEvents() && communicatorStatusListener->isReady())
+                    {
+                        O2G2Ptr<ResponseListener> responseListener(new ResponseListener());
+                        communicator->addListener(responseListener);
+
+                        O2G2Ptr<IO2GTimeframe> timeframeObj = create_timeframe_object(communicator, timeframe);
+                        if (!timeframeObj)
+                        {
+                            error_message = std::format("timeframe {} incorrect", timeframe);
+                            has_error = true;
+                        }
+
+                        pricehistorymgr::IError* error = NULL;
+                        O2G2Ptr<pricehistorymgr::IPriceHistoryCommunicatorRequest> request = communicator->createRequest(
+                            symbol.c_str(), timeframeObj, date_from, date_to, quotes_count, &error
+                        );
+                        O2G2Ptr<pricehistorymgr::IError> autoError(error);
+                        if (!request)
+                        {
+                            error_message = std::format("failed to create request {}", error ? error->getMessage() : "unknown error");
+                            has_error = true;
+                        }
+
+                        responseListener->setRequest(request);
+                        if (!communicator->sendRequest(request, &error))
+                        {
+                            error_message = std::format("failed to send request {}", error ? error->getMessage() : "unknown error");
+                            has_error = true;
+                        }
+
+                        if (!has_error) 
+                        {
+                            responseListener->wait();
+
+                            O2G2Ptr<pricehistorymgr::IPriceHistoryCommunicatorResponse> response = responseListener->getResponse();
+                            if (response) {
+                                pricehistorymgr::IError* error = NULL;
+                                O2G2Ptr<IO2GMarketDataSnapshotResponseReader> reader = communicator->createResponseReader(response, &error);
+                                O2G2Ptr<pricehistorymgr::IError> autoError(error);
+                                if (reader) {
+                                    if (reader->isBar())
+                                    {
+                                        error_message = std::format("failded sending request - expected ticks");
+                                        has_error = true;
+                                    }
+                                    else {
+                                        auto n = reader->size();
+
+                                        if (n > 0) {
+                                            LocalFormat format;
+
+                                            spdlog::info(
+                                                "{} ticks from {} to {} in request interval from {} to {}",
+                                                n, format.formatDate(reader->getDate(0)), format.formatDate(reader->getDate(n - 1)),
+                                                format.formatDate(date_from), format.formatDate(date_to)
+                                            );
+
+                                            for (int i = 0; i < n; ++i) {
+                                                DATE dt = reader->getDate(i); // tick timestamp
+
+                                                if (dt < date_from) {
+                                                    continue;
+                                                }
+
+                                                common::Quote<DATE> quote(
+                                                    dt,
+                                                    reader->getBid(i),
+                                                    reader->getAsk(i)
+                                                );
+                                                
+                                                quotes.emplace_back(quote);
+                                            }
+                                        }
+                                    }
+                                }
+                                else {
+                                    error_message = std::format("failed to create reader {}", error ? error->getMessage() : "unknown error");
+                                    has_error = true;
+                                }
+                            }
+                        }
+
+                        communicator->removeListener(responseListener);
+                    }
+                    else {
+                        error_message = std::format("communicator not ready or status listener timeout");
+                        has_error = true;
+                    }
+
+                    communicator->removeStatusListener(communicatorStatusListener);
+                    statusListener->reset();
+
+                    if (!has_error) {
+                        auto content = common::to_json(quotes);
+                        res.set_content(content.dump(), "application/json");
+                    }
+                    else {
+                        throw std::runtime_error(error_message);
+                    }
+
+                    spdlog::info("fetched {} number of ticks", quotes.size());
+                }
+                catch (...) {
+                    std::string what = "unknown exception";
+                    std::exception_ptr ex = std::current_exception();
+                    try {
+                        std::rethrow_exception(ex);
+                    }
+                    catch (std::exception const& e) {
+                        what = e.what();
+                    }
+                    catch (...) {}
+                    auto error = std::format("error: no tick data for {} error={}", symbol, what);
+                    spdlog::error(error);
+
+                    json j;
+                    j["error"] = error;
+                    res.set_content(j.dump(), "application/json");
+                }
+            });
+
+            // for example http://localhost:8083/ticks_to_csv?symbol=EUR/USD&from=2024-06-27 00:00:00&to==2024-06-27 06:00:00
+            server.Get("/ticks_to_csv", [csv_export_path, this](const Request& req, Response& res) {
+                std::string symbol = "nan";
+
+                try {
+                    if (!ready) {
+                        throw std::runtime_error("server not ready!");
+                    }
+
+                    std::stringstream msg;
+                    msg << "<==== /ticks_to_csv";
+
+                    std::string timeframe = "t1";
+                    std::chrono::nanoseconds from{ 0 };
+                    auto to = common::get_current_system_clock();
+                    int count{ 0 };
+
+                    if (req.has_param("symbol")) {
+                        symbol = req.get_param_value("symbol");
+                        msg << std::format(" symbol={}", symbol);
+                    }
+                    if (req.has_param("from")) {
+                        auto from_param = req.get_param_value("from");
+                        from = common::parse_datetime(from_param);
+                        msg << std::format(" from={}", from_param);
+                    }
+                    if (req.has_param("to")) {
+                        auto to_param = req.get_param_value("to");
+                        to = common::parse_datetime(to_param);
+                        msg << std::format(" to={}", to_param);
+                    }
+                    if (req.has_param("count")) {
+                        auto to_count = req.get_param_value("count");
+                        count = std::stoi(to_count);
+                        msg << std::format(" count={}", to_count);
+                    }
+
+                    spdlog::info(msg.str());
+                    std::string csv_filename;
+                    std::vector<std::vector<std::string>> rows;
+                    auto date_from = common::nanos_to_date(from);
+                    auto date_to = common::nanos_to_date(to);
+                    auto quotes_count = count;
+
+                    O2G2Ptr<CommunicatorStatusListener> communicatorStatusListener(new CommunicatorStatusListener());
+                    communicator->addStatusListener(communicatorStatusListener);
+
+                    bool has_error = false;
+                    std::string error_message;
+
+                    if (communicator->isReady() || communicatorStatusListener->waitEvents() && communicatorStatusListener->isReady())
+                    {
+                        O2G2Ptr<ResponseListener> responseListener(new ResponseListener());
+                        communicator->addListener(responseListener);
+
+                        O2G2Ptr<IO2GTimeframe> timeframeObj = create_timeframe_object(communicator, timeframe);
+                        if (!timeframeObj)
+                        {
+                            error_message = std::format("timeframe {} incorrect", timeframe);
+                            has_error = true;
+                        }
+
+                        pricehistorymgr::IError* error = NULL;
+                        O2G2Ptr<pricehistorymgr::IPriceHistoryCommunicatorRequest> request = communicator->createRequest(
+                            symbol.c_str(), timeframeObj, date_from, date_to, quotes_count, &error
+                        );
+                        O2G2Ptr<pricehistorymgr::IError> autoError(error);
+                        if (!request)
+                        {
+                            error_message = std::format("failed to create request {}", error ? error->getMessage() : "unknown error");
+                            has_error = true;
+                        }
+
+                        responseListener->setRequest(request);
+                        if (!communicator->sendRequest(request, &error))
+                        {
+                            error_message = std::format("failed to send request {}", error ? error->getMessage() : "unknown error");
+                            has_error = true;
+                        }
+
+                        if (!has_error)
+                        {
+                            responseListener->wait();
+
+                            O2G2Ptr<pricehistorymgr::IPriceHistoryCommunicatorResponse> response = responseListener->getResponse();
+                            if (response) {
+                                pricehistorymgr::IError* error = NULL;
+                                O2G2Ptr<IO2GMarketDataSnapshotResponseReader> reader = communicator->createResponseReader(response, &error);
+                                O2G2Ptr<pricehistorymgr::IError> autoError(error);
+                                if (reader) {
+                                    if (reader->isBar())
+                                    {
+                                        error_message = std::format("failded sending request - expected ticks");
+                                        has_error = true;
+                                    }
+                                    else {
+                                        auto n = reader->size();
+
+                                        if (n > 0) {
+                                            LocalFormat format;
+
+                                            auto first_dt = reformat_timestring(common::date_to_string(reader->getDate(0)));
+                                            auto last_dt = reformat_timestring(common::date_to_string(reader->getDate(n-1)));
+
+                                            spdlog::debug("{} ticks from {} to {}", n, first_dt, last_dt);
+
+                                            auto symbol_tag = symbol;
+                                            std::replace(symbol_tag.begin(), symbol_tag.end(), '/', '-');
+                                            csv_filename = std::format("{}/{}_{}_{}.csv", csv_export_path, symbol_tag, first_dt, last_dt);
+
+                                            spdlog::debug("file path to expoert {}", csv_filename);
+
+                                            std::ofstream stream(csv_filename);
+
+                                            if (!stream) {
+                                                throw std::runtime_error(std::format("invaild file path {}", csv_filename));
+                                            }
+
+                                            csv2::Writer<csv2::delimiter<','>> writer(stream);
+
+                                            std::vector<std::string> row{
+                                                    "DateTime(ns UTC)",
+                                                    "Bid",
+                                                    "Ask"
+                                            };
+                                            rows.emplace_back(std::move(row));
+
+                                            for (int i = 0; i < n; ++i) {
+                                                DATE dt = reader->getDate(i); // tick timestamp
+                                                auto ns = common::date_to_nanos(dt);
+                                                std::vector<std::string> row{
+                                                    std::to_string(ns.count()),
+                                                    format.formatDouble(reader->getBid(i), 6),
+                                                    format.formatDouble(reader->getAsk(i), 6)
+                                                };
+                                                rows.emplace_back(std::move(row));
+                                            }
+
+                                            writer.write_rows(rows);
+                                        }
+                                    }
+                                }
+                                else {
+                                    error_message = std::format("failed to create reader {}", error ? error->getMessage() : "unknown error");
+                                    has_error = true;
+                                }
+                            }
+                        }
+
+                        communicator->removeListener(responseListener);
+                    }
+                    else {
+                        error_message = std::format("communicator not ready or status listener timeout");
+                        has_error = true;
+                    }
+
+                    communicator->removeStatusListener(communicatorStatusListener);
+                    statusListener->reset();
+
+                    if (!has_error) {
+                        json j;
+                        j["filename"] = csv_filename;
+                        j["num_rows"] = rows.empty() ? 0 : rows.size() - 1;
+                        res.set_content(j.dump(), "application/json");
+                    }
+                    else {
+                        throw std::runtime_error(error_message);
+                    }
+
+                    spdlog::debug("written {} ticks to {}", rows.empty() ? 0 : rows.size() - 1, csv_filename);
+                }
+                catch (...) {
+                    std::string what = "unknown exception";
+                    std::exception_ptr ex = std::current_exception();
+                    try {
+                        std::rethrow_exception(ex);
+                    }
+                    catch (std::exception const& e) {
+                        what = e.what();
+                    }
+                    catch (...) {}
+                    auto error = std::format("error: no tick data for {} error={}", symbol, what);
+                    spdlog::error(error);
+
+                    json j;
+                    j["error"] = error;
+                    res.set_content(j.dump(), "application/json");
+                }
+                });
         }
 
         void run() {

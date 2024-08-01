@@ -14,7 +14,7 @@ namespace zorro
 	DLLFUNC_C int BrokerBuy2(char* Asset, int nAmount, double dStopDist, double dLimit, double* pPrice, int* pFill);
 	DLLFUNC_C int BrokerTrade(int nTradeID, double* pOpen, double* pClose, double* pCost, double* pProfit);
 	DLLFUNC_C int BrokerSell2(int nTradeID, int nAmount, double Limit, double* pClose, double* pCost, double* pProfit, int* pFill);
-	DLLFUNC_C double BrokerCommand(int Command, DWORD dwParameter);
+	DLLFUNC_C double BrokerCommand(int Command, intptr_t dwParameter);
 
 	int(__cdecl* BrokerError)(const char* txt);
 	int(__cdecl* BrokerProgress)(const int percent);

@@ -2,6 +2,8 @@
 
 #include "zorro_common/zorro.h"
 
+#include "zorro_fxcm_fix_include.h"
+
 namespace zorro
 {
 	DLLFUNC_C int BrokerOpen(char* Name, FARPROC fpError, FARPROC fpProgress);
@@ -13,7 +15,7 @@ namespace zorro
 	DLLFUNC_C int BrokerBuy2(char* Asset, int nAmount, double dStopDist, double dLimit, double* pPrice, int* pFill);
 	DLLFUNC_C int BrokerTrade(int nTradeID, double* pOpen, double* pClose, double* pCost, double* pProfit);
 	DLLFUNC_C int BrokerSell2(int nTradeID, int nAmount, double Limit, double* pClose, double* pCost, double* pProfit, int* pFill);
-	DLLFUNC_C double BrokerCommand(int Command, DWORD dwParameter);
+	DLLFUNC_C double BrokerCommand(int Command, intptr_t dwParameter);
 
 	int(__cdecl* BrokerError)(const char* txt);
 	int(__cdecl* BrokerProgress)(const int percent);
@@ -21,9 +23,4 @@ namespace zorro
 	long(__cdecl* http_status)(int id);
 	long(__cdecl* http_result)(int id, char* content, long size);
 	void(__cdecl* http_free)(int id);
-
-	constexpr unsigned int BROKER_CMD_CREATE_ASSET_LIST_FILE = 2000;
-	constexpr unsigned int BROKER_CMD_CREATE_SECURITY_INFO_FILE = 2001;
-	constexpr unsigned int BROKER_CMD_GET_OPEN_POSITIONS = 2002;
-	constexpr unsigned int BROKER_CMD_GET_CLOSED_POSITIONS = 2003;
 }

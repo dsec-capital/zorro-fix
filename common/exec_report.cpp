@@ -35,6 +35,8 @@ namespace common {
 			return "SUSPENDED";
 		case FIX::ExecType_DONE_FOR_DAY:
 			return "DONE_FOR_DAY";
+		case 'I':
+			return "STATUS";
 		default:
 			return "UNKNOWN";
 		}
@@ -98,6 +100,34 @@ namespace common {
 		}
 	}
 
+	std::string time_in_force_string(const char tif) {
+		switch (tif)
+		{
+		case FIX::TimeInForce_DAY:
+			return "TimeInForce_DAY";
+		case FIX::TimeInForce_GOOD_TILL_CANCEL:
+			return "TimeInForce_GOOD_TILL_CANCEL";
+		case FIX::TimeInForce_IMMEDIATE_OR_CANCEL:
+			return "TimeInForce_IMMEDIATE_OR_CANCEL";
+		case FIX::TimeInForce_FILL_OR_KILL:
+			return "TimeInForce_FILL_OR_KILL";
+		case FIX::TimeInForce_AT_THE_OPENING:
+			return "TimeInForce_AT_THE_OPENING";
+		case FIX::TimeInForce_GOOD_TILL_CROSSING:
+			return "TimeInForce_GOOD_TILL_CROSSING";
+		case FIX::TimeInForce_GOOD_TILL_DATE:
+			return "TimeInForce_GOOD_TILL_DATE";
+		case FIX::TimeInForce_GOOD_FOR_TIME:
+			return "TimeInForce_GOOD_FOR_TIME";
+		case FIX::TimeInForce_AT_THE_CLOSE:
+			return "TimeInForce_AT_THE_CLOSE";
+		case FIX::TimeInForce_GOOD_FOR_MONTH:
+			return "TimeInForce_GOOD_FOR_MONTH";
+		default:
+			return "UNKNOWN";
+		}
+	}
+
 	ExecReport::ExecReport() {}
 
 	ExecReport::ExecReport(
@@ -109,6 +139,7 @@ namespace common {
 		const char ord_type,
 		const char ord_status,
 		const char side,
+		const char tif,
 		double price,
 		double avg_px,
 		double order_qty,
@@ -116,7 +147,10 @@ namespace common {
 		double last_px,
 		double cum_qty,
 		double leaves_qty,
-		const std::string& text
+		const std::string& text,
+		const std::string& custom_1,
+		const std::string& custom_2,
+		const std::string& custom_3
 	) : symbol(symbol)
 	  , ord_id(ord_id)
 	  , cl_ord_id(cl_ord_id)
@@ -125,36 +159,134 @@ namespace common {
 	  , ord_type(ord_type)
 	  , ord_status(ord_status)
 	  , side(side)
+      , tif(tif)
 	  , price(price)
 	  , avg_px(avg_px)
 	  , order_qty(order_qty)
 	  , last_qty(last_qty)
-     , last_px(last_px)
+      , last_px(last_px)
 	  , cum_qty(cum_qty)
 	  , leaves_qty(leaves_qty)
 	  , text(text)
+	  , custom_1(custom_1)
+	  , custom_2(custom_2)
+	  , custom_3(custom_3)
 	{}
 
-	std::string ExecReport::to_string() const {
-		return std::string("ExecReport[") +
-			"symbol=" + symbol + ", "
-			"ord_id=" + ord_id + ", "
-			"cl_ord_id=" + cl_ord_id + ", "
-			"exec_id=" + exec_id + ", "
-			"exec_type=" + exec_type_string(exec_type) + ", "
-			"ord_type=" + ord_type_string(ord_type) + ", "
-			"ord_status=" + ord_status_string(ord_status) + ", "
-			"side=" + side_string(side) + ", "
-			"price=" + std::to_string(price) + ", "
-			"avg_px=" + std::to_string(avg_px) + ", "
-			"order_qty=" + std::to_string(order_qty) + ", "
-			"cum_qty=" + std::to_string(cum_qty) + ", "
-			"leaves_qty=" + std::to_string(leaves_qty) + ", "
-			"text=" + text +
-			"]";
+	std::string ExecReport::to_string(const std::string& c1, const std::string& c2, const std::string& c3) const {
+		std::stringstream ss;
+		auto h1 = c1 == "" ? "custom_1=" : (c1 + "=");
+		auto h2 = c2 == "" ? "custom_2=" : (c2 + "=");
+		auto h3 = c3 == "" ? "custom_3=" : (c3 + "=");
+		ss << "ExecReport[" 
+		   << "symbol=" << symbol << ", "
+		   << "ord_id=" << ord_id << ", "
+		   << "cl_ord_id=" << cl_ord_id << ", "
+		   << "exec_id=" << exec_id << ", "
+		   << "exec_type=" << exec_type_string(exec_type) << ", "
+		   << "ord_type=" << ord_type_string(ord_type) << ", "
+		   << "ord_status=" << ord_status_string(ord_status) << ", "
+		   << "side=" << side_string(side) << ", "
+		   << "tif=" << time_in_force_string(tif) << ", "
+		   << "price=" << std::to_string(price) << ", "
+		   << "avg_px=" << std::to_string(avg_px) << ", "
+		   << "order_qty=" << std::to_string(order_qty) << ", "
+		   << "cum_qty=" << std::to_string(cum_qty) << ", "
+		   << "leaves_qty=" << std::to_string(leaves_qty) << ", "
+		   << "text=" << text << ", "
+		   << h1 << custom_1 << ", "
+		   << h2 << custom_2 << ", "
+		   << h3 << custom_3
+		   << "]";
+		return ss.str();
 	}
 
 	std::ostream& operator<<(std::ostream& ostream, const ExecReport& report)
+	{
+		return ostream << report.to_string();
+	}
+
+	StatusExecReport::StatusExecReport(
+		const std::string& symbol,
+		const std::string& ord_id,
+		const std::string& cl_ord_id,
+		const std::string& exec_id,
+		const std::string& mass_status_req_id,
+		const char exec_type,
+		const char ord_type,
+		const char ord_status,
+		const char side,
+		const char tif,
+		double price,
+		double avg_px,
+		double order_qty,
+		double last_qty,
+		double last_px,
+		double cum_qty,
+		double leaves_qty,
+		const std::string& text,
+		int tot_num_reports,
+		bool last_rpt_requested, 
+		const std::string& custom_1,
+		const std::string& custom_2,
+		const std::string& custom_3
+	) : symbol(symbol)
+	  , ord_id(ord_id)
+	  , cl_ord_id(cl_ord_id)
+	  , exec_id(exec_id)
+	  , mass_status_req_id(mass_status_req_id)
+	  , exec_type(exec_type)
+	  , ord_type(ord_type)
+	  , ord_status(ord_status)
+	  , side(side)
+      , tif(tif)
+	  , price(price)
+	  , avg_px(avg_px)
+	  , order_qty(order_qty)
+	  , last_qty(last_qty)
+	  , last_px(last_px)
+	  , cum_qty(cum_qty)
+	  , leaves_qty(leaves_qty)
+	  , text(text)
+	  , tot_num_reports(tot_num_reports)
+	  , last_rpt_requested(last_rpt_requested)
+      , custom_1(custom_1)
+      , custom_2(custom_2)
+      , custom_3(custom_3)
+	{}
+
+	std::string StatusExecReport::to_string(const std::string& c1, const std::string& c2, const std::string& c3) const {
+		std::stringstream ss;
+		auto h1 = c1 == "" ? "custom_1=" : (c1 + "=");
+		auto h2 = c2 == "" ? "custom_2=" : (c2 + "=");
+		auto h3 = c3 == "" ? "custom_3=" : (c3 + "=");
+		ss << "StatusExecReport["
+		   << "symbol=" << symbol << ", "
+		   << "ord_id=" << ord_id << ", "
+		   << "cl_ord_id=" << cl_ord_id << ", "
+		   << "exec_id=" << exec_id << ", "
+		   << "mass_status_req_id=" << mass_status_req_id << ", "
+		   << "exec_type=" << exec_type_string(exec_type) << ", "
+		   << "ord_type=" << ord_type_string(ord_type) << ", "
+		   << "ord_status=" << ord_status_string(ord_status) << ", "
+		   << "side=" << side_string(side) << ", "
+		   << "tif=" << time_in_force_string(tif) << ", "
+		   << "price=" << std::to_string(price) << ", "
+		   << "avg_px=" << std::to_string(avg_px) << ", "
+		   << "order_qty=" << std::to_string(order_qty) << ", "
+		   << "cum_qty=" << std::to_string(cum_qty) << ", "
+		   << "leaves_qty=" << std::to_string(leaves_qty) << ", "
+		   << "text=" << text << ", "
+		   << "tot_num_reports=" << tot_num_reports << ", "
+		   << "last_rpt_requested=" << last_rpt_requested << ", "
+           << h1 << custom_1 << ", "
+		   << h2 << custom_2 << ", "
+		   << h3 << custom_3 
+		   << "]";
+		return ss.str();
+	}
+
+	std::ostream& operator<<(std::ostream& ostream, const StatusExecReport& report)
 	{
 		return ostream << report.to_string();
 	}
