@@ -48,9 +48,7 @@ namespace zorro {
 #if defined(WIN32) && !defined(WIN64)
 	std::string settings_cfg_file = "Plugin/zorro_fxcm_fix_client.cfg";
 	std::string plugin_cfg_file = "Plugin/zorro_fxcm_fix_plugin_config.toml";
-#endif 
-
-#if defined WIN64 
+#elif defined WIN64 
 	std::string settings_cfg_file = "Plugin64/zorro_fxcm_fix_client.cfg";
 	std::string plugin_cfg_file = "Plugin64/zorro_fxcm_fix_plugin_config.toml";
 #else

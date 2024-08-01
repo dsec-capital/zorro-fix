@@ -30,6 +30,7 @@
 #include "quickfix/fix44/Logon.h"
 #include "quickfix/fix44/Logout.h"
 #include "quickfix/fix44/Heartbeat.h"
+#include "quickfix/fix44/TestRequest.h"
 
 #include "spdlog/spdlog.h"
 
@@ -250,13 +251,11 @@ namespace zorro
 		// Sends OrderMassStatusRequest to get status of all open orders
 		FIX::Message order_mass_status_request();
 
-		FIX::Message market_data_snapshot(const FIX::Symbol& symbol);
+		FIX::Message market_data_snapshot(const FIX::Symbol& symbol, bool incremental = true, bool subscribe_after_snapshot = false);
 
-		std::optional<FIX::Message> subscribe_market_data(const FIX::Symbol& symbol, bool incremental);
+		std::optional<FIX::Message> subscribe_market_data(const FIX::Symbol& symbol, bool incremental = true, bool add_session_high_low = false);
 
-		std::optional<FIX::Message> unsubscribe_market_data(
-			const FIX::Symbol& symbol
-		);
+		std::optional<FIX::Message> unsubscribe_market_data(const FIX::Symbol& symbol, bool add_session_high_low = false);
 
 		std::optional<FIX::Message> new_order_single(
 			const FIX::Symbol& symbol,
@@ -298,7 +297,7 @@ namespace zorro
 
 		void logout();
 
-		void heartbeat(const std::string& test_req_id, bool trading_sess);
+		void test_request(const std::string& test_req_id, bool trading_sess);
 
 	private:
 
@@ -383,6 +382,7 @@ namespace zorro
 		std::promise<bool> login_promise;
 		std::atomic<bool> done;
 		IDGenerator id_generator;
+		bool subscribe_after_snapshot{ false };
 
 		std::map<std::string, std::string> market_data_subscriptions;
 		std::map<std::string, TopOfBook> top_of_books;
@@ -415,6 +415,8 @@ namespace zorro
 		void fromApp(
 			const FIX::Message& message, const FIX::SessionID& sessionID
 		) EXCEPT(FIX::FieldNotFound, FIX::IncorrectDataFormat, FIX::IncorrectTagValue, FIX::UnsupportedMessageType);
+
+		void onMessage(const FIX44::Heartbeat&, const FIX::SessionID&);
 
 		void onMessage(const FIX44::TradingSessionStatus&, const FIX::SessionID&);
 

@@ -15,7 +15,7 @@
 #include "common/time_utils.h"
 #include "zorro_common/log.h"
 
-//#define FIX_MSG_TRACE_LOG
+#define FIX_MSG_TRACE_LOG
 
 namespace zorro {
 
@@ -414,6 +414,10 @@ namespace zorro {
 #endif
 	}
 
+	void FixClient::onMessage(const FIX44::Heartbeat& hb, const FIX::SessionID&) {
+
+	}
+
 	// The TradingSessionStatus message is used to provide an update on the status of the market. Furthermore, 
 	// this message contains useful system parameters as well as information about each trading security (embedded SecurityList).
 	// TradingSessionStatus should be requested upon successful Logon and subscribed to. The contents of the
@@ -775,8 +779,6 @@ namespace zorro {
 		std::chrono::nanoseconds timestamp;
 
 		FIX::MDEntryType entry_type;
-		FIX::MDEntryDate date;
-		FIX::MDEntryTime time;
 		FIX::MDEntrySize size;
 		FIX::MDEntryPx price;
 
@@ -821,17 +823,22 @@ namespace zorro {
 		log::debug<dl5, false>("FixClient::onMessage[FIX44::MarketDataSnapshotFullRefresh]: top={}", top_of_book.to_string());
 
 		top_of_book_queue.push(top_of_book); // publish snapshot related top of book
+
+		if (subscribe_after_snapshot) {
+			subscribe_market_data(symbol, true, false);
+			subscribe_after_snapshot = false;
+		}
 	}
 
 	void FixClient::onMessage(const FIX44::MarketDataIncrementalRefresh& message, const FIX::SessionID&)
 	{
+		// TODO currently session high and low price is not transmitted to any consumer or queue 
 		double session_high_price;
 		double session_low_price;
+
 		std::chrono::nanoseconds timestamp = common::get_current_system_clock();
 
 		FIX::MDEntryType entry_type;
-		FIX::MDEntryDate date;
-		FIX::MDEntryTime time;
 		FIX::MDEntrySize size;
 		FIX::MDEntryPx price;
 
@@ -850,7 +857,9 @@ namespace zorro {
 			}
 
 			if (i == 1) {
-				timestamp = parse_date_and_time(group);
+				if (group.isSetField(FIX::FIELD::MDEntryDate) && group.isSetField(FIX::FIELD::MDEntryTime)) {
+					timestamp = parse_date_and_time(group, FIX::FIELD::MDEntryDate, FIX::FIELD::MDEntryTime);
+				}
 			}
 
 			group.get(entry_type);
@@ -1115,12 +1124,14 @@ namespace zorro {
 		log::error<false>("onMessage[FIX44::MarketDataRequestReject]: {}", raw);
 	}
 
-	FIX::Message FixClient::market_data_snapshot(const FIX::Symbol& symbol) {
-		FIX44::MarketDataRequest request;
+	FIX::Message FixClient::market_data_snapshot(const FIX::Symbol& symbol, bool incremental, bool subscribe_after_snapshot) {
 		auto request_id = std::format("{}_{}", symbol.getString(), id_generator.genID());
+		auto subscription_request_type = FIX::SubscriptionRequestType_SNAPSHOT;
+		auto md_update_type = incremental ? FIX::MDUpdateType_INCREMENTAL_REFRESH : FIX::MDUpdateType_FULL_REFRESH;
+		FIX44::MarketDataRequest request;
 		request.setField(FIX::MDReqID(request_id));
-		request.setField(FIX::SubscriptionRequestType(FIX::SubscriptionRequestType_SNAPSHOT));
-		request.setField(FIX::MDUpdateType(FIX::MDUpdateType_FULL_REFRESH));  
+		request.setField(FIX::SubscriptionRequestType(subscription_request_type));
+		request.setField(FIX::MDUpdateType(md_update_type)); 
 		request.setField(FIX::MarketDepth(0));
 		request.setField(FIX::NoRelatedSym(1));
 		FIX44::MarketDataRequest::NoRelatedSym symbols_group;
@@ -1128,12 +1139,13 @@ namespace zorro {
 		request.addGroup(symbols_group);
 		FIX44::MarketDataRequest::NoMDEntryTypes entry_types;
 		entry_types.setField(FIX::MDEntryType(FIX::MDEntryType_BID));
+		request.addGroup(entry_types);
 		entry_types.setField(FIX::MDEntryType(FIX::MDEntryType_OFFER));
-		entry_types.setField(FIX::MDEntryType(FIX::MDEntryType_TRADING_SESSION_HIGH_PRICE));
-		entry_types.setField(FIX::MDEntryType(FIX::MDEntryType_TRADING_SESSION_LOW_PRICE));
 		request.addGroup(entry_types);
 
-		log::debug<dl4, false>("FixClient::market_data_snapshot: {}", fix_string(request));
+		log::debug<dl4, false>("FixClient::market_data_snapshot: {} subscribe_after_snapshot={}", fix_string(request), subscribe_after_snapshot);
+
+		this->subscribe_after_snapshot = subscribe_after_snapshot;
 
 		FIX::Session::sendToTarget(request, market_data_session_id);
 
@@ -1142,7 +1154,8 @@ namespace zorro {
 
 	std::optional<FIX::Message> FixClient::subscribe_market_data(
 		const FIX::Symbol& symbol, 
-		bool incremental
+		bool incremental,
+		bool add_session_high_low
 	) {
 		auto it = market_data_subscriptions.find(symbol.getString());
 
@@ -1164,11 +1177,16 @@ namespace zorro {
 			symbols_group.setField(symbol);
 			request.addGroup(symbols_group);
 			FIX44::MarketDataRequest::NoMDEntryTypes entry_types;
-			entry_types.setField(FIX::MDEntryType(FIX::MDEntryType_BID));
-			entry_types.setField(FIX::MDEntryType(FIX::MDEntryType_OFFER));
-			entry_types.setField(FIX::MDEntryType(FIX::MDEntryType_TRADING_SESSION_HIGH_PRICE));
-			entry_types.setField(FIX::MDEntryType(FIX::MDEntryType_TRADING_SESSION_LOW_PRICE));
+			entry_types.set(FIX::MDEntryType(FIX::MDEntryType_BID));
 			request.addGroup(entry_types);
+			entry_types.set(FIX::MDEntryType(FIX::MDEntryType_OFFER));
+			request.addGroup(entry_types);
+			if (add_session_high_low) {
+				entry_types.set(FIX::MDEntryType(FIX::MDEntryType_TRADING_SESSION_HIGH_PRICE));
+				request.addGroup(entry_types);
+				entry_types.set(FIX::MDEntryType(FIX::MDEntryType_TRADING_SESSION_LOW_PRICE));
+				request.addGroup(entry_types);
+			}
 
 			log::debug<dl4, false>("FixClient::subscribe_market_data: {}", fix_string(request));
 
@@ -1180,7 +1198,7 @@ namespace zorro {
 		}
 	}
 
-	std::optional<FIX::Message> FixClient::unsubscribe_market_data(const FIX::Symbol& symbol)
+	std::optional<FIX::Message> FixClient::unsubscribe_market_data(const FIX::Symbol& symbol, bool add_session_high_low)
 	{
 		auto it = market_data_subscriptions.find(symbol.getString());
 
@@ -1196,10 +1214,15 @@ namespace zorro {
 			request.addGroup(symbols_group);
 			FIX44::MarketDataRequest::NoMDEntryTypes entry_types;
 			entry_types.setField(FIX::MDEntryType(FIX::MDEntryType_BID));
-			entry_types.setField(FIX::MDEntryType(FIX::MDEntryType_OFFER));
-			entry_types.setField(FIX::MDEntryType(FIX::MDEntryType_TRADING_SESSION_HIGH_PRICE));
-			entry_types.setField(FIX::MDEntryType(FIX::MDEntryType_TRADING_SESSION_LOW_PRICE));
 			request.addGroup(entry_types);
+			entry_types.setField(FIX::MDEntryType(FIX::MDEntryType_OFFER));
+			request.addGroup(entry_types);
+			if (add_session_high_low) {
+				entry_types.setField(FIX::MDEntryType(FIX::MDEntryType_TRADING_SESSION_HIGH_PRICE));
+				request.addGroup(entry_types);
+				entry_types.setField(FIX::MDEntryType(FIX::MDEntryType_TRADING_SESSION_LOW_PRICE));
+				request.addGroup(entry_types);
+			}
 
 			log::debug<dl4, false>("FixClient::unsubscribe_market_data: {}", fix_string(request));
 
@@ -1433,13 +1456,13 @@ namespace zorro {
 		FIX::Session::sendToTarget(logout, market_data_session_id);
 	}
 
-	void FixClient::heartbeat(const std::string& test_req_id, bool trading_sess) {
-		FIX44::Heartbeat hb;
-		hb.setField(FIX::TestReqID(test_req_id));
+	void FixClient::test_request(const std::string& test_req_id, bool trading_sess) {
+		FIX44::TestRequest test;
+		test.setField(FIX::TestReqID(test_req_id));
 		if (trading_sess)
-			FIX::Session::sendToTarget(hb, trading_session_id);
+			FIX::Session::sendToTarget(test, trading_session_id);
 		else
-			FIX::Session::sendToTarget(hb, market_data_session_id);
+			FIX::Session::sendToTarget(test, market_data_session_id);
 	}
 
 	bool FixClient::has_book(const std::string& symbol) {

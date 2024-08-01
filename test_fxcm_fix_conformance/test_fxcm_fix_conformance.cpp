@@ -110,12 +110,12 @@ void test_login() {
 	service->cancel();
 }
 
-class HeartBeatTest : public FixTest {
+class HeartbeatTest : public FixTest {
 public:
-	HeartBeatTest() : FixTest() {};
+	HeartbeatTest() : FixTest() {};
 
 	void test() {
-		service->client().heartbeat("test_req", true);
+		service->client().test_request("test_req", true);
 
 		auto wait = 5s;
 		std::this_thread::sleep_for(wait);
@@ -131,7 +131,7 @@ public:
 	void test() {
 		service->client().subscribe_market_data(FIX::Symbol("AUD/USD"), false);
 
-		auto wait = 5s;
+		auto wait = 2s;
 		int n = 5;
 		int success = 0;
 		for (int i = 0; i < n; ++i) {
@@ -146,16 +146,59 @@ public:
 	}
 };
 
-class MarketDataSubscriptionIncrementalTest : public FixTest {
+class MarketDataUnsubscriptionTest : public FixTest {
 public:
-	MarketDataSubscriptionIncrementalTest() : FixTest() {};
+	MarketDataUnsubscriptionTest() : FixTest() {};
 
 	void test() {
-		service->client().market_data_snapshot(FIX::Symbol("AUD/USD"));
-		service->client().subscribe_market_data(FIX::Symbol("AUD/USD"), true);
+		service->client().subscribe_market_data(FIX::Symbol("AUD/USD"), false);
 
-		auto wait = 5s;
-		int n = 5;
+		auto wait = 2s;
+		int success = 0;
+		TopOfBook top;
+		if (top_of_book_queue.pop(top, wait)) {
+			log::debug<0, true>("{}", top.to_string());
+			++success;
+		}
+
+		log::debug<0, true>("{} successful top of book updates within timout time {}", success, wait);
+
+		service->client().unsubscribe_market_data(FIX::Symbol("AUD/USD"));
+
+		log::debug<0, true>("unsubscribed symbol AUD/USD");
+
+		std::this_thread::sleep_for(1s);
+	}
+};
+
+class MarketDataSubscriptionSnapshotTest : public FixTest {
+public:
+	MarketDataSubscriptionSnapshotTest() : FixTest() {};
+
+	void test() {
+		service->client().market_data_snapshot(FIX::Symbol("AUD/USD"), false);
+
+		auto wait = 2s;
+		int success = 0;
+		TopOfBook top;
+		if (top_of_book_queue.pop(top, wait)) {
+			log::debug<0, true>("{}", top.to_string());
+			++success;
+		}
+
+		log::debug<0, true>("{} successful top of book updates within timout time {}", success, wait);
+	}
+};
+
+class MarketDataSubscriptionSnapshotThenIncrementalTest : public FixTest {
+public:
+	MarketDataSubscriptionSnapshotThenIncrementalTest() : FixTest() {};
+
+	void test() {
+		service->client().market_data_snapshot(FIX::Symbol("EUR/USD"), false, true);
+
+		auto wait = 1s;
+		int n = 20;
 		int success = 0;
 		for (int i = 0; i < n; ++i) {
 			TopOfBook top;
@@ -408,9 +451,11 @@ int main()
 	try {
 		//test_login();
 
-		//HeartBeatTest().run();
+		HeartbeatTest().run();
 		//MarketDataSubscriptionTest().run();
-		MarketDataSubscriptionIncrementalTest().run();
+		//MarketDataUnsubscriptionTest().run();
+		//MarketDataSubscriptionSnapshotTest().run();
+		//MarketDataSubscriptionSnapshotThenIncrementalTest().run();
 		//CollateralInquiryTest().run();
 		//TradingSessionStatusTest().run();
 		//PositionReportsTest().run();
