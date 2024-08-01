@@ -133,6 +133,17 @@ The FXCM FIX client plugin implements all of Zorro's [broker plugin functions](h
 
 More details can be found in [FXCM FIX client](zorro_fxcm_fix_lib/fix_client.h) and its [implementation](zorro_fxcm_fix_lib/fix_client.cpp).
 
+### Configuration
+
+The FXCM FIX plugin can be configured with
+
+  - TOML file [zorro_fxcm_fix_plugin_config.toml](zorro_fxcm_fix_plugin/zorro_fxcm_fix_plugin_config.toml)
+  - FIX session config template file [zorro_fxcm_fix_client_template.cfg](zorro_fxcm_fix_plugin/zorro_fxcm_fix_client_template.cfg)
+
+Note that the post build step takes the FIX session config template file replaces the credentials from the environment variables 
+and copies the so configured file to the plugin directory under `ZorroInstallDir`.
+
+
 
 ## FXCM Market Data Proxy Server
 
@@ -164,14 +175,14 @@ C:\repos\zorro-fix\x64\Debug>fxcm_market_data_server.exe
 
 The following Rest endpoints are available:
 
-  - [/status](http://localhost:8083/status)
-  - [/instr](http://localhost:8083/instr?symbol=EUR/USD)
-  - [/subscribe](http://localhost:8083/subscribe?symbol=EUR/USD)
-  - [/bars](http://localhost:8083/bars?symbol=EUR/USD&from=2024-06-18 00:00:00&timeframe=m1)
-  - [/tick](http://localhost:8083/ticks?symbol=EUR/USD&from=2024-06-27 00:00:00)
-  - [/ticks_to_csv](http://localhost:8083/ticks_to_csv?symbol=EUR/USD&from=2024-06-27 00:00:00&to==2024-06-27 06:00:00)
+  - [http://localhost:8083/status](http://localhost:8083/status)
+  - [http://localhost:8083/instr?symbol=EUR/USD](http://localhost:8083/instr?symbol=EUR/USD)
+  - [http://localhost:8083/subscribe?symbol=EUR/USD](http://localhost:8083/subscribe?symbol=EUR/USD)
+  - [http://localhost:8083/bars?symbol=EUR/USD&from=2024-06-18%2000:00:00&timeframe=m1](http://localhost:8083/bars?symbol=EUR/USD&from=2024-06-18%2000:00:00&timeframe=m1)
+  - [http://localhost:8083/ticks?symbol=EUR/USD&from=2024-06-27%2000:00:00](http://localhost:8083/ticks?symbol=EUR/USD&from=2024-06-27%2000:00:00)
+  - [http://localhost:8083/ticks_to_csv?symbol=EUR/USD&from=2024-06-27%2000:00:00&to==2024-06-27%2006:00:00](http://localhost:8083/ticks_to_csv?symbol=EUR/USD&from=2024-06-27%2000:00:00&to==2024-06-27%2006:00:00)
 
-`/subscribe` can be used to subscribe to tick based realtime updates for a symbol. Under the hood it uses the `LiveBarStreamer`,
+The `/subscribe` endpoint can be used to subscribe to tick based realtime updates for a symbol. Under the hood it uses the `LiveBarStreamer`,
 which is updated with every incoming tick and generates a bar once the bar period is completed. 
 
 The proxy server logs to the screen as well as to the log file `fxcm_proxy_server.log`.
@@ -193,11 +204,11 @@ The FXCM FIX client plugin requires the FXCM ForexConnect SDK in the search path
 
 The project requires the following environment variables to be defined:
 
-  - ZorroInstallDir: directory where Zorro is installed
-  - FIX_ACCOUNT_ID: account id provided by FXCM
-  - FIX_USER_NAME: user name provided by FXCM
-  - FIX_PASSWORD: password provided by FXCM
-  - FIX_TARGET_SUBID: target subid provided by FXCM
+  - `ZorroInstallDir`: directory where Zorro is installed
+  - `FIX_ACCOUNT_ID`: account id provided by FXCM
+  - `FIX_USER_NAME`: user name provided by FXCM
+  - `FIX_PASSWORD`: password provided by FXCM
+  - `FIX_TARGET_SUBID`: target subid provided by FXCM
 
 These environment variables are used in various automation scripts in the [scripts](scripts) folders 
 as well as in Visual Studio post build events. 
