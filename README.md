@@ -175,12 +175,12 @@ C:\repos\zorro-fix\x64\Debug>fxcm_market_data_server.exe
 
 The following Rest endpoints are available:
 
-  - [http://localhost:8083/status](http://localhost:8083/status)
-  - [http://localhost:8083/instr?symbol=EUR/USD](http://localhost:8083/instr?symbol=EUR/USD)
-  - [http://localhost:8083/subscribe?symbol=EUR/USD](http://localhost:8083/subscribe?symbol=EUR/USD)
-  - [http://localhost:8083/bars?symbol=EUR/USD&from=2024-06-18%2000:00:00&timeframe=m1](http://localhost:8083/bars?symbol=EUR/USD&from=2024-06-18%2000:00:00&timeframe=m1)
-  - [http://localhost:8083/ticks?symbol=EUR/USD&from=2024-06-27%2000:00:00](http://localhost:8083/ticks?symbol=EUR/USD&from=2024-06-27%2000:00:00)
-  - [http://localhost:8083/ticks_to_csv?symbol=EUR/USD&from=2024-06-27%2000:00:00&to==2024-06-27%2006:00:00](http://localhost:8083/ticks_to_csv?symbol=EUR/USD&from=2024-06-27%2000:00:00&to==2024-06-27%2006:00:00)
+  - `/status` [http://localhost:8083/status](http://localhost:8083/status)
+  - `/instr` [http://localhost:8083/instr?symbol=EUR/USD](http://localhost:8083/instr?symbol=EUR/USD)
+  - `/subscribe` [http://localhost:8083/subscribe?symbol=EUR/USD](http://localhost:8083/subscribe?symbol=EUR/USD)
+  - `/bars` [http://localhost:8083/bars?symbol=EUR/USD&from=2024-06-18%2000:00:00&timeframe=m1](http://localhost:8083/bars?symbol=EUR/USD&from=2024-06-18%2000:00:00&timeframe=m1)
+  - `/ticks` [http://localhost:8083/ticks?symbol=EUR/USD&from=2024-06-27%2000:00:00](http://localhost:8083/ticks?symbol=EUR/USD&from=2024-06-27%2000:00:00)
+  - `/ticks_to_csv` [http://localhost:8083/ticks_to_csv?symbol=EUR/USD&from=2024-06-27%2000:00:00&to==2024-06-27%2006:00:00](http://localhost:8083/ticks_to_csv?symbol=EUR/USD&from=2024-06-27%2000:00:00&to==2024-06-27%2006:00:00)
 
 The `/subscribe` endpoint can be used to subscribe to tick based realtime updates for a symbol. Under the hood it uses the `LiveBarStreamer`,
 which is updated with every incoming tick and generates a bar once the bar period is completed. 
