@@ -173,7 +173,7 @@ C:\repos\zorro-fix\x64\Debug>fxcm_market_data_server.exe
 
 ### Supported Endpoints:
 
-The following Rest endpoints are available:
+The following REST endpoints are available:
 
   - `/status` [http://localhost:8083/status](http://localhost:8083/status)
   - `/instr` [http://localhost:8083/instr?symbol=EUR/USD](http://localhost:8083/instr?symbol=EUR/USD)
