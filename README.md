@@ -139,6 +139,7 @@ The FXCM FIX plugin can be configured with
 
   - TOML file [zorro_fxcm_fix_plugin_config.toml](zorro_fxcm_fix_plugin/zorro_fxcm_fix_plugin_config.toml)
   - FIX session config template file [zorro_fxcm_fix_client_template.cfg](zorro_fxcm_fix_plugin/zorro_fxcm_fix_client_template.cfg)
+  - Macro FIX_MSG_TRACE_LOG in [fix_client.cpp](zorro_fxcm_fix_lib/fix_client.cpp) to enable or disable FIX message trace log, useful in conformance tests to collect messages
 
 Note that the post build step takes the FIX session config template file replaces the credentials from the environment variables 
 and copies the so configured file to the plugin directory under `ZorroInstallDir`.

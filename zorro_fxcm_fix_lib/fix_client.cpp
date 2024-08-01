@@ -15,7 +15,7 @@
 #include "common/time_utils.h"
 #include "zorro_common/log.h"
 
-#define FIX_MSG_TRACE_LOG
+//#define FIX_MSG_TRACE_LOG
 
 namespace zorro {
 
