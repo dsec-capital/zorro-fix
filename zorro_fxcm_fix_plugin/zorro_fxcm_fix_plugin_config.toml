@@ -1,6 +1,7 @@
 [zorro]
 internal_order_id_start=1000
-dump_bars_to_file = false
+dump_bars_to_file = true
+dump_ticks_to_file = true
 
 [log]
 spdlog_level = "debug"

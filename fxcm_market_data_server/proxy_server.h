@@ -439,6 +439,7 @@ namespace fxcm {
             });
             
             // for example http://localhost:8083/ticks?symbol=EUR/USD&from=2024-06-27 00:00:00 
+            // http://localhost:8083/ticks?symbol=EUR/USD&count=300 
             server.Get("/ticks", [this](const Request& req, Response& res) {                
                 std::string symbol = "nan";
 

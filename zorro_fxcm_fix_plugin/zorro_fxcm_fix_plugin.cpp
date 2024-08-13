@@ -30,9 +30,10 @@
 #define PLUGIN_VERSION 2
 #define PLUGIN_NAME "ZorroFXCMFixPlugin"
 
-#define BAR_DUMP_FILE_NAME "Log/bar_dump.csv"
-#define BAR_DUMP_FILE_SEP ","
-#define BAR_DUMP_FILE_PREC 5  // FX is point precision i.e. 10-5 = PIPS/10 
+#define BAR_DUMP_FILE_NAME "Log/bar_history_dump.csv"
+#define TICK_DUMP_FILE_NAME "Log/tick_history_dump.csv"
+#define DUMP_FILE_SEP ","
+#define DUMP_FILE_PREC 5  // FX is point precision i.e. 10-5 = PIPS/10 
 
 namespace zorro {
 
@@ -92,6 +93,7 @@ namespace zorro {
 	int client_order_id = 0;
 	int internal_order_id = zorro_cfg["internal_order_id_start"].value<int>().value_or(1000);;
 	bool dump_bars_to_file = zorro_cfg["dump_bars_to_file"].value<bool>().value_or(true);
+	bool dump_ticks_to_file = zorro_cfg["dump_ticks_to_file"].value<bool>().value_or(true);
 
 	// these come from Zorro when the plugin is started  
 	std::string fxcm_login;
@@ -499,27 +501,55 @@ namespace zorro {
 			return;
 		}
 
-		log::debug<1, true>("write_bars[skip_header={}]: writing {} bars to {}", skip_header, n_ticks, BAR_DUMP_FILE_NAME);
+		log::debug<dl3, true>("write_bars[skip_header={}]: writing {} bars to {}", skip_header, n_ticks, BAR_DUMP_FILE_NAME);
 
 		if (!skip_header) {
-			fs << "bar_end" << BAR_DUMP_FILE_SEP
-			   << "open" << BAR_DUMP_FILE_SEP
-			   << "high" << BAR_DUMP_FILE_SEP
-			   << "low" << BAR_DUMP_FILE_SEP
-			   << "close" << BAR_DUMP_FILE_SEP
-			   << "vol[volume]" << BAR_DUMP_FILE_SEP
+			fs << "bar_end" << DUMP_FILE_SEP
+			   << "open" << DUMP_FILE_SEP
+			   << "high" << DUMP_FILE_SEP
+			   << "low" << DUMP_FILE_SEP
+			   << "close" << DUMP_FILE_SEP
+			   << "vol[volume]" << DUMP_FILE_SEP
 			   << "val[spread]" 
 			   << std::endl;
 		}
 
 		for (int i = 0; i < n_ticks; ++i, ++ticks) {
-			fs << zorro_date_to_string(ticks->time) << BAR_DUMP_FILE_SEP
-			   << format_fp(ticks->fOpen, BAR_DUMP_FILE_PREC) << BAR_DUMP_FILE_SEP
-			   << format_fp(ticks->fHigh, BAR_DUMP_FILE_PREC) << BAR_DUMP_FILE_SEP
-			   << format_fp(ticks->fLow, BAR_DUMP_FILE_PREC) << BAR_DUMP_FILE_SEP
-			   << format_fp(ticks->fClose, BAR_DUMP_FILE_PREC) << BAR_DUMP_FILE_SEP
-			   << format_fp(ticks->fVol, BAR_DUMP_FILE_PREC) << BAR_DUMP_FILE_SEP
-			   << format_fp(ticks->fVal, BAR_DUMP_FILE_PREC) 
+			fs << zorro_date_to_string(ticks->time) << DUMP_FILE_SEP
+			   << format_fp(ticks->fOpen, DUMP_FILE_PREC) << DUMP_FILE_SEP
+			   << format_fp(ticks->fHigh, DUMP_FILE_PREC) << DUMP_FILE_SEP
+			   << format_fp(ticks->fLow, DUMP_FILE_PREC) << DUMP_FILE_SEP
+			   << format_fp(ticks->fClose, DUMP_FILE_PREC) << DUMP_FILE_SEP
+			   << format_fp(ticks->fVol, DUMP_FILE_PREC) << DUMP_FILE_SEP
+			   << format_fp(ticks->fVal, DUMP_FILE_PREC) 
+			   << std::endl;
+		}
+
+		fs.close();
+	}
+
+	void write_ticks(T1* ticks, int n_ticks, std::ios_base::openmode mode = std::fstream::app) {
+		bool skip_header = std::filesystem::exists(TICK_DUMP_FILE_NAME);
+
+		std::fstream fs;
+		fs.open(TICK_DUMP_FILE_NAME, std::fstream::out | mode);
+		if (!fs.is_open())
+		{
+			log::error<true>("write_ticks: could not open file {}", TICK_DUMP_FILE_NAME);
+			return;
+		}
+
+		log::debug<dl3, true>("write_ticks[skip_header={}]: writing {} bars to {}", skip_header, n_ticks, TICK_DUMP_FILE_NAME);
+
+		if (!skip_header) {
+			fs << "time" << DUMP_FILE_SEP
+			   << "fVal[ask>0,bid<0]"
+			   << std::endl;
+		}
+
+		for (int i = 0; i < n_ticks; ++i, ++ticks) {
+			fs << zorro_date_to_string(ticks->time) << DUMP_FILE_SEP
+			   << format_fp(ticks->fVal, DUMP_FILE_PREC)
 			   << std::endl;
 		}
 
@@ -1097,14 +1127,22 @@ namespace zorro {
 	 *  script since the date and time functions will then return the local time instead of UTC, and time zone functions
 	 *	cannot be used.
 	 */
-	DLLFUNC int BrokerHistory2(char* asset, DATE t_start, DATE t_end, int n_tick_minutes, int n_ticks, T6* ticks) {
+	DLLFUNC int BrokerHistory2(char* asset, DATE t_start, DATE t_end, int n_tick_minutes, int n_ticks, T6* zorro_bars) {
+		auto now = common::get_current_system_clock();
+		auto now_zorro = zorro::convert_time_chrono(now);
+		auto now_str = zorro_date_to_string(now_zorro);
+		auto to = zorro_date_to_string(t_end);
+
+		log::debug<dl2, true>(
+			"BrokerHistory2: asset={}, t_start={}[{}], t_end={}[{}], n_tick_minutes={}, n_ticks={}, now={}[{}]", 
+			asset, zorro_date_to_string(t_start), t_start, zorro_date_to_string(t_end), t_end, n_tick_minutes, n_ticks, now_str, now_zorro
+		);
+
 		if (n_tick_minutes > 0) {
 			auto bar_seconds = n_tick_minutes * 60;
 			auto t_bar = bar_seconds / SECONDS_PER_DAY;
 			auto t_start2 = t_end - n_ticks * t_bar;
 			auto from = zorro_date_to_string(t_start2);
-			auto to = zorro_date_to_string(t_end);
-			auto ticks_start = ticks;
 
 			std::string timeframe = get_timeframe(n_tick_minutes);
 			if (timeframe == "") {
@@ -1112,16 +1150,10 @@ namespace zorro {
 				return 0;
 			}
 
-			auto now = common::get_current_system_clock();
-			auto now_zorro = zorro::convert_time_chrono(now);
-			auto now_str = zorro_date_to_string(now_zorro);
-
-			log::debug<dl2, true>(
-				"BrokerHistory2 {}: requesting {} ticks bar period {} minutes from {}[{}] to {}[{}] at {}",
+			log::debug<dl1, true>(
+				"BrokerHistory2 {}: requesting {} bars with bar period {} minutes from {}[{}] to {}[{}] at {}",
 				asset, n_ticks, n_tick_minutes, from, t_start2, to, t_end, now_str
 			);
-
-			log::debug<dl2, true>("BrokerHistory2: t_start={}, t_start2={}, t_end={}, now_zorro={}", t_start, t_start2, t_end, now_zorro);
 
 			std::vector<BidAskBar<DATE>> bars;
 			auto status = get_historical_bars(asset, timeframe, t_start2, t_end, bars);
@@ -1135,6 +1167,7 @@ namespace zorro {
 			}
 
 			int count = 0;
+			auto zorro_bars_start = zorro_bars;
 			for (auto it = bars.rbegin(); it != bars.rend() && count <= n_ticks; ++it) {
 				const auto& bar = *it;
 				DATE start = bar.timestamp;
@@ -1150,25 +1183,25 @@ namespace zorro {
 					continue;
 				}
 
-				log::debug<5, false>(
+				log::debug<dl4, false>(
 					"[{}] from={} to={} open={:.5f} high={:.5f} low={:.5f} close={:.5f}",
 					count, zorro_date_to_string(start), zorro_date_to_string(end), bar.ask_open, bar.ask_high, bar.ask_low, bar.ask_close
 				);
 
-				ticks->fOpen = static_cast<float>(bar.ask_open);
-				ticks->fClose = static_cast<float>(bar.ask_close);
-				ticks->fHigh = static_cast<float>(bar.ask_high);
-				ticks->fLow = static_cast<float>(bar.ask_low);
-				ticks->fVol = static_cast<float>(bar.volume);
-				ticks->fVal = static_cast<float>(bar.ask_close - bar.bid_close);
-				ticks->time = end;
-				++ticks;
+				zorro_bars->fOpen = static_cast<float>(bar.ask_open);
+				zorro_bars->fClose = static_cast<float>(bar.ask_close);
+				zorro_bars->fHigh = static_cast<float>(bar.ask_high);
+				zorro_bars->fLow = static_cast<float>(bar.ask_low);
+				zorro_bars->fVol = static_cast<float>(bar.volume);
+				zorro_bars->fVal = static_cast<float>(bar.ask_close - bar.bid_close);
+				zorro_bars->time = end;
+				++zorro_bars;
 				++count;
 			}
 
 			if (dump_bars_to_file) {
-				write_bars(ticks_start, count);
-				write_to_file("Log/broker_hist.csv",
+				write_bars(zorro_bars_start, count);
+				write_to_file("Log/broker_bar_hist.csv",
 					std::format(
 						"{}, {}, {}, {}, {}, {}, {}, {}",
 						asset, timeframe, zorro_date_to_string(t_start2), t_start2, zorro_date_to_string(t_end), t_end, n_ticks, count
@@ -1180,8 +1213,65 @@ namespace zorro {
 			return count;
 		}
 		else {
-			log::error<true>("BrokerHistory2: called with n_tick_minutes=0 but tick data aka quotes not yet integrated");
-			return 0;
+			log::debug<dl1, true>(
+				"BrokerHistory2 {}: requesting {} ticks to {}[{}] at {}",
+				asset, n_ticks, to, t_end, now_str
+			);
+
+			std::vector<Quote<DATE>> quotes;
+			auto status = get_historical_ticks(asset, 0, t_end, n_ticks, quotes);
+			auto success = status == httplib::StatusCode::OK_200;
+
+			if (!success) {
+				log::error<true>(
+					"BrokerHistory2: get_historical_ticks failed status={} Asset={} to={} n_ticks={}",
+					status, asset, t_end, n_ticks);
+				return 0;
+			}
+
+			int count = 0;
+			auto zorro_ticks_start = zorro_bars;
+			for (auto it = quotes.rbegin(); it != quotes.rend() && count <= n_ticks; ++it) {
+				const auto& quote = *it;
+
+				if (quote.timestamp > t_end || quote.timestamp < t_start) {
+					log::debug<dl2, true>(
+						"BrokerHistory2 {}: skipping timestamp {} as it is out of bound t_start={} t_end={}",
+						asset, zorro_date_to_string(quote.timestamp), zorro_date_to_string(t_start), zorro_date_to_string(t_end)
+					);
+
+					continue;
+				}
+
+				log::debug<dl4, false>(
+					"[{}] timestamp={} bid={:.5f} ask={:.5f} spread={:.5f}",
+					count, zorro_date_to_string(quote.timestamp), quote.bid, quote.ask, quote.ask - quote.bid
+				);
+
+				// set all values to the ask and set spread accordingly
+				zorro_bars->fOpen = static_cast<float>(quote.ask);
+				zorro_bars->fClose = static_cast<float>(quote.ask);
+				zorro_bars->fHigh = static_cast<float>(quote.ask);
+				zorro_bars->fLow = static_cast<float>(quote.ask);
+				zorro_bars->fVol = static_cast<float>(0);
+				zorro_bars->fVal = static_cast<float>(quote.ask - quote.bid);
+				zorro_bars->time = quote.timestamp;
+				++zorro_bars;
+				++count;
+			}
+
+			if (dump_ticks_to_file) {
+				write_bars(zorro_ticks_start, count);
+				write_to_file("Log/broker_tick_hist.csv",
+					std::format(
+						"{}, {}, {}, {}, {}",
+						asset, zorro_date_to_string(t_end), t_end, n_ticks, count
+					),
+					"asset, t_end, t_end[DATE], n_ticks, count"
+				);
+			}
+
+			return count;
 		}
 	}
 
