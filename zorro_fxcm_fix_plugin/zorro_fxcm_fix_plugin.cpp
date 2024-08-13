@@ -91,7 +91,8 @@ namespace zorro {
 	}
 
 	int client_order_id = 0;
-	int internal_order_id = zorro_cfg["internal_order_id_start"].value<int>().value_or(1000);;
+	int internal_order_id = zorro_cfg["internal_order_id_start"].value<int>().value_or(1000);
+	bool convert_tick_to_bar_history_request = zorro_cfg["convert_tick_to_bar_history_request"].value<bool>().value_or(true);
 	bool dump_bars_to_file = zorro_cfg["dump_bars_to_file"].value<bool>().value_or(true);
 	bool dump_ticks_to_file = zorro_cfg["dump_ticks_to_file"].value<bool>().value_or(true);
 
@@ -610,7 +611,7 @@ namespace zorro {
 		}
 	}
 
-	// get historical data - note time is in UTC
+	// get historical bar data - note time is in UTC
 	// http://localhost:8080/bars?symbol=EUR/USD&from=2024-03-30 12:00:00&to=2024-03-30 16:00:00
 	int get_historical_bars(const char* Asset, const std::string& timeframe, DATE from, DATE to, std::vector<BidAskBar<DATE>>& bars) {
 		auto from_str = zorro_date_to_string(from);
@@ -630,7 +631,7 @@ namespace zorro {
 		return res->status;
 	}
 
-	// get historical data - note time is in UTC
+	// get historical tick data - note time is in UTC
 	// http://localhost:8080/ticks?symbol=EUR/USD&from=2024-06-27 00:00:00 
 	// http://localhost:8080/ticks?symbol=EUR/USD&count=1000 
 	int get_historical_ticks(const char* Asset, DATE from, DATE to, int count, std::vector<Quote<DATE>>& quotes) {
@@ -1138,11 +1139,15 @@ namespace zorro {
 			asset, zorro_date_to_string(t_start), t_start, zorro_date_to_string(t_end), t_end, n_tick_minutes, n_ticks, now_str, now_zorro
 		);
 
+		if (n_tick_minutes == 0 && convert_tick_to_bar_history_request) {
+			n_tick_minutes = 1;
+		}
+
 		if (n_tick_minutes > 0) {
 			auto bar_seconds = n_tick_minutes * 60;
 			auto t_bar = bar_seconds / SECONDS_PER_DAY;
-			auto t_start2 = t_end - n_ticks * t_bar;
-			auto from = zorro_date_to_string(t_start2);
+			auto t_start_effective = t_end - n_ticks * t_bar;
+			auto from = zorro_date_to_string(t_start_effective);
 
 			std::string timeframe = get_timeframe(n_tick_minutes);
 			if (timeframe == "") {
@@ -1152,17 +1157,17 @@ namespace zorro {
 
 			log::debug<dl1, true>(
 				"BrokerHistory2 {}: requesting {} bars with bar period {} minutes from {}[{}] to {}[{}] at {}",
-				asset, n_ticks, n_tick_minutes, from, t_start2, to, t_end, now_str
+				asset, n_ticks, n_tick_minutes, from, t_start_effective, to, t_end, now_str
 			);
 
 			std::vector<BidAskBar<DATE>> bars;
-			auto status = get_historical_bars(asset, timeframe, t_start2, t_end, bars);
+			auto status = get_historical_bars(asset, timeframe, t_start_effective, t_end, bars);
 			auto success = status == httplib::StatusCode::OK_200;
 
 			if (!success) {
 				log::error<true>(
 					"BrokerHistory2: get_historical_prices failed status={} Asset={} timeframe={} from={} to={}",
-					status, asset, timeframe, t_start2, t_end);
+					status, asset, timeframe, t_start_effective, t_end);
 				return 0;
 			}
 
@@ -1204,9 +1209,9 @@ namespace zorro {
 				write_to_file("Log/broker_bar_hist.csv",
 					std::format(
 						"{}, {}, {}, {}, {}, {}, {}, {}",
-						asset, timeframe, zorro_date_to_string(t_start2), t_start2, zorro_date_to_string(t_end), t_end, n_ticks, count
+						asset, timeframe, zorro_date_to_string(t_start_effective), t_start_effective, zorro_date_to_string(t_end), t_end, n_ticks, count
 					),
-					"asset, timeframe, t_start2, t_start2[DATE], t_end, t_end[DATE], n_ticks, count"
+					"asset, timeframe, t_start_eff, t_start_eff[DATE], t_end, t_end[DATE], n_ticks, count"
 				);
 			}
 
