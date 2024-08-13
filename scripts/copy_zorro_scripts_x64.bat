@@ -24,6 +24,7 @@ ECHO Copy asset files to %ZORRO_HISTORY_DIR%...
 robocopy %SOURCE% %ZORRO_HISTORY_DIR% "*.csv" > nul
 
 ECHO "Copy FIX spec files to %ZorroInstallDir%\Plugin64\spec..."
+robocopy "%SCRIPT_DIR%..\spec" "%ZorroInstallDir%\Plugin\spec"  
 robocopy "%SCRIPT_DIR%..\spec" "%ZorroInstallDir%\Plugin64\spec"  
 
 ECHO Copy plugin config toml file

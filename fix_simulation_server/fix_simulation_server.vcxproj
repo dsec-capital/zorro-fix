@@ -107,7 +107,7 @@
       <AdditionalLibraryDirectories>$(SolutionDir)$(LibrariesArchitecture)\$(Configuration);$(SolutionDir)third-parties\quickfix\$(LibrariesArchitecture)-$(Configuration)\lib</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
-      <Command>copy /y "$(ProjectDir)session.cfg" "$(SolutionDir)$(Configuration)"</Command>
+      <Command>copy /y "$(ProjectDir)session.cfg" "$(SolutionDir)$(LibrariesArchitecture)\$(Configuration)\session.cfg"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -131,7 +131,7 @@
       <AdditionalLibraryDirectories>$(SolutionDir)$(LibrariesArchitecture)\$(Configuration);$(SolutionDir)third-parties\quickfix\$(LibrariesArchitecture)-$(Configuration)\lib</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
-      <Command>copy /y "$(ProjectDir)session.cfg" "$(SolutionDir)$(Configuration)"</Command>
+      <Command>copy /y "$(ProjectDir)session.cfg" "$(SolutionDir)$(LibrariesArchitecture)\$(Configuration)\session.cfg"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -150,6 +150,9 @@
       <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);quickfixd.lib;common.lib</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(SolutionDir)$(LibrariesArchitecture)\$(Configuration);$(SolutionDir)third-parties\quickfix\$(LibrariesArchitecture)-$(Configuration)\lib</AdditionalLibraryDirectories>
     </Link>
+    <PostBuildEvent>
+      <Command>copy /y "$(ProjectDir)session.cfg" "$(SolutionDir)$(LibrariesArchitecture)\$(Configuration)\session.cfg"</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -171,6 +174,9 @@
       <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);quickfix.lib;common.lib</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(SolutionDir)$(LibrariesArchitecture)\$(Configuration);$(SolutionDir)third-parties\quickfix\$(LibrariesArchitecture)-$(Configuration)\lib</AdditionalLibraryDirectories>
     </Link>
+    <PostBuildEvent>
+      <Command>copy /y "$(ProjectDir)session.cfg" "$(SolutionDir)$(LibrariesArchitecture)\$(Configuration)\session.cfg"</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="application.cpp" />

@@ -1,6 +1,9 @@
 [zorro]
-internal_order_id_start=1000
-dump_bars_to_file = false
+internal_order_id_start = 1000
+convert_tick_to_bar_history_request = true
+dump_bars_to_file = true
+dump_ticks_to_file = true
+
 
 [log]
 spdlog_level = "debug"
@@ -14,7 +17,7 @@ login_waiting_time_ms = 10000
 exec_report_waiting_time_ms = 1000
 termination_waiting_time_ms = 2000
 
-["fxcm"]
+[fxcm]
 connection = "Demo"
 fxcm_market_data_server_host = "http://localhost"
 fxcm_market_data_server_port = 8083
