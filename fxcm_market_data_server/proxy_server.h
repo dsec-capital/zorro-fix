@@ -601,7 +601,7 @@ namespace fxcm {
                                                 auto ns = common::date_to_nanos(dt);
                                                 ns = align(ns, tf_multiplier);
 
-                                                auto row = std::format("{},{},{},{},{},{},{},{},{}",
+                                                auto row = std::format("{},{},{},{},{},{},{},{},{},{}",
                                                     common::to_string(ns),
                                                     format.formatDouble(reader->getBidOpen(i), 5),
                                                     format.formatDouble(reader->getBidHigh(i), 5),
