@@ -5,7 +5,7 @@ REM Copy files to Zorro installation
 ECHO Install scripts to Zorro directory %ZorroInstallDir%
 
 IF "%ZorroInstallDir%" == "" (
-  GOTO :env_error
+  GOTO env_error
 )
 
 SET SCRIPT_DIR=%~dp0
