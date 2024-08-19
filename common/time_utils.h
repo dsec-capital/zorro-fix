@@ -19,6 +19,10 @@ namespace common {
     constexpr auto SECONDS_PER_MINUTE = 60;
     constexpr auto SECONDS_PER_HOURS = 3600;
 
+    static inline constexpr std::chrono::nanoseconds NS_PER_SECOND = 1000000000ns;
+    static inline constexpr std::chrono::nanoseconds NS_PER_MINUTE = 60000000000ns;
+    static inline constexpr std::chrono::nanoseconds NS_PER_DAY = 86400000000000ns;
+
     inline double nanos_to_date(const std::chrono::nanoseconds& t) {
         auto ns = t.count();
         return (double)ns / NANOS_PER_DAY + DAYS_BETWEEN_1899_12_30_1979_01_01;

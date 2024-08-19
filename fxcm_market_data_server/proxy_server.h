@@ -44,6 +44,49 @@ namespace fxcm {
         return res;
     }
 
+    template<typename T>
+    static T align(T ns, T dt) {
+        return common::round_down(ns + dt / 2, dt);
+    }
+
+    /*
+        t Ticks t1 - ticks.
+        m Minutes m1 - 1 minute, m5 - 5 minutes, m30 - 30 minutes.
+        H Hours H1 - 1 hour, H6 - 6 hours, H12 - 12 hours.
+        D Days D1 - 1 day.
+        W Weeks W1 - 1 week.
+        M Months M1 - 1 month.
+    */                  
+    std::chrono::nanoseconds time_frame_ns(const std::string& tf) {
+        if (tf == "m1") {
+            return common::NS_PER_MINUTE;
+        }
+        else if (tf == "m5") {
+            return 5*common::NS_PER_MINUTE;
+        }
+        else if (tf == "m30") {
+            return 30 * common::NS_PER_MINUTE;
+        }
+        else if (tf == "H1") {
+            return 60 * common::NS_PER_MINUTE;
+        }
+        else if (tf == "H6") {
+            return 6 * 60 * common::NS_PER_MINUTE;
+        }
+        else if (tf == "H12") {
+            return 12 * 60 * common::NS_PER_MINUTE;
+        }
+        else if (tf == "D1") {
+            return 24 * 60 * common::NS_PER_MINUTE;
+        }
+        else if (tf == "W1") {
+            return 7 * 24 * 60 * common::NS_PER_MINUTE;
+        }
+        else {
+            return std::chrono::nanoseconds(0);
+        }
+    }
+
     class ProxyServer {
 
         int server_port;
@@ -437,7 +480,195 @@ namespace fxcm {
                     res.set_content(j.dump(), "application/json");
                 }
             });
-            
+
+            // for example http://localhost:8083/bars?symbol=EUR/USD&from=2024-06-18 00:00:00&timeframe=m1
+            server.Get("/csv_bars", [this](const Request& req, Response& res) {
+                std::string symbol = "nan";
+
+                try {
+                    if (!ready) {
+                        throw std::runtime_error("server not ready!");
+                    }
+
+                    std::stringstream msg;
+                    msg << "<==== /csv_bars";
+
+                    std::string timeframe = "m1";
+                    auto tf_multiplier = common::NS_PER_MINUTE;
+                    std::chrono::nanoseconds from{ 0 };
+                    auto to = common::get_current_system_clock();
+
+                    if (req.has_param("symbol")) {
+                        symbol = req.get_param_value("symbol");
+                        msg << std::format(" symbol={}", symbol);
+                    }
+                    if (req.has_param("from")) {
+                        auto from_param = req.get_param_value("from");
+                        from = common::parse_datetime(from_param);
+                        msg << std::format(" from={}", from_param);
+                    }
+                    if (req.has_param("to")) {
+                        auto to_param = req.get_param_value("to");
+                        to = common::parse_datetime(to_param);
+                        msg << std::format(" to={}", to_param);
+                    }
+                    if (req.has_param("timeframe")) {
+                        auto timeframe = req.get_param_value("timeframe");
+                        msg << std::format(" timeframe={}", timeframe);
+                        tf_multiplier = time_frame_ns(timeframe);
+                    }
+
+                    if (tf_multiplier == std::chrono::nanoseconds(0)) {
+                        throw std::runtime_error(std::format("invalid timeframe {}", timeframe));
+                    }
+
+                    spdlog::info(msg.str());
+                    std::vector<std::string> bars;
+                    auto date_from = common::nanos_to_date(from);
+                    auto date_to = common::nanos_to_date(to);
+                    auto quotes_count = 0;
+
+                    O2G2Ptr<CommunicatorStatusListener> communicatorStatusListener(new CommunicatorStatusListener());
+                    communicator->addStatusListener(communicatorStatusListener);
+
+                    bool has_error = false;
+                    std::string error_message;
+
+                    if (communicator->isReady() || communicatorStatusListener->waitEvents() && communicatorStatusListener->isReady())
+                    {
+                        O2G2Ptr<ResponseListener> responseListener(new ResponseListener());
+                        communicator->addListener(responseListener);
+
+                        O2G2Ptr<IO2GTimeframe> timeframeObj = create_timeframe_object(communicator, timeframe);
+                        if (!timeframeObj)
+                        {
+                            error_message = std::format("timeframe {} incorrect", timeframe);
+                            has_error = true;
+                        }
+
+                        pricehistorymgr::IError* error = NULL;
+                        O2G2Ptr<pricehistorymgr::IPriceHistoryCommunicatorRequest> request = communicator->createRequest(
+                            symbol.c_str(), timeframeObj, date_from, date_to, quotes_count, &error
+                        );
+                        O2G2Ptr<pricehistorymgr::IError> autoError(error);
+                        if (!request)
+                        {
+                            error_message = std::format("failed to create request {}", error ? error->getMessage() : "unknown error");
+                            has_error = true;
+                        }
+
+                        responseListener->setRequest(request);
+                        if (!communicator->sendRequest(request, &error))
+                        {
+                            error_message = std::format("failed to send request {}", error ? error->getMessage() : "unknown error");
+                            has_error = true;
+                        }
+
+                        if (!has_error)
+                        {
+                            responseListener->wait();
+
+                            O2G2Ptr<pricehistorymgr::IPriceHistoryCommunicatorResponse> response = responseListener->getResponse();
+                            if (response) {
+                                pricehistorymgr::IError* error = NULL;
+                                O2G2Ptr<IO2GMarketDataSnapshotResponseReader> reader = communicator->createResponseReader(response, &error);
+                                O2G2Ptr<pricehistorymgr::IError> autoError(error);
+                                if (reader) {
+                                    if (!reader->isBar())
+                                    {
+                                        error_message = std::format("failded sending request - expected bars");
+                                        has_error = true;
+                                    }
+                                    else {
+                                        auto n = reader->size();
+
+                                        if (n > 0) {
+                                            LocalFormat format;
+
+                                            spdlog::info(
+                                                "{} bars from {} to {} in request interval from {} to {}",
+                                                n, format.formatDate(reader->getDate(0)), format.formatDate(reader->getDate(n - 1)),
+                                                format.formatDate(date_from), format.formatDate(date_to)
+                                            );
+
+                                            for (int i = 0; i < n; ++i) {
+                                                DATE dt = reader->getDate(i); // beginning of the bar
+
+                                                if (dt < date_from) {
+                                                    continue;
+                                                }
+
+                                                auto ns = common::date_to_nanos(dt);
+                                                ns = align(ns, tf_multiplier);
+
+                                                auto row = std::format("{},{},{},{},{},{},{},{},{}",
+                                                    common::to_string(ns),
+                                                    format.formatDouble(reader->getBidOpen(i), 5),
+                                                    format.formatDouble(reader->getBidHigh(i), 5),
+                                                    format.formatDouble(reader->getBidLow(i), 5),
+                                                    format.formatDouble(reader->getBidClose(i), 5),
+                                                    format.formatDouble(reader->getAskOpen(i), 5),
+                                                    format.formatDouble(reader->getAskHigh(i), 5),
+                                                    format.formatDouble(reader->getAskLow(i), 5),
+                                                    format.formatDouble(reader->getAskClose(i), 5),
+                                                    format.formatDouble(reader->getVolume(i), 5)
+                                                );
+                                        
+                                                bars.emplace_back(row);
+                                            }
+                                        }
+                                    }
+                                }
+                                else {
+                                    error_message = std::format("failed to create reader {}", error ? error->getMessage() : "unknown error");
+                                    has_error = true;
+                                }
+                            }
+                        }
+
+                        communicator->removeListener(responseListener);
+                    }
+                    else {
+                        error_message = std::format("communicator not ready or status listener timeout");
+                        has_error = true;
+                    }
+
+                    communicator->removeStatusListener(communicatorStatusListener);
+                    statusListener->reset();
+
+                    if (!has_error) {
+                        std::stringstream ss;
+                        ss << "timestamp,bid_open,bid_high,bid_low,bid_close,ask_open,ask_high,ask_low,ask_close,volume";
+                        for (const auto& row : bars) {
+                            ss << std::endl << row;
+                        }
+                        res.set_content(ss.str(), "application/text");
+                    }
+                    else {
+                        throw std::runtime_error(error_message);
+                    }
+
+                    spdlog::info("fetched {} number of bars", bars.size());
+                }
+                catch (...) {
+                    std::string what = "unknown exception";
+                    std::exception_ptr ex = std::current_exception();
+                    try {
+                        std::rethrow_exception(ex);
+                    }
+                    catch (std::exception const& e) {
+                        what = e.what();
+                    }
+                    catch (...) {}
+                    auto error = std::format("error: no bar data for {} error={}", symbol, what);
+                    spdlog::error(error);
+
+                    json j;
+                    j["error"] = error;
+                    res.set_content(j.dump(), "application/json");
+                }
+                });
+
             // for example http://localhost:8083/ticks?symbol=EUR/USD&from=2024-06-27 00:00:00 
             // http://localhost:8083/ticks?symbol=EUR/USD&count=300 
             server.Get("/ticks", [this](const Request& req, Response& res) {                
